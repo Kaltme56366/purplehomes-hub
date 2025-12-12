@@ -47,9 +47,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  // Type guard for GHL_LOCATION_ID
-  if (!GHL_LOCATION_ID) {
-    return res.status(500).json({ error: 'GHL_LOCATION_ID not configured' });
+  if (!GHL_API_KEY || !GHL_LOCATION_ID) {
+    return res.status(500).json({ 
+      error: 'GHL API credentials not configured',
+      missing: {
+        GHL_API_KEY: !GHL_API_KEY,
+        GHL_LOCATION_ID: !GHL_LOCATION_ID
+      }
+    });
   }
 
   const headers = {
@@ -66,75 +71,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ============ CONTACTS ============
     // Scopes: contacts.readonly, contacts.write
+    // Uses Search Contacts API (recommended endpoint replacing deprecated GET contacts/)
     if (resource === 'contacts') {
       if (method === 'GET') {
+        // Get single contact by ID
         if (id) {
           const response = await fetch(`${GHL_API_URL}/contacts/${id}`, { headers });
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
-        }
-        
-        // Simple approach: Use GET /contacts/ with pagination
-        // This was working before - just needed to add limit and handle pagination
-        const requestedLimit = query.limit ? parseInt(query.limit as string) : 10000;
-        
-        let allContacts: any[] = [];
-        let nextPageUrl: string | undefined;
-        let pageCount = 0;
-        const maxPages = 100;
-        
-        console.log(`[GHL Contacts] Fetching contacts with limit=${requestedLimit}`);
-        
-        // Build initial request URL
-        let currentUrl = `${GHL_API_URL}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
-        
-        while (pageCount < maxPages && allContacts.length < requestedLimit) {
-          console.log(`[GHL Contacts] Fetching page ${pageCount + 1}:`, currentUrl);
-          
-          const response = await fetch(currentUrl, { method: 'GET', headers });
-          
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error('[GHL Contacts] Error:', errorData);
-            
-            // If first page fails, return error
-            if (pageCount === 0) {
-              return res.status(response.status).json(errorData);
-            }
-            
-            // Otherwise, return what we have
-            console.warn(`[GHL Contacts] Page ${pageCount + 1} failed, returning ${allContacts.length} contacts`);
-            break;
-          }
-          
           const data = await response.json();
-          const contacts = data.contacts || [];
-          
-          console.log(`[GHL Contacts] Page ${pageCount + 1}: Got ${contacts.length} contacts`);
-          
-          if (contacts.length === 0) break;
-          
-          allContacts = allContacts.concat(contacts);
-          pageCount++;
-          
-          // Check for next page URL in meta
-          if (data.meta?.nextPageUrl) {
-            currentUrl = data.meta.nextPageUrl;
-          } else {
-            // No more pages
-            break;
+          return res.status(response.ok ? 200 : response.status).json(data);
+        }
+        
+        // List/search contacts using Search API
+        // https://marketplace.gohighlevel.com/docs/ghl/contacts/search-contacts-advanced
+        const limit = query.limit ? parseInt(query.limit as string) : 100;
+        const searchQuery = query.query as string;
+        const contactType = query.type as string;
+        const startAfterId = query.startAfterId as string;
+        const startAfter = query.startAfter as string;
+        
+        // Build search payload - ONLY add fields that have values
+        const searchPayload: any = {
+          locationId: GHL_LOCATION_ID,
+          limit,
+        };
+        
+        // Add pagination cursors only if provided
+        if (startAfterId) searchPayload.startAfterId = startAfterId;
+        if (startAfter) searchPayload.startAfter = parseInt(startAfter);
+        
+        // Add search query ONLY if provided and not empty
+        // GHL validates that query is substantial if included
+        if (searchQuery && searchQuery.trim().length > 0) {
+          searchPayload.query = searchQuery.trim();
+        }
+        
+        // Add filters for contact type (using tags) ONLY if provided
+        if (contactType && contactType !== 'all') {
+          searchPayload.tags = [contactType];
+        }
+        
+        // Use Search Contacts endpoint (POST method for advanced search)
+        const response = await fetch(`${GHL_API_URL}/contacts/search`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(searchPayload)
+        });
+        
+        const data = await response.json();
+        
+        // Transform response to match expected format
+        return res.status(response.ok ? 200 : response.status).json({
+          contacts: data.contacts || [],
+          meta: data.meta || {
+            total: data.contacts?.length || 0,
+            nextPage: data.meta?.nextPageUrl,
+            startAfterId: data.meta?.startAfterId,
+            startAfter: data.meta?.startAfter,
           }
-        }
-        
-        // Trim to requested limit if needed
-        if (allContacts.length > requestedLimit) {
-          allContacts = allContacts.slice(0, requestedLimit);
-        }
-        
-        console.log(`[GHL Contacts] ✅ Returning ${allContacts.length} contacts (${pageCount} pages)`);
-        
-        return res.status(200).json({ 
-          contacts: allContacts,
-          meta: { total: allContacts.length, pages: pageCount }
         });
       }
       
