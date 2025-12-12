@@ -169,10 +169,10 @@ export const useContacts = (params?: {
       ...(params?.type && { type: params.type }),
       ...(params?.limit && { limit: params.limit.toString() }),
     })}`),
-    enabled: !!getApiConfig().apiKey,
-    staleTime: 30 * 1000, // 30 seconds
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    refetchInterval: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
   });
 };
 
@@ -306,12 +306,14 @@ export const useOpportunities = (pipelineType: PipelineType = 'seller-acquisitio
       );
       return data.opportunities;
     },
-    enabled: !!getApiConfig().apiKey,
-    staleTime: 30 * 1000, // 30 seconds - data is considered fresh for 30s
-    refetchOnWindowFocus: true, // Refetch when user comes back to tab
-    refetchInterval: 2 * 60 * 1000, // Auto-refetch every 2 minutes (less aggressive)
-    retry: 2, // Retry failed requests twice
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    // Removed enabled check - API key should be in environment variables
+    // If API key is missing, the fetch will fail and retry logic will handle it
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    refetchInterval: 2 * 60 * 1000,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 };
 
@@ -352,10 +354,10 @@ export const useProperties = (pipelineId: string = SELLER_ACQUISITION_PIPELINE_I
         properties: data.opportunities.map(transformOpportunityToProperty),
       };
     },
-    enabled: !!getApiConfig().apiKey,
-    staleTime: 30 * 1000,
+    staleTime: 0,
+    refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    refetchInterval: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
   });
 };
 
