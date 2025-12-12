@@ -25,28 +25,37 @@ import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// GHL stage IDs mapped to our stage keys
-const stages: { id: SellerAcquisitionStage; label: string; color: string; ghlStageId?: string }[] = [
-  { id: 'new-lead', label: 'New Lead', color: 'bg-blue-500' },
-  { id: 'discovery', label: 'Discovery', color: 'bg-cyan-500' },
-  { id: 'booked-call', label: 'Booked Call', color: 'bg-purple-500' },
-  { id: 'follow-up', label: 'Follow Up', color: 'bg-indigo-500' },
-  { id: 'active-conversation', label: 'Active Conversation', color: 'bg-violet-500' },
-  { id: 'vetted', label: 'Vetted', color: 'bg-pink-500' },
-  { id: 'underwriting', label: 'Underwriting', color: 'bg-rose-500' },
-  { id: 'offer-made', label: 'Offer Made', color: 'bg-amber-500' },
-  { id: 'offer-follow-up', label: 'Offer Follow Up', color: 'bg-orange-500' },
-  { id: 'automated-nurture', label: 'Automated Nurture', color: 'bg-lime-500' },
-  { id: 'negotiating', label: 'Negotiating', color: 'bg-teal-500' },
-  { id: 'long-term-follow-up', label: 'Long-term Follow Up', color: 'bg-emerald-500' },
-  { id: 'cold-nurture', label: 'Cold Nurture', color: 'bg-slate-500' },
-  { id: 'closed-acquired', label: 'Closed - Acquired', color: 'bg-green-500' },
-  { id: 'lost', label: 'Lost', color: 'bg-gray-500' },
-];
+// Map GHL stage IDs to our stage types - USING ACTUAL STAGE IDs FROM ACQUISITION SELLER PIPELINE
+const stageIdMap: Record<string, SellerAcquisitionStage> = {
+  'ae1ddba7-19d2-4ea9-9a33-58fc37b1c5b2': 'new-lead',
+  '54bd52e5-5ae1-4391-bf8b-044a9cc936b6': 'discovery',
+  '280a212b-5f9f-45ac-b7bb-17aee00ddbd0': 'booked-call',
+  '4ce5e7e4-9ad2-4aad-a0c2-9cf29f4a0aa6': 'follow-up',
+  '8d7057d2-c941-4187-bdf2-7925a8cafd0a': 'vetted',
+  '1e404ae6-2d40-42d1-b006-0cfa89870ae0': 'underwriting',
+  'fe60854c-b236-4dd2-8e54-8e0e9bf4b940': 'offer-made',
+  'ad6facf4-2a79-49a6-8a9f-ef368874b6d1': 'offer-follow-up',
+  '70a1ab3d-b492-441a-ade9-5cd7e99d556a': 'negotiating',
+  '941984e3-bc1f-4744-a27b-0ff3d79a3969': 'long-term-follow-up',
+  'c62fba13-2975-4fdf-8fa3-ab0de5c5c912': 'cold-nurture',
+  'c07610dc-3293-45f7-b8ba-dd1de4426e24': 'lost', // Won / Lost stage
+};
 
-// Map GHL stage IDs to our stage keys (will be populated from API response)
-const stageIdToKey: Record<string, SellerAcquisitionStage> = {};
-const stageKeyToId: Record<SellerAcquisitionStage, string> = {} as Record<SellerAcquisitionStage, string>;
+// GHL stage IDs mapped to our stage keys
+const stages: { id: SellerAcquisitionStage; label: string; color: string; ghlId: string }[] = [
+  { id: 'new-lead', label: 'New Lead', color: 'bg-blue-500', ghlId: 'ae1ddba7-19d2-4ea9-9a33-58fc37b1c5b2' },
+  { id: 'discovery', label: 'Discovery', color: 'bg-cyan-500', ghlId: '54bd52e5-5ae1-4391-bf8b-044a9cc936b6' },
+  { id: 'booked-call', label: 'Booked Call', color: 'bg-purple-500', ghlId: '280a212b-5f9f-45ac-b7bb-17aee00ddbd0' },
+  { id: 'follow-up', label: 'Follow Up', color: 'bg-indigo-500', ghlId: '4ce5e7e4-9ad2-4aad-a0c2-9cf29f4a0aa6' },
+  { id: 'vetted', label: 'Vetted', color: 'bg-pink-500', ghlId: '8d7057d2-c941-4187-bdf2-7925a8cafd0a' },
+  { id: 'underwriting', label: 'Underwriting', color: 'bg-rose-500', ghlId: '1e404ae6-2d40-42d1-b006-0cfa89870ae0' },
+  { id: 'offer-made', label: 'Offer Made', color: 'bg-amber-500', ghlId: 'fe60854c-b236-4dd2-8e54-8e0e9bf4b940' },
+  { id: 'offer-follow-up', label: 'Offer Follow Up', color: 'bg-orange-500', ghlId: 'ad6facf4-2a79-49a6-8a9f-ef368874b6d1' },
+  { id: 'negotiating', label: 'Negotiating', color: 'bg-teal-500', ghlId: '70a1ab3d-b492-441a-ade9-5cd7e99d556a' },
+  { id: 'long-term-follow-up', label: 'Follow Up Long Term Nurture', color: 'bg-emerald-500', ghlId: '941984e3-bc1f-4744-a27b-0ff3d79a3969' },
+  { id: 'cold-nurture', label: 'Cold Nurture', color: 'bg-slate-500', ghlId: 'c62fba13-2975-4fdf-8fa3-ab0de5c5c912' },
+  { id: 'lost', label: 'Won / Lost', color: 'bg-gray-500', ghlId: 'c07610dc-3293-45f7-b8ba-dd1de4426e24' },
+];
 
 interface SellerAcquisition {
   id: string;
@@ -67,7 +76,7 @@ interface SellerAcquisition {
 }
 
 // Transform GHL opportunity to SellerAcquisition
-const transformToSellerAcquisition = (opp: GHLOpportunity, stageIndex: number): SellerAcquisition => {
+const transformToSellerAcquisition = (opp: GHLOpportunity): SellerAcquisition => {
   const getCustomField = (fieldKey: string): string => {
     const field = opp.customFields?.find(
       (cf) => cf.id?.includes(fieldKey)
@@ -75,13 +84,13 @@ const transformToSellerAcquisition = (opp: GHLOpportunity, stageIndex: number): 
     return typeof field?.fieldValue === 'string' ? field.fieldValue : '';
   };
 
-  // Map stage index to our stage key
-  const stageKey = stages[Math.min(stageIndex, stages.length - 1)]?.id || 'new-lead';
+  // Map the GHL stage ID directly to our stage
+  const stage = stageIdMap[opp.pipelineStageId] || 'new-lead';
   
   return {
     id: opp.id,
     ghlStageId: opp.pipelineStageId,
-    stage: stageKey,
+    stage,
     sellerName: opp.name || opp.contact?.name || 'Unknown Seller', // Opportunity name first
     propertyAddress: getCustomField('address') || '',
     city: getCustomField('city') || '',
@@ -108,32 +117,11 @@ export default function SellerAcquisitions() {
   const updateStageMutation = useUpdateOpportunityStage();
 
   // Build stage mappings from opportunities
-  const stageMapping = useMemo(() => {
-    if (!opportunities?.length) return { idToKey: {}, keyToId: {} };
-    
-    const uniqueStageIds = [...new Set(opportunities.map(o => o.pipelineStageId))];
-    const idToKey: Record<string, SellerAcquisitionStage> = {};
-    const keyToId: Record<string, string> = {};
-    
-    uniqueStageIds.forEach((stageId, index) => {
-      const stageKey = stages[Math.min(index, stages.length - 1)]?.id || 'new-lead';
-      idToKey[stageId] = stageKey;
-      keyToId[stageKey] = stageId;
-    });
-    
-    return { idToKey, keyToId };
-  }, [opportunities]);
-
   // Transform opportunities to acquisitions
   const acquisitions = useMemo(() => {
     if (!opportunities) return [];
-    
-    return opportunities.map(opp => {
-      const stageKey = stageMapping.idToKey[opp.pipelineStageId] || 'new-lead';
-      const stageIndex = stages.findIndex(s => s.id === stageKey);
-      return transformToSellerAcquisition(opp, stageIndex >= 0 ? stageIndex : 0);
-    });
-  }, [opportunities, stageMapping]);
+    return opportunities.map(transformToSellerAcquisition);
+  }, [opportunities]);
 
   const filteredAcquisitions = useMemo(() => {
     if (!search) return acquisitions;
@@ -164,22 +152,20 @@ export default function SellerAcquisitions() {
     e.preventDefault();
     if (!draggedItem) return;
 
-    const targetStageId = stageMapping.keyToId[targetStage as SellerAcquisitionStage];
-    if (!targetStageId) {
+    const targetStageConfig = stages.find(s => s.id === targetStage);
+    if (!targetStageConfig) {
       toast.error('Unable to find target stage');
       setDraggedItem(null);
       return;
     }
-
-    const stageLabel = stages.find((s) => s.id === targetStage)?.label;
     
     try {
       await updateStageMutation.mutateAsync({
         opportunityId: draggedItem.id,
-        stageId: targetStageId,
+        stageId: targetStageConfig.ghlId,
         pipelineType: 'seller-acquisition',
       });
-      toast.success(`Moved to ${stageLabel}`);
+      toast.success(`Moved to ${targetStageConfig.label}`);
     } catch (err) {
       toast.error('Failed to update stage in GHL');
     }
@@ -189,19 +175,13 @@ export default function SellerAcquisitions() {
 
   const moveToNextStage = async (acquisition: SellerAcquisition) => {
     const currentIndex = stages.findIndex((s) => s.id === acquisition.stage);
-    if (currentIndex < stages.length - 2) {
+    if (currentIndex < stages.length - 1) {
       const nextStage = stages[currentIndex + 1];
-      const nextStageId = stageMapping.keyToId[nextStage.id];
-      
-      if (!nextStageId) {
-        toast.error('Unable to find next stage');
-        return;
-      }
 
       try {
         await updateStageMutation.mutateAsync({
           opportunityId: acquisition.id,
-          stageId: nextStageId,
+          stageId: nextStage.ghlId,
           pipelineType: 'seller-acquisition',
         });
         toast.success(`Moved to ${nextStage.label}`);
@@ -213,20 +193,15 @@ export default function SellerAcquisitions() {
 
   const markAsLost = async (acquisition: SellerAcquisition) => {
     const lostStage = stages.find(s => s.id === 'lost');
-    const lostStageId = stageMapping.keyToId['lost'];
+    if (!lostStage) return;
     
-    if (!lostStageId) {
-      toast.error('Unable to find lost stage');
-      return;
-    }
-
     try {
       await updateStageMutation.mutateAsync({
         opportunityId: acquisition.id,
-        stageId: lostStageId,
+        stageId: lostStage.ghlId,
         pipelineType: 'seller-acquisition',
       });
-      toast.info('Marked as Lost');
+      toast.success('Marked as Lost');
     } catch (err) {
       toast.error('Failed to update stage in GHL');
     }
