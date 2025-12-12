@@ -16,10 +16,10 @@ export const ACQUISITION_PIPELINE_ID = SELLER_ACQUISITION_PIPELINE_ID;
 // Types for GHL API responses
 export interface GHLContact {
   id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
   tags: string[];
   customFields: Record<string, string>;
   dateAdded: string;

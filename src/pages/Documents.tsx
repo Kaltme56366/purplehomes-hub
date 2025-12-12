@@ -144,12 +144,9 @@ export default function Documents() {
     recipientEmail: '',
   });
 
-  // Check GHL connection (either in localStorage or working via env vars)
+  // Check GHL connection
   const ghlConfig = getApiConfig();
   const hasLocalConfig = !!(ghlConfig.apiKey && ghlConfig.locationId);
-  
-  // If templates load successfully from GHL, we're connected (even if no local config)
-  const isGhlConnected = hasLocalConfig || (!isLoadingTemplates && templatesData?.templates);
 
   // Get custom fields from GHL
   const { data: ghlCustomFields } = useCustomFields('opportunity');
@@ -157,6 +154,9 @@ export default function Documents() {
   // Get templates and documents from GHL
   const { data: templatesData, isLoading: isLoadingTemplates } = useDocumentTemplates();
   const { data: documentsData, isLoading: isLoadingDocuments, refetch: refetchDocuments } = useDocuments();
+  
+  // If templates load successfully from GHL, we're connected (even if no local config)
+  const isGhlConnected = hasLocalConfig || (!isLoadingTemplates && templatesData?.templates);
   
   // Mutations
   const createDocument = useCreateDocument();

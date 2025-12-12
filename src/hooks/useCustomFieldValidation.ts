@@ -105,7 +105,11 @@ export function useCustomFieldValidation(model: 'contact' | 'opportunity' | 'all
         
         if (!ghlField) {
           return {
-            ...expected,
+            fieldKey: expected.fieldKey,
+            name: expected.name,
+            expectedType: expected.type,
+            required: expected.required,
+            usedIn: expected.usedIn,
             status: 'missing' as const,
           };
         }
@@ -114,7 +118,11 @@ export function useCustomFieldValidation(model: 'contact' | 'opportunity' | 'all
         const typeMatches = ghlField.dataType?.toUpperCase() === expected.type;
         
         return {
-          ...expected,
+          fieldKey: expected.fieldKey,
+          name: expected.name,
+          expectedType: expected.type,
+          required: expected.required,
+          usedIn: expected.usedIn,
           status: typeMatches ? 'found' as const : 'type_mismatch' as const,
           actualType: ghlField.dataType,
           ghlFieldId: ghlField.id,

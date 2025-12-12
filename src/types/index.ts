@@ -233,7 +233,19 @@ export interface SellerAcquisition {
 }
 
 // Unified Contact (GHL-ready)
-export type ContactType = 'seller' | 'buyer' | 'agent' | 'wholesaler';
+export type ContactType = 
+  | 'buyer' 
+  | 'seller' 
+  | 'agent' 
+  | 'wholesaler'
+  | 'buyer-representative'
+  | 'contractor'
+  | 'private-money-lender'
+  | 'institutional-lender'
+  | 'owner'
+  | 'unknown'
+  | 'other';
+  
 export type ContactStatus = 'active' | 'inactive' | 'pending' | 'closed';
 
 export interface Contact {

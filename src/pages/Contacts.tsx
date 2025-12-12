@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { 
   Search, 
   Filter, 
@@ -23,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -55,7 +56,6 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { mockContacts } from '@/data/mockData';
 import type { Contact, ContactType, ContactStatus } from '@/types';
@@ -72,12 +72,18 @@ import {
 } from '@/services/ghlApi';
 import { useAppStore } from '@/store/useAppStore';
 
-const SMART_LISTS: { value: ContactType | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Contacts' },
-  { value: 'seller', label: 'Sellers' },
+const SMART_LISTS: { value: ContactType; label: string }[] = [
   { value: 'buyer', label: 'Buyers' },
-  { value: 'agent', label: 'Agents' },
+  { value: 'seller', label: 'Sellers' },
   { value: 'wholesaler', label: 'Wholesalers' },
+  { value: 'agent', label: 'Real Estate Agents' },
+  { value: 'buyer-representative', label: 'Buyer Representatives' },
+  { value: 'owner', label: 'Owners' },
+  { value: 'contractor', label: 'Contractors' },
+  { value: 'private-money-lender', label: 'Private Money Lenders' },
+  { value: 'institutional-lender', label: 'Institutional Lenders' },
+  { value: 'unknown', label: 'Unknown' },
+  { value: 'other', label: 'Other' },
 ];
 
 const STATUS_OPTIONS: ContactStatus[] = ['active', 'inactive', 'pending', 'closed'];
@@ -87,7 +93,7 @@ type SortOrder = 'asc' | 'desc';
 
 export default function Contacts() {
   const { connectionStatus } = useAppStore();
-  const [smartList, setSmartList] = useState<ContactType | 'all'>('all');
+  const [smartList, setSmartList] = useState<ContactType>('buyer');
   const [search, setSearch] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [statusFilter, setStatusFilter] = useState<ContactStatus | 'all'>('all');
@@ -98,6 +104,7 @@ export default function Contacts() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [currentLimit, setCurrentLimit] = useState(100);
   const [newContact, setNewContact] = useState({
     firstName: '',
     lastName: '',
@@ -109,14 +116,11 @@ export default function Contacts() {
     notes: ''
   });
 
-  // Check if GHL is configured (either in localStorage or working via env vars)
+  // Check if GHL is configured
   const ghlConfig = getApiConfig();
   const hasLocalConfig = !!(ghlConfig.apiKey && ghlConfig.locationId);
-  
-  // If data loads successfully from GHL, we're connected (even if no local config)
-  const isGhlConnected = hasLocalConfig || (!isLoadingContacts && !isContactsError && ghlContactsData?.contacts);
 
-  // GHL API hooks
+  // GHL API hooks - always filter by type (no "all contacts")
   const { 
     data: ghlContactsData, 
     isLoading: isLoadingContacts, 
@@ -124,8 +128,12 @@ export default function Contacts() {
     refetch: refetchContacts 
   } = useContacts({ 
     query: search || undefined,
-    type: smartList !== 'all' ? smartList : undefined 
+    type: smartList, // Always filter by selected type
+    limit: currentLimit
   });
+  
+  // If data loads successfully from GHL, we're connected (even if no local config)
+  const isGhlConnected = hasLocalConfig || (!isLoadingContacts && !isContactsError && ghlContactsData?.contacts);
   
   const syncContacts = useSyncContacts();
   const sendEmail = useSendEmail();
@@ -136,27 +144,99 @@ export default function Contacts() {
   const ghlContacts: Contact[] = useMemo(() => {
     if (!isGhlConnected || !ghlContactsData?.contacts) return [];
     
-    return ghlContactsData.contacts.map((c: GHLContact): Contact => ({
-      id: c.id,
-      ghlContactId: c.id,
-      name: `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
-      firstName: c.firstName,
-      lastName: c.lastName,
-      email: c.email,
-      phone: c.phone,
-      type: (c.customFields?.contactType as ContactType) || 'buyer',
-      status: (c.customFields?.status as ContactStatus) || 'active',
-      tags: c.tags || [],
-      zipCodes: c.customFields?.zipCodes?.split(',').map((z: string) => z.trim()) || [],
-      dealsClosed: parseInt(c.customFields?.dealsClosed || '0') || 0,
-      transactionValue: parseFloat(c.customFields?.transactionValue || '0') || 0,
-      createdAt: c.dateAdded,
-      lastActivityAt: c.lastActivity,
-      company: c.customFields?.company,
-      isFavorite: c.customFields?.isFavorite === 'true',
-      markets: c.customFields?.markets?.split(',').map((m: string) => m.trim()) || [],
-      updatedAt: c.lastActivity || c.dateAdded
-    }));
+    return ghlContactsData.contacts
+      .map((c: GHLContact): Contact | null => {
+        const firstName = c.firstName || '';
+        const lastName = c.lastName || '';
+        const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
+        
+        // Get lead type from custom field (ID: 3rhpAE0UxnesZ78gMXZF)
+        const leadTypeField = c.customFields?.find((cf: { id: string; fieldKey?: string; fieldValue: any }) => 
+          cf.id === '3rhpAE0UxnesZ78gMXZF' || cf.fieldKey === 'contact.lead_type'
+        );
+        const leadTypeValue = leadTypeField?.fieldValue;
+        
+        // Skip contacts without lead_type
+        if (!leadTypeValue || typeof leadTypeValue !== 'string') {
+          return null;
+        }
+        
+        // Map exact GHL lead type values to contact type
+        let contactType: ContactType;
+        const lowerType = leadTypeValue.toLowerCase();
+        
+        // Map all picklist options
+        switch (lowerType) {
+          case 'seller':
+            contactType = 'seller';
+            break;
+          case 'buyer':
+            contactType = 'buyer';
+            break;
+          case 'buyer representative':
+            contactType = 'buyer-representative';
+            break;
+          case 'wholesalers':
+            contactType = 'wholesaler';
+            break;
+          case 'real estate agent':
+            contactType = 'agent';
+            break;
+          case 'owner':
+            contactType = 'owner';
+            break;
+          case 'contractor':
+            contactType = 'contractor';
+            break;
+          case 'private money lender':
+            contactType = 'private-money-lender';
+            break;
+          case 'institutional lender':
+            contactType = 'institutional-lender';
+            break;
+          case 'unknown':
+            contactType = 'unknown';
+            break;
+          case 'other':
+            contactType = 'other';
+            break;
+          default:
+            // If it doesn't match any known type, skip it
+            return null;
+        }
+        
+        // Helper function to get custom field value
+        const getCustomField = (fieldKey: string): string | undefined => {
+          const field = c.customFields?.find((cf: { id: string; fieldKey?: string; fieldValue: any }) => 
+            cf.fieldKey === fieldKey || cf.id === fieldKey
+          );
+          const value = field?.fieldValue;
+          return typeof value === 'string' ? value : undefined;
+        };
+        
+        return {
+          id: c.id,
+          ghlContactId: c.id,
+          name: fullName,
+          firstName: c.firstName,
+          lastName: c.lastName,
+          email: c.email,
+          phone: c.phone,
+          type: contactType,
+          status: (getCustomField('contact.status') as ContactStatus) || 'active',
+          tags: c.tags || [],
+          zipCodes: getCustomField('contact.zip_codes')?.split(',').map((z: string) => z.trim()) || [],
+          dealsClosed: parseInt(getCustomField('contact.deals_closed') || '0') || 0,
+          transactionValue: parseFloat(getCustomField('contact.transaction_value') || '0') || 0,
+          createdAt: c.dateAdded,
+          lastActivityAt: c.lastActivity,
+          company: getCustomField('contact.company'),
+          isFavorite: getCustomField('contact.is_favorite') === 'true',
+          markets: getCustomField('contact.markets')?.split(',').map((m: string) => m.trim()) || [],
+          updatedAt: c.lastActivity || c.dateAdded
+        };
+      })
+      .filter((c): c is Contact => c !== null); // Remove null entries
   }, [ghlContactsData, isGhlConnected]);
 
   // Use GHL contacts if connected, otherwise fall back to mock data
@@ -166,10 +246,7 @@ export default function Contacts() {
   const filteredContacts = useMemo(() => {
     let result = [...baseContacts];
     
-    // Smart list filter (client-side when not using GHL search)
-    if (smartList !== 'all' && !isGhlConnected) {
-      result = result.filter(c => c.type === smartList);
-    }
+    // No need for smart list filter - handled by API call
     
     // Status filter
     if (statusFilter !== 'all') {
@@ -384,6 +461,13 @@ export default function Contacts() {
       case 'buyer': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
       case 'agent': return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
       case 'wholesaler': return 'bg-green-500/10 text-green-500 border-green-500/20';
+      case 'buyer-representative': return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
+      case 'owner': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+      case 'contractor': return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
+      case 'private-money-lender': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+      case 'institutional-lender': return 'bg-teal-500/10 text-teal-500 border-teal-500/20';
+      case 'unknown': return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
+      case 'other': return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
     }
   };
 
@@ -453,7 +537,7 @@ export default function Contacts() {
           </h1>
           <p className="text-muted-foreground mt-1">
             {isLoadingContacts ? 'Loading...' : `${filteredContacts.length} contacts`}
-            {smartList !== 'all' && ` in ${SMART_LISTS.find(s => s.value === smartList)?.label}`}
+            {` in ${SMART_LISTS.find(s => s.value === smartList)?.label}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -495,11 +579,6 @@ export default function Contacts() {
             className={smartList === list.value ? '' : 'text-muted-foreground'}
           >
             {list.label}
-            {list.value !== 'all' && (
-              <span className="ml-2 text-xs opacity-70">
-                ({baseContacts.filter(c => c.type === list.value).length})
-              </span>
-            )}
           </Button>
         ))}
       </div>
@@ -846,6 +925,24 @@ export default function Contacts() {
               </TableBody>
             </Table>
           </div>
+          
+          {/* Load More Button */}
+          {isGhlConnected && filteredContacts.length >= currentLimit && (
+            <div className="flex justify-center pt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setCurrentLimit(prev => prev + 100)}
+                disabled={isLoadingContacts}
+              >
+                {isLoadingContacts ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 mr-2" />
+                )}
+                Load More Contacts
+              </Button>
+            </div>
+          )}
         </>
       ) : (
         <EmptyState
@@ -915,8 +1012,15 @@ export default function Contacts() {
                   <SelectContent>
                     <SelectItem value="buyer">Buyer</SelectItem>
                     <SelectItem value="seller">Seller</SelectItem>
-                    <SelectItem value="agent">Agent</SelectItem>
                     <SelectItem value="wholesaler">Wholesaler</SelectItem>
+                    <SelectItem value="agent">Real Estate Agent</SelectItem>
+                    <SelectItem value="buyer-representative">Buyer Representative</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="contractor">Contractor</SelectItem>
+                    <SelectItem value="private-money-lender">Private Money Lender</SelectItem>
+                    <SelectItem value="institutional-lender">Institutional Lender</SelectItem>
+                    <SelectItem value="unknown">Unknown</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
