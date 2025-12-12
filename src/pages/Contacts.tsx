@@ -150,11 +150,8 @@ export default function Contacts() {
         const lastName = c.lastName || '';
         const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
         
-        // Get lead type from custom field (ID: 3rhpAE0UxnesZ78gMXZF)
-        const leadTypeField = c.customFields?.find((cf: { id: string; fieldKey?: string; fieldValue: any }) => 
-          cf.id === '3rhpAE0UxnesZ78gMXZF' || cf.fieldKey === 'contact.lead_type'
-        );
-        const leadTypeValue = leadTypeField?.fieldValue;
+        // Get lead type from custom field - customFields is a Record/object
+        const leadTypeValue = c.customFields?.['contact.lead_type'] || c.customFields?.lead_type;
         
         // Skip contacts without lead_type
         if (!leadTypeValue || typeof leadTypeValue !== 'string') {
@@ -207,10 +204,7 @@ export default function Contacts() {
         
         // Helper function to get custom field value
         const getCustomField = (fieldKey: string): string | undefined => {
-          const field = c.customFields?.find((cf: { id: string; fieldKey?: string; fieldValue: any }) => 
-            cf.fieldKey === fieldKey || cf.id === fieldKey
-          );
-          const value = field?.fieldValue;
+          const value = c.customFields?.[fieldKey] || c.customFields?.[fieldKey.replace('contact.', '')];
           return typeof value === 'string' ? value : undefined;
         };
         
