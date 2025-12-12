@@ -1,0 +1,173 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light Theme */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+    --primary: 217 91% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 217 91% 50%;
+    --radius: 0.75rem;
+    
+    /* Status Colors */
+    --status-pending: 38 92% 50%;
+    --status-posted: 160 84% 39%;
+    --status-scheduled: 217 91% 60%;
+    --status-skipped: 0 0% 42%;
+    --status-deleted: 0 84% 60%;
+    --status-processing: 262 83% 58%;
+    
+    /* Semantic */
+    --success: 160 84% 39%;
+    --warning: 38 92% 50%;
+    --error: 0 84% 60%;
+    --info: 217 91% 60%;
+    
+    /* Sidebar */
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 9%;
+    --sidebar-primary: 217 91% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 217 91% 50%;
+  }
+
+  .dark {
+    --background: 0 0% 4%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 262 83% 58%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 217 91% 60%;
+    
+    /* Status Colors */
+    --status-pending: 38 92% 50%;
+    --status-posted: 160 84% 39%;
+    --status-scheduled: 217 91% 60%;
+    --status-skipped: 0 0% 42%;
+    --status-deleted: 0 84% 60%;
+    --status-processing: 262 83% 58%;
+    
+    /* Semantic */
+    --success: 160 84% 39%;
+    --warning: 38 92% 50%;
+    --error: 0 84% 60%;
+    --info: 217 91% 60%;
+    
+    /* Sidebar */
+    --sidebar-background: 0 0% 7%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(217 91% 60%), hsl(262 83% 58%));
+  }
+  
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(217 91% 60%), hsl(262 83% 58%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .status-pending {
+    @apply bg-[hsl(var(--status-pending))] text-white;
+  }
+  
+  .status-posted {
+    @apply bg-[hsl(var(--status-posted))] text-white;
+  }
+  
+  .status-scheduled {
+    @apply bg-[hsl(var(--status-scheduled))] text-white;
+  }
+  
+  .status-skipped {
+    @apply bg-[hsl(var(--status-skipped))] text-white;
+  }
+  
+  .status-deleted {
+    @apply bg-[hsl(var(--status-deleted))] text-white;
+  }
+  
+  .status-processing {
+    @apply bg-[hsl(var(--status-processing))] text-white;
+  }
+
+  .pulse-green {
+    animation: pulse-green 2s infinite;
+  }
+
+  .pulse-red {
+    animation: pulse-red 2s infinite;
+  }
+
+  @keyframes pulse-green {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    }
+  }
+
+  @keyframes pulse-red {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    50% {
+      box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
+    }
+  }
+}

@@ -1,0 +1,727 @@
+import { useState, useEffect } from 'react';
+import { Check, X, RefreshCw, ExternalLink, Plus, Trash2, Wifi, WifiOff, Key, Save, Server, Clock, CheckCircle2, XCircle, Activity } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useAppStore } from '@/store/useAppStore';
+import { mockSocialAccounts } from '@/data/mockData';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { getApiConfig, setApiConfig, useTestConnection } from '@/services/ghlApi';
+import { useGhlConnection } from '@/hooks/useGhlConnection';
+import { SyncHistoryLog } from '@/components/settings/SyncHistoryLog';
+import { NotificationSettings } from '@/components/settings/NotificationSettings';
+
+export default function Settings() {
+  const { connectionStatus, setConnectionStatus, propertiesPerPage, setPropertiesPerPage } = useAppStore();
+  const { isConnected, lastChecked, manualReconnect, checkConnection } = useGhlConnection({ autoConnect: false });
+  const [isTestingConnection, setIsTestingConnection] = useState<string | null>(null);
+  const [connectionHistory, setConnectionHistory] = useState<Array<{ time: string; success: boolean }>>([]);
+  
+  // GHL API Configuration
+  const [ghlApiKey, setGhlApiKey] = useState('');
+  const [ghlLocationId, setGhlLocationId] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [configSaved, setConfigSaved] = useState(false);
+  
+  const testConnection = useTestConnection();
+  
+  // Load saved config on mount
+  useEffect(() => {
+    const config = getApiConfig();
+    if (config.apiKey) setGhlApiKey(config.apiKey);
+    if (config.locationId) setGhlLocationId(config.locationId);
+  }, []);
+
+  const handleSaveGhlConfig = () => {
+    setApiConfig({ apiKey: ghlApiKey, locationId: ghlLocationId });
+    setConfigSaved(true);
+    toast.success('GHL API configuration saved');
+    setTimeout(() => setConfigSaved(false), 2000);
+  };
+
+  const handleTestGhlConnection = async () => {
+    if (!ghlApiKey || !ghlLocationId) {
+      toast.error('Please enter API Key and Location ID first');
+      return;
+    }
+    
+    // Save config first
+    setApiConfig({ apiKey: ghlApiKey, locationId: ghlLocationId });
+    
+    try {
+      await testConnection.mutateAsync();
+      setConnectionStatus({ ...connectionStatus, highLevel: true });
+      toast.success('HighLevel API connection successful!');
+    } catch (error) {
+      setConnectionStatus({ ...connectionStatus, highLevel: false });
+      toast.error(error instanceof Error ? error.message : 'Connection failed');
+    }
+  };
+
+  const handleTestConnection = async (service: string) => {
+    setIsTestingConnection(service);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsTestingConnection(null);
+    toast.success(`${service} connection verified`);
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <p className="text-muted-foreground mt-1">
+          Configure your integrations and preferences
+        </p>
+      </div>
+
+      <Tabs defaultValue="integrations" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="status">Connection Status</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="social">Social Accounts</TabsTrigger>
+          <TabsTrigger value="team">Team</TabsTrigger>
+          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+        </TabsList>
+
+        {/* Connection Status Tab */}
+        <TabsContent value="status" className="space-y-6">
+          {/* Real-time GHL Status */}
+          <Card className={cn(
+            "border-2 transition-colors",
+            isConnected ? "border-success/50 bg-success/5" : "border-error/50 bg-error/5"
+          )}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-3 rounded-full",
+                    isConnected ? "bg-success/20" : "bg-error/20"
+                  )}>
+                    {isConnected ? (
+                      <Wifi className="h-6 w-6 text-success" />
+                    ) : (
+                      <WifiOff className="h-6 w-6 text-error" />
+                    )}
+                  </div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      HighLevel API Status
+                      {isConnected ? (
+                        <Badge className="bg-success">Connected</Badge>
+                      ) : (
+                        <Badge variant="destructive">Disconnected</Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>
+                      Real-time connection monitoring with auto-reconnect
+                    </CardDescription>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    const success = await manualReconnect();
+                    setConnectionHistory(prev => [
+                      { time: new Date().toISOString(), success },
+                      ...prev.slice(0, 9)
+                    ]);
+                    if (success) {
+                      toast.success('Connection verified');
+                    } else {
+                      toast.error('Connection failed');
+                    }
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Test Now
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="p-4 rounded-lg bg-card border border-border">
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+                    <Server className="h-4 w-4" />
+                    Server
+                  </div>
+                  <p className="font-semibold text-foreground">
+                    {isConnected ? 'Online' : 'Unreachable'}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-card border border-border">
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+                    <Clock className="h-4 w-4" />
+                    Last Check
+                  </div>
+                  <p className="font-semibold text-foreground">
+                    {lastChecked ? new Date(lastChecked).toLocaleTimeString() : 'Never'}
+                  </p>
+                </div>
+                <div className="p-4 rounded-lg bg-card border border-border">
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+                    <Activity className="h-4 w-4" />
+                    Auto-Reconnect
+                  </div>
+                  <p className="font-semibold text-success">Enabled</p>
+                </div>
+                <div className="p-4 rounded-lg bg-card border border-border">
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+                    <Key className="h-4 w-4" />
+                    Config Source
+                  </div>
+                  <p className="font-semibold text-foreground">
+                    {getApiConfig().apiKey ? 'Local' : 'Vercel Env'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Connection History */}
+              {connectionHistory.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium mb-2">Recent Connection Tests</h4>
+                  <div className="space-y-2">
+                    {connectionHistory.map((entry, index) => (
+                      <div 
+                        key={index}
+                        className="flex items-center justify-between p-2 rounded bg-muted/50"
+                      >
+                        <div className="flex items-center gap-2">
+                          {entry.success ? (
+                            <CheckCircle2 className="h-4 w-4 text-success" />
+                          ) : (
+                            <XCircle className="h-4 w-4 text-error" />
+                          )}
+                          <span className="text-sm">
+                            {entry.success ? 'Connection successful' : 'Connection failed'}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date(entry.time).toLocaleTimeString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Environment Configuration Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Required Environment Variables
+              </CardTitle>
+              <CardDescription>
+                These must be configured in Vercel for production deployment
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[
+                  { name: 'GHL_API_KEY', description: 'Your HighLevel API key', required: true },
+                  { name: 'GHL_LOCATION_ID', description: 'Your HighLevel location ID', required: true },
+                  { name: 'GHL_SELLER_ACQUISITION_PIPELINE_ID', description: 'Pipeline ID for Seller Acquisitions (default: zL3H2M1BdEKlVDa2YWao)', required: false },
+                  { name: 'GHL_BUYER_ACQUISITION_PIPELINE_ID', description: 'Pipeline ID for Buyer Acquisitions (default: FRw9XPyTSnPv8ct0cWcm)', required: false },
+                  { name: 'GHL_DEAL_ACQUISITION_PIPELINE_ID', description: 'Pipeline ID for Buyers/Deals (default: 2NeLTlKaeMyWOnLXdTCS)', required: false },
+                  { name: 'GOOGLE_SHEET_ID', description: 'Google Sheet ID for staff auth', required: true },
+                  { name: 'GOOGLE_SHEET_CREDENTIALS', description: 'Service account credentials JSON', required: true },
+                  { name: 'OPENAI_API_KEY', description: 'For AI caption generation', required: false },
+                  { name: 'RESEND_API_KEY', description: 'For email notifications when connection fails', required: false },
+                ].map((envVar) => (
+                  <div 
+                    key={envVar.name}
+                    className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border"
+                  >
+                    <div>
+                      <code className="text-sm font-mono text-primary">{envVar.name}</code>
+                      <p className="text-xs text-muted-foreground mt-0.5">{envVar.description}</p>
+                    </div>
+                    <Badge variant={envVar.required ? "default" : "secondary"}>
+                      {envVar.required ? 'Required' : 'Optional'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-sm text-muted-foreground">
+                  <strong className="text-foreground">Tip:</strong> Once these environment variables are set in Vercel, 
+                  the app will automatically use them. No local configuration needed for production.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sync History Log */}
+          <SyncHistoryLog />
+
+          {/* Notification Settings */}
+          <NotificationSettings />
+        </TabsContent>
+
+        {/* Integrations Tab */}
+        <TabsContent value="integrations" className="space-y-6">
+          {/* GHL API Configuration - Primary */}
+          <Card className="border-primary/30">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Key className="h-5 w-5 text-primary" />
+                    HighLevel API Configuration
+                    {connectionStatus.highLevel ? (
+                      <Badge className="bg-success flex items-center gap-1">
+                        <Wifi className="h-3 w-3" />
+                        Connected
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive" className="flex items-center gap-1">
+                        <WifiOff className="h-3 w-3" />
+                        Not Connected
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Configure your HighLevel API credentials for contacts, opportunities, and documents
+                  </CardDescription>
+                </div>
+                <div className={cn(
+                  "h-3 w-3 rounded-full animate-pulse",
+                  connectionStatus.highLevel ? "bg-success" : "bg-error"
+                )} />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                <p className="text-sm text-muted-foreground mb-3">
+                  Get your API Key from HighLevel Settings → Integrations → API Keys. 
+                  The Location ID is found in Settings → Business Profile.
+                </p>
+                <a 
+                  href="https://help.gohighlevel.com/support/solutions/articles/48001060529" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary hover:underline flex items-center gap-1"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  View GHL API Documentation
+                </a>
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label htmlFor="ghl-api-key">API Key *</Label>
+                  <div className="relative mt-1">
+                    <Input 
+                      id="ghl-api-key"
+                      type={showApiKey ? "text" : "password"} 
+                      value={ghlApiKey}
+                      onChange={(e) => setGhlApiKey(e.target.value)}
+                      placeholder="eyJhbGciOiJIUzI1NiIs..."
+                      className="pr-20"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-1 top-1 h-7 text-xs"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                    >
+                      {showApiKey ? 'Hide' : 'Show'}
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="ghl-location-id">Location ID *</Label>
+                  <Input 
+                    id="ghl-location-id"
+                    value={ghlLocationId}
+                    onChange={(e) => setGhlLocationId(e.target.value)}
+                    placeholder="zL3H2M1BdEKlVDa2YWao"
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between pt-2">
+                <div className="flex items-center gap-2">
+                  <Button 
+                    onClick={handleSaveGhlConfig}
+                    disabled={!ghlApiKey || !ghlLocationId}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {configSaved ? 'Saved!' : 'Save Configuration'}
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={handleTestGhlConnection}
+                    disabled={testConnection.isPending || !ghlApiKey || !ghlLocationId}
+                  >
+                    {testConnection.isPending ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Wifi className="h-4 w-4 mr-2" />
+                    )}
+                    Test Connection
+                  </Button>
+                </div>
+                {connectionStatus.highLevel && (
+                  <span className="text-sm text-muted-foreground">
+                    Ready to sync contacts and opportunities
+                  </span>
+                )}
+              </div>
+              
+              {/* Deployment Note */}
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  <strong className="text-foreground">Vercel Deployment:</strong> When deploying to Vercel, 
+                  add <code className="bg-muted px-1 rounded">GHL_API_KEY</code> and{' '}
+                  <code className="bg-muted px-1 rounded">GHL_LOCATION_ID</code> as environment variables 
+                  for secure server-side API calls.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* OpenAI */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    OpenAI
+                    {connectionStatus.openAI ? (
+                      <Badge className="bg-success">Connected</Badge>
+                    ) : (
+                      <Badge variant="destructive">Disconnected</Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    AI-powered caption generation
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>API Key</Label>
+                <Input type="password" value="••••••••••••••••" className="mt-1" />
+              </div>
+              <div>
+                <Label>Default Tone</Label>
+                <Select defaultValue="professional">
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="professional">Professional</SelectItem>
+                    <SelectItem value="friendly">Friendly</SelectItem>
+                    <SelectItem value="exciting">Exciting</SelectItem>
+                    <SelectItem value="luxury">Luxury</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">
+                  Tokens used this month: 45,230
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleTestConnection('OpenAI')}
+                  disabled={isTestingConnection === 'OpenAI'}
+                >
+                  {isTestingConnection === 'OpenAI' ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Test Connection
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Imejis */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    Imejis
+                    {connectionStatus.imejis ? (
+                      <Badge className="bg-success">Connected</Badge>
+                    ) : (
+                      <Badge variant="destructive">Disconnected</Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Branded image generation
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label>API Key</Label>
+                  <Input type="password" value="••••••••••••••••" className="mt-1" />
+                </div>
+                <div>
+                  <Label>Template ID</Label>
+                  <Input value="template_abc123" className="mt-1" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => handleTestConnection('Imejis')}
+                  disabled={isTestingConnection === 'Imejis'}
+                >
+                  {isTestingConnection === 'Imejis' ? (
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Test Connection
+                </Button>
+                <Button variant="outline" size="sm">
+                  Test Template
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Social Accounts Tab */}
+        <TabsContent value="social" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Connected Accounts</CardTitle>
+                  <CardDescription>
+                    Manage your social media connections
+                  </CardDescription>
+                </div>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Connect Account
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {mockSocialAccounts.map((account) => (
+                <div 
+                  key={account.id}
+                  className="flex items-center gap-4 p-4 rounded-lg border border-border"
+                >
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={account.profilePicture} />
+                    <AvatarFallback>
+                      {account.accountName.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="font-medium">{account.accountName}</p>
+                    <p className="text-sm text-muted-foreground capitalize">
+                      {account.platform}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {account.connected ? (
+                      <>
+                        <Badge className="bg-success">Connected</Badge>
+                        <Button variant="ghost" size="sm" className="text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm">Connect</Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Team Tab */}
+        <TabsContent value="team" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Team Members</CardTitle>
+                  <CardDescription>
+                    Manage who has access to this workspace
+                  </CardDescription>
+                </div>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Invite Member
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { name: 'John Doe', email: 'john@example.com', role: 'Admin' },
+                { name: 'Jane Smith', email: 'jane@example.com', role: 'Manager' },
+                { name: 'Bob Wilson', email: 'bob@example.com', role: 'User' },
+              ].map((member, index) => (
+                <div 
+                  key={index}
+                  className="flex items-center gap-4 p-4 rounded-lg border border-border"
+                >
+                  <Avatar>
+                    <AvatarFallback>
+                      {member.name.split(' ').map(n => n[0]).join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <p className="font-medium">{member.name}</p>
+                    <p className="text-sm text-muted-foreground">{member.email}</p>
+                  </div>
+                  <Badge variant="secondary">{member.role}</Badge>
+                  <Button variant="ghost" size="sm">Edit</Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Preferences Tab */}
+        <TabsContent value="preferences" className="space-y-6">
+          {/* Posting Defaults */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Posting Defaults</CardTitle>
+              <CardDescription>
+                Configure default settings for new posts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Auto-skip properties without images</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically skip properties that don't have a hero image
+                  </p>
+                </div>
+                <Switch />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Default posting time</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Preferred time for scheduled posts
+                  </p>
+                </div>
+                <Input type="time" defaultValue="10:00" className="w-32" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Display */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Display</CardTitle>
+              <CardDescription>
+                Customize how the app looks
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Properties per page</Label>
+                <Select 
+                  value={propertiesPerPage.toString()} 
+                  onValueChange={(v) => setPropertiesPerPage(parseInt(v))}
+                >
+                  <SelectTrigger className="mt-1 w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="6">6</SelectItem>
+                    <SelectItem value="9">9</SelectItem>
+                    <SelectItem value="12">12</SelectItem>
+                    <SelectItem value="15">15</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Time zone</Label>
+                <Select defaultValue="america-phoenix">
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="america-phoenix">America/Phoenix (MST)</SelectItem>
+                    <SelectItem value="america-los-angeles">America/Los Angeles (PST)</SelectItem>
+                    <SelectItem value="america-new-york">America/New York (EST)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notifications */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Notifications</CardTitle>
+              <CardDescription>
+                Configure email notifications
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Email notifications</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive email updates
+                  </p>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Notify on successful posts</Label>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Notify on failed posts</Label>
+                </div>
+                <Switch defaultChecked />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Daily summary email</Label>
+                </div>
+                <Switch />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
