@@ -35,36 +35,51 @@ const statusOptions = [
   { value: 'closed', label: 'Closed' },
 ];
 
-// Map GHL stage IDs to our stage types - USING ACTUAL STAGE IDs FROM DEAL ACQUISITION PIPELINE
+// Map GHL stage IDs to our stage types - CORRECT IDs FROM GHL
 const stageIdMap: Record<string, BuyerStage> = {
   '105d21a7-28f9-4a92-891a-e7c038ac6acd': 'under-contract',
-  'be7a34e5-fe0c-49ff-9ffa-9b74f842f23e': 'escrow-opened',
-  '89ee9192-c0fa-4eb0-aa40-f7a4ccb7f9d3': 'closing-scheduled',
+  'a74f318d-3f91-4c85-8cbf-17b882251d0f': 'escrow-opened',
+  'bd11404a-883a-450a-adc3-0c9ff911373e': 'closing-scheduled',
 };
 
 const stages: { id: BuyerStage; label: string; color: string; ghlId: string }[] = [
   { id: 'under-contract', label: 'Under Contract', color: 'bg-amber-500', ghlId: '105d21a7-28f9-4a92-891a-e7c038ac6acd' },
-  { id: 'escrow-opened', label: 'Escrow Opened', color: 'bg-blue-500', ghlId: 'be7a34e5-fe0c-49ff-9ffa-9b74f842f23e' },
-  { id: 'closing-scheduled', label: 'Closing Scheduled', color: 'bg-green-500', ghlId: '89ee9192-c0fa-4eb0-aa40-f7a4ccb7f9d3' },
+  { id: 'escrow-opened', label: 'Escrow Opened', color: 'bg-blue-500', ghlId: 'a74f318d-3f91-4c85-8cbf-17b882251d0f' },
+  { id: 'closing-scheduled', label: 'Closing Scheduled', color: 'bg-green-500', ghlId: 'bd11404a-883a-450a-adc3-0c9ff911373e' },
 ];
 
-// Default checklist structure
+// Default checklist structure - USING REAL GHL CUSTOM FIELDS
 const defaultChecklist: BuyerChecklist = {
   bcClosing: [
-    { id: 'bc-1', label: 'Contract signed', completed: false },
-    { id: 'bc-2', label: 'Earnest money deposited', completed: false },
-    { id: 'bc-3', label: 'Title search complete', completed: false },
-    { id: 'bc-4', label: 'Inspection done', completed: false },
+    { id: 'draft_receipt', label: 'Send them Draft Receipt and E-sign Purchase Agreement', completed: false },
+    { id: 'signed_agreement', label: 'Received signed Purchase Agreement', completed: false },
+    { id: 'deposit_received', label: 'Deposit Received', completed: false },
+    { id: 'open_title', label: 'Open file with title/Send docs', completed: false },
+    { id: 'begin_qualification', label: 'If Wrap Buyer, begin Qualification Process', completed: false },
+    { id: 'submitted_to_larry', label: 'If Wrap Buyer, submitted all items to Larry', completed: false },
+    { id: 'qualification_completed', label: 'If Wrap Buyer, Qualification Completed', completed: false },
+    { id: 'servicing_agreement', label: 'Received Servicing Agreement to Buyer', completed: false },
+    { id: 'title_clear', label: 'Title clean & clear to close', completed: false },
+    { id: 'closing_scheduled', label: 'Closing Scheduled', completed: false },
+    { id: 'closing_packet', label: 'Send closing packet to Title', completed: false },
+    { id: 'closing_complete', label: 'Closing Complete', completed: false },
   ],
   postClose: [
-    { id: 'pc-1', label: 'Keys delivered', completed: false },
-    { id: 'pc-2', label: 'Utilities transferred', completed: false },
-    { id: 'pc-3', label: 'Final walkthrough', completed: false },
+    { id: 'closing_docs', label: 'Received scanned copy of closing docs from title', completed: false },
+    { id: 'buyer_email', label: 'Send buyer email with copy of documents', completed: false },
+    { id: 'transmittal_sheet', label: 'Received Transmittal Sheet from Larry', completed: false },
+    { id: 'insurance_policy', label: 'Add Buyer to insurance policy', completed: false },
+    { id: 'utilities', label: 'Turn off/switch Utilities', completed: false },
   ],
   activeBuyer: [
-    { id: 'ab-1', label: 'Pre-approval letter', completed: false },
-    { id: 'ab-2', label: 'Buyer agreement signed', completed: false },
-    { id: 'ab-3', label: 'Preferences documented', completed: false },
+    { id: 'mls_search', label: 'MLS Search', completed: false },
+    { id: 'fb_group_search', label: 'Facebook Group Search', completed: false },
+    { id: 'fb_marketplace', label: 'Facebook Marketplace', completed: false },
+    { id: 'wholesaler_outreach', label: 'Wholesaler Outreach', completed: false },
+    { id: 'agent_outreach', label: 'Agent Outreach', completed: false },
+    { id: 'zillow_scrape', label: 'Zillow Scrape', completed: false },
+    { id: 'sms_wholesalers', label: 'Send SMS to Wholesalers', completed: false },
+    { id: 'send_inventory', label: 'Send Inventory', completed: false },
   ],
 };
 
