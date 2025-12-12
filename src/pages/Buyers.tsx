@@ -85,11 +85,21 @@ const defaultChecklist: BuyerChecklist = {
 
 interface ExtendedBuyer extends Buyer {
   ghlStageId: string;
+  maxBudget?: number;
 }
 
 // Transform GHL Opportunity to Buyer
 const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
-  const getCustomField = (fieldKey: string): string => {
+  // Get CONTACT custom fields
+  const getContactField = (fieldKey: string): string => {
+    const field = opp.contact?.customFields?.find(
+      (cf) => cf.id === fieldKey || cf.id.toLowerCase().includes(fieldKey.toLowerCase())
+    );
+    return typeof field?.fieldValue === 'string' ? field.fieldValue : '';
+  };
+
+  // Get OPPORTUNITY custom fields
+  const getOppField = (fieldKey: string): string => {
     const field = opp.customFields?.find(
       (cf) => cf.id === fieldKey || cf.id.toLowerCase().includes(fieldKey.toLowerCase())
     );
@@ -100,42 +110,43 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
   const stage = stageIdMap[opp.pipelineStageId] || 'under-contract';
 
   // Parse status
-  const statusField = getCustomField('status')?.toLowerCase() || '';
+  const statusField = getContactField('status')?.toLowerCase() || '';
   let status: BuyerStatus = 'active';
   if (statusField.includes('qualified')) status = 'qualified';
   else if (statusField.includes('pending')) status = 'pending';
   else if (statusField.includes('closed')) status = 'closed';
 
   // Parse zip codes
-  const zipCodesField = getCustomField('zip_codes') || getCustomField('preferred_zip_codes') || '';
+  const zipCodesField = getContactField('zip_codes') || getContactField('preferred_zip_codes') || '';
   const zipCodes = zipCodesField.split(',').map(z => z.trim()).filter(Boolean);
 
   return {
     id: opp.id,
     ghlStageId: opp.pipelineStageId,
     name: opp.name || opp.contact?.name || 'Unknown', // Opportunity name first
-    email: opp.contact?.email || getCustomField('email') || '',
-    phone: opp.contact?.phone || getCustomField('phone') || '',
-    location: getCustomField('location') || getCustomField('city') || '',
+    email: opp.contact?.email || getContactField('email') || '',
+    phone: opp.contact?.phone || getContactField('phone') || '',
+    location: getContactField('location') || getContactField('city') || '',
     preferredZipCodes: zipCodes.length > 0 ? zipCodes : ['00000'],
     preferences: {
-      minBeds: parseInt(getCustomField('min_beds')) || undefined,
-      maxBeds: parseInt(getCustomField('max_beds')) || undefined,
-      minBaths: parseInt(getCustomField('min_baths')) || undefined,
-      maxBaths: parseInt(getCustomField('max_baths')) || undefined,
-      minPrice: parseInt(getCustomField('min_price')) || undefined,
-      maxPrice: parseInt(getCustomField('max_price')) || opp.monetaryValue || undefined,
+      minBeds: parseInt(getContactField('min_beds')) || undefined,
+      maxBeds: parseInt(getContactField('max_beds')) || undefined,
+      minBaths: parseInt(getContactField('min_baths')) || undefined,
+      maxBaths: parseInt(getContactField('max_baths')) || undefined,
+      minPrice: parseInt(getContactField('min_price')) || undefined,
+      maxPrice: parseInt(getContactField('max_price')) || opp.monetaryValue || undefined,
     },
     matches: {
-      internal: parseInt(getCustomField('internal_matches')) || 0,
-      external: parseInt(getCustomField('external_matches')) || 0,
+      internal: parseInt(getContactField('internal_matches')) || 0,
+      external: parseInt(getContactField('external_matches')) || 0,
     },
-    dealType: (getCustomField('deal_type') as Buyer['dealType']) || 'Cash',
+    maxBudget: opp.monetaryValue || parseInt(getContactField('max_price')) || undefined,
+    dealType: (getOppField('deal_type') as Buyer['dealType']) || 'Traditional Sale', // Use OPPORTUNITY field
     status,
     stage,
     checklist: defaultChecklist,
     propertiesSent: [],
-    sentDealsForReview: getCustomField('sent_deals') || '0',
+    sentDealsForReview: getContactField('sent_deals') || '0',
     createdAt: opp.createdAt,
   };
 };

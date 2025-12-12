@@ -52,6 +52,7 @@ export interface GHLOpportunity {
     name: string;
     email?: string;
     phone?: string;
+    customFields?: GHLCustomField[];
   };
 }
 

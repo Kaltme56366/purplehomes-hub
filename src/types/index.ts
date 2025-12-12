@@ -106,7 +106,8 @@ export interface Buyer {
   preferredZipCodes: string[];
   preferences: BuyerPreferences;
   matches: BuyerMatches;
-  dealType: 'Cash' | 'Wrap' | 'Subject-To' | 'Novation' | 'Multiple';
+  maxBudget?: number;
+  dealType: 'Lease Option' | 'Bond for Deed' | 'Assignment' | 'Traditional Sale';
   status: BuyerStatus;
   stage: BuyerStage;
   checklist: BuyerChecklist;
