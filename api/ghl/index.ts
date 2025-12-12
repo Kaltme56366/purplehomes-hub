@@ -134,28 +134,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(response.ok ? 200 : response.status).json(await response.json());
         }
         
-        // GHL opportunities/search requires POST with body (no pipelineId in body)
-        const searchBody: Record<string, any> = {
-          locationId: GHL_LOCATION_ID,
-          limit: parseInt((query.limit as string) || '100', 10),
-        };
-        if (query.status) searchBody.status = query.status;
-        if (query.stageId) searchBody.stageId = query.stageId;
+        // GHL opportunities/search requires POST with body
+        // We need to paginate to get ALL opportunities
+        const limit = parseInt((query.limit as string) || '100', 10);
+        let allOpportunities: any[] = [];
+        let page = 1;
+        let hasMore = true;
         
-        const response = await fetch(`${GHL_API_URL}/opportunities/search`, { 
-          method: 'POST',
-          headers, 
-          body: JSON.stringify(searchBody)
-        });
+        while (hasMore) {
+          const searchBody: Record<string, any> = {
+            locationId: GHL_LOCATION_ID,
+            limit,
+            page,
+          };
+          if (query.status) searchBody.status = query.status;
+          if (query.stageId) searchBody.stageId = query.stageId;
+          
+          const response = await fetch(`${GHL_API_URL}/opportunities/search`, { 
+            method: 'POST',
+            headers, 
+            body: JSON.stringify(searchBody)
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            return res.status(response.status).json(errorData);
+          }
+          
+          const data = await response.json();
+          const opportunities = data.opportunities || [];
+          allOpportunities = allOpportunities.concat(opportunities);
+          
+          // Check if there are more pages
+          if (opportunities.length < limit || page >= 10) {
+            // Stop after 10 pages max (1000 opportunities) to prevent infinite loops
+            hasMore = false;
+          } else {
+            page++;
+          }
+        }
         
-        // Filter by pipeline client-side if needed
-        const data = await response.json();
-        if (response.ok && pipelineId && data.opportunities) {
-          data.opportunities = data.opportunities.filter(
+        // Filter by pipeline client-side
+        if (pipelineId) {
+          allOpportunities = allOpportunities.filter(
             (opp: any) => opp.pipelineId === pipelineId
           );
         }
-        return res.status(response.ok ? 200 : response.status).json(data);
+        
+        return res.status(200).json({ 
+          opportunities: allOpportunities,
+          count: allOpportunities.length,
+          pipelineId
+        });
       }
       
       if (method === 'POST') {
@@ -176,6 +206,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (method === 'DELETE' && id) {
         const response = await fetch(`${GHL_API_URL}/opportunities/${id}`, { method: 'DELETE', headers });
         return res.status(response.ok ? 204 : response.status).end();
+      }
+    }
+
+    // ============ PIPELINES ============
+    // Get all pipelines with their stages
+    if (resource === 'pipelines') {
+      if (method === 'GET') {
+        const response = await fetch(
+          `${GHL_API_URL}/opportunities/pipelines?locationId=${GHL_LOCATION_ID}`, 
+          { headers }
+        );
+        return res.status(response.ok ? 200 : response.status).json(await response.json());
       }
     }
 
