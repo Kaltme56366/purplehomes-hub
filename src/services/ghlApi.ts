@@ -162,14 +162,23 @@ export const useContacts = (params?: {
   type?: string;
   tags?: string[];
   limit?: number;
+  startAfterId?: string;
+  startAfter?: string;
 }) => {
   return useQuery({
     queryKey: ['ghl-contacts', params],
-    queryFn: () => fetchGHL<{ contacts: GHLContact[] }>(`contacts?${new URLSearchParams({
-      ...(params?.query && { query: params.query }),
-      ...(params?.type && { type: params.type }),
-      ...(params?.limit && { limit: params.limit.toString() }),
-    })}`),
+    queryFn: () => {
+      const searchParams = new URLSearchParams();
+      if (params?.query) searchParams.set('query', params.query);
+      if (params?.type) searchParams.set('type', params.type);
+      if (params?.limit) searchParams.set('limit', params.limit.toString());
+      if (params?.startAfterId) searchParams.set('startAfterId', params.startAfterId);
+      if (params?.startAfter) searchParams.set('startAfter', params.startAfter);
+      
+      return fetchGHL<{ contacts: GHLContact[]; meta?: { startAfterId?: string; startAfter?: number; nextPage?: string } }>(
+        `contacts?${searchParams.toString()}`
+      );
+    },
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
@@ -588,12 +597,66 @@ export const useCustomFields = (model: 'contact' | 'opportunity' | 'all' = 'oppo
 
 // ============ DOCUMENTS ============
 
-export const useDocuments = () => {
+export interface GHLDocumentTemplate {
+  id: string;
+  name: string;
+  type: string;
+  description?: string;
+  createdAt: string;
+}
+
+export interface GHLDocumentContract {
+  id: string;
+  name: string;
+  templateId?: string;
+  contactId: string;
+  status: 'draft' | 'sent' | 'viewed' | 'signed' | 'expired' | 'declined';
+  createdAt: string;
+  sentAt?: string;
+  viewedAt?: string;
+  signedAt?: string;
+  declinedAt?: string;
+  customValues?: Record<string, string>;
+}
+
+export const useDocumentTemplates = () => {
   return useQuery({
-    queryKey: ['ghl-documents'],
-    queryFn: () => fetchGHL<{ documents: GHLDocument[] }>('documents'),
+    queryKey: ['ghl-document-templates'],
+    queryFn: () => fetchGHL<{ templates: GHLDocumentTemplate[] }>('documents?action=templates'),
     enabled: !!getApiConfig().apiKey,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000, // Templates don't change often
+  });
+};
+
+export const useDocuments = (contactId?: string) => {
+  return useQuery({
+    queryKey: ['ghl-documents', contactId],
+    queryFn: () => {
+      const params = new URLSearchParams({ action: 'contracts' });
+      if (contactId) params.set('contactId', contactId);
+      return fetchGHL<{ documents: GHLDocumentContract[] }>(`documents?${params.toString()}`);
+    },
+    enabled: !!getApiConfig().apiKey,
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
+export const useSendTemplate = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ templateId, contactIds, customValues }: {
+      templateId: string;
+      contactIds: string[];
+      customValues?: Record<string, string>;
+    }) =>
+      fetchGHL<{ success: boolean; documentIds: string[] }>(`documents?action=templates&id=${templateId}`, {
+        method: 'POST',
+        body: JSON.stringify({ contactIds, customValues }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ghl-documents'] });
+    },
   });
 };
 
@@ -603,12 +666,11 @@ export const useCreateDocument = () => {
   return useMutation({
     mutationFn: (document: {
       name: string;
-      type: string;
-      contactId?: string;
       templateId?: string;
+      contactId: string;
       customValues?: Record<string, string>;
     }) =>
-      fetchGHL<GHLDocument>('documents', {
+      fetchGHL<GHLDocumentContract>('documents', {
         method: 'POST',
         body: JSON.stringify(document),
       }),

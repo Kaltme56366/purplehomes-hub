@@ -57,7 +57,7 @@ import {
 import { EmptyState } from '@/components/ui/empty-state';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { useCustomFields, getApiConfig } from '@/services/ghlApi';
+import { useCustomFields, useDocumentTemplates, useDocuments, useSendTemplate, useCreateDocument, getApiConfig } from '@/services/ghlApi';
 import { useAppStore } from '@/store/useAppStore';
 
 // Available custom fields for documents
@@ -149,6 +149,33 @@ export default function Documents() {
 
   // Get custom fields from GHL
   const { data: ghlCustomFields } = useCustomFields('opportunity');
+  
+  // Get templates and documents from GHL
+  const { data: templatesData, isLoading: isLoadingTemplates } = useDocumentTemplates();
+  const { data: documentsData, isLoading: isLoadingDocuments, refetch: refetchDocuments } = useDocuments();
+  
+  // Mutations
+  const createDocument = useCreateDocument();
+  const sendTemplate = useSendTemplate();
+
+  // Use real GHL templates or fall back to mock
+  const templates = isGhlConnected && templatesData?.templates ? templatesData.templates : mockTemplates;
+  
+  // Use real GHL documents or fall back to mock
+  const allDocuments = isGhlConnected && documentsData?.documents 
+    ? documentsData.documents.map(doc => ({
+        id: doc.id,
+        name: doc.name,
+        template: doc.templateId || 'Unknown Template',
+        recipient: 'Contact', // Would need to fetch contact details
+        recipientEmail: doc.contactId,
+        status: doc.status,
+        createdAt: doc.createdAt,
+        sentAt: doc.sentAt,
+        viewedAt: doc.viewedAt,
+        signedAt: doc.signedAt,
+      }))
+    : mockDocuments;
 
   // Merge GHL custom fields with predefined ones
   const availableCustomFields = ghlCustomFields?.customFields 
@@ -177,14 +204,14 @@ export default function Documents() {
     setSelectedCustomFields(prev => prev.filter(f => f.key !== key));
   };
 
-  const filteredDocuments = mockDocuments.filter((doc) => {
+  const filteredDocuments = allDocuments.filter((doc) => {
     if (statusFilter !== 'all' && doc.status !== statusFilter) return false;
     if (search) {
       const searchLower = search.toLowerCase();
       return (
         doc.name.toLowerCase().includes(searchLower) ||
         doc.recipient.toLowerCase().includes(searchLower) ||
-        doc.template.toLowerCase().includes(searchLower)
+        (typeof doc.template === 'string' && doc.template.toLowerCase().includes(searchLower))
       );
     }
     return true;
@@ -207,8 +234,13 @@ export default function Documents() {
     }
   };
 
-  const handleCreateDocument = (e: React.FormEvent) => {
+  const handleCreateDocument = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!newDocument.template || !newDocument.recipientEmail) {
+      toast.error('Please select a template and provide recipient email');
+      return;
+    }
     
     // Build custom fields object
     const customFieldsObj = selectedCustomFields.reduce((acc, field) => {
@@ -216,12 +248,30 @@ export default function Documents() {
       return acc;
     }, {} as Record<string, string>);
 
-    console.log('Creating document (GHL API-ready):', {
-      ...newDocument,
-      customFields: customFieldsObj
-    });
+    if (isGhlConnected) {
+      try {
+        // For now, we'll use the send template endpoint which creates and sends in one call
+        await sendTemplate.mutateAsync({
+          templateId: newDocument.template,
+          contactIds: [newDocument.recipientEmail], // This should be a contact ID
+          customValues: customFieldsObj,
+        });
+        
+        toast.success('Document created and sent via HighLevel!');
+        refetchDocuments();
+      } catch (error) {
+        console.error('Failed to create document:', error);
+        toast.error('Failed to create document in GHL');
+        return;
+      }
+    } else {
+      console.log('Creating document (GHL API-ready):', {
+        ...newDocument,
+        customFields: customFieldsObj
+      });
+      toast.success('Document created! Connect GHL to send automatically.');
+    }
     
-    toast.success('Document created! Ready to send via GHL API.');
     setNewDocument({ template: '', recipientName: '', recipientEmail: '' });
     setSelectedCustomFields([]);
     setShowCreateModal(false);
@@ -276,7 +326,9 @@ export default function Documents() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Documents</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockDocuments.length}</div>
+            <div className="text-2xl font-bold">
+              {isLoadingDocuments ? '...' : allDocuments.length}
+            </div>
           </CardContent>
         </Card>
         <Card>
@@ -285,7 +337,7 @@ export default function Documents() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-yellow-500">
-              {mockDocuments.filter(d => d.status === 'sent' || d.status === 'viewed').length}
+              {isLoadingDocuments ? '...' : allDocuments.filter(d => d.status === 'sent' || d.status === 'viewed').length}
             </div>
           </CardContent>
         </Card>
@@ -295,7 +347,7 @@ export default function Documents() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-500">
-              {mockDocuments.filter(d => d.status === 'signed').length}
+              {isLoadingDocuments ? '...' : allDocuments.filter(d => d.status === 'signed').length}
             </div>
           </CardContent>
         </Card>
@@ -304,7 +356,9 @@ export default function Documents() {
             <CardTitle className="text-sm font-medium text-muted-foreground">Templates</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{mockTemplates.length}</div>
+            <div className="text-2xl font-bold">
+              {isLoadingTemplates ? '...' : templates.length}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -315,28 +369,36 @@ export default function Documents() {
           <Folder className="h-5 w-5 text-muted-foreground" />
           Document Templates
         </h2>
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          {mockTemplates.map((template) => (
-            <Card 
-              key={template.id} 
-              className="cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => {
-                setNewDocument(prev => ({ ...prev, template: template.id }));
-                setShowCreateModal(true);
-              }}
-            >
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium text-sm">{template.name}</div>
-                  <div className="text-xs text-muted-foreground capitalize">{template.type}</div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {isLoadingTemplates ? (
+          <div className="text-center py-8 text-muted-foreground">Loading templates...</div>
+        ) : templates.length > 0 ? (
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            {templates.map((template) => (
+              <Card 
+                key={template.id} 
+                className="cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => {
+                  setNewDocument(prev => ({ ...prev, template: template.id }));
+                  setShowCreateModal(true);
+                }}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <FileText className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{template.name}</div>
+                    <div className="text-xs text-muted-foreground capitalize">{template.type || 'document'}</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <p className="text-center py-8 text-muted-foreground">
+            {isGhlConnected ? 'No templates found' : 'Connect GHL to load templates'}
+          </p>
+        )}
       </div>
 
       {/* Filters */}
@@ -438,7 +500,7 @@ export default function Documents() {
                   <SelectValue placeholder="Select a template" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockTemplates.map((t) => (
+                  {templates.map((t) => (
                     <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
