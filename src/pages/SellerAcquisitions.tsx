@@ -24,29 +24,39 @@ import type { SellerAcquisitionStage } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
+
+// Map GHL stage IDs to our stage types - USING ACTUAL STAGE IDs FROM ACQUISITION SELLER PIPELINE
+const stageIdMap: Record<string, SellerAcquisitionStage> = {
+  'ae1ddba7-19d2-4ea9-9a33-58fc37b1c5b2': 'new-lead',
+  '54bd52e5-5ae1-4391-bf8b-044a9cc936b6': 'discovery',
+  '280a212b-5f9f-45ac-b7bb-17aee00ddbd0': 'booked-call',
+  '4ce5e7e4-9ad2-4aad-a0c2-9cf29f4a0aa6': 'follow-up',
+  '8d7057d2-c941-4187-bdf2-7925a8cafd0a': 'vetted',
+  '1e404ae6-2d40-42d1-b006-0cfa89870ae0': 'underwriting',
+  'fe60854c-b236-4dd2-8e54-8e0e9bf4b940': 'offer-made',
+  'ad6facf4-2a79-49a6-8a9f-ef368874b6d1': 'offer-follow-up',
+  '70a1ab3d-b492-441a-ade9-5cd7e99d556a': 'negotiating',
+  '941984e3-bc1f-4744-a27b-0ff3d79a3969': 'long-term-follow-up',
+  'c62fba13-2975-4fdf-8fa3-ab0de5c5c912': 'cold-nurture',
+  'c07610dc-3293-45f7-b8ba-dd1de4426e24': 'lost', // Won / Lost stage
+};
 
 // GHL stage IDs mapped to our stage keys
-const stages: { id: SellerAcquisitionStage; label: string; color: string; ghlStageId?: string }[] = [
-  { id: 'new-lead', label: 'New Lead', color: 'bg-blue-500' },
-  { id: 'discovery', label: 'Discovery', color: 'bg-cyan-500' },
-  { id: 'booked-call', label: 'Booked Call', color: 'bg-purple-500' },
-  { id: 'follow-up', label: 'Follow Up', color: 'bg-indigo-500' },
-  { id: 'active-conversation', label: 'Active Conversation', color: 'bg-violet-500' },
-  { id: 'vetted', label: 'Vetted', color: 'bg-pink-500' },
-  { id: 'underwriting', label: 'Underwriting', color: 'bg-rose-500' },
-  { id: 'offer-made', label: 'Offer Made', color: 'bg-amber-500' },
-  { id: 'offer-follow-up', label: 'Offer Follow Up', color: 'bg-orange-500' },
-  { id: 'automated-nurture', label: 'Automated Nurture', color: 'bg-lime-500' },
-  { id: 'negotiating', label: 'Negotiating', color: 'bg-teal-500' },
-  { id: 'long-term-follow-up', label: 'Long-term Follow Up', color: 'bg-emerald-500' },
-  { id: 'cold-nurture', label: 'Cold Nurture', color: 'bg-slate-500' },
-  { id: 'closed-acquired', label: 'Closed - Acquired', color: 'bg-green-500' },
-  { id: 'lost', label: 'Lost', color: 'bg-gray-500' },
+const stages: { id: SellerAcquisitionStage; label: string; color: string; ghlId: string }[] = [
+  { id: 'new-lead', label: 'New Lead', color: 'bg-blue-500', ghlId: 'ae1ddba7-19d2-4ea9-9a33-58fc37b1c5b2' },
+  { id: 'discovery', label: 'Discovery', color: 'bg-cyan-500', ghlId: '54bd52e5-5ae1-4391-bf8b-044a9cc936b6' },
+  { id: 'booked-call', label: 'Booked Call', color: 'bg-purple-500', ghlId: '280a212b-5f9f-45ac-b7bb-17aee00ddbd0' },
+  { id: 'follow-up', label: 'Follow Up', color: 'bg-indigo-500', ghlId: '4ce5e7e4-9ad2-4aad-a0c2-9cf29f4a0aa6' },
+  { id: 'vetted', label: 'Vetted', color: 'bg-pink-500', ghlId: '8d7057d2-c941-4187-bdf2-7925a8cafd0a' },
+  { id: 'underwriting', label: 'Underwriting', color: 'bg-rose-500', ghlId: '1e404ae6-2d40-42d1-b006-0cfa89870ae0' },
+  { id: 'offer-made', label: 'Offer Made', color: 'bg-amber-500', ghlId: 'fe60854c-b236-4dd2-8e54-8e0e9bf4b940' },
+  { id: 'offer-follow-up', label: 'Offer Follow Up', color: 'bg-orange-500', ghlId: 'ad6facf4-2a79-49a6-8a9f-ef368874b6d1' },
+  { id: 'negotiating', label: 'Negotiating', color: 'bg-teal-500', ghlId: '70a1ab3d-b492-441a-ade9-5cd7e99d556a' },
+  { id: 'long-term-follow-up', label: 'Follow Up Long Term Nurture', color: 'bg-emerald-500', ghlId: '941984e3-bc1f-4744-a27b-0ff3d79a3969' },
+  { id: 'cold-nurture', label: 'Cold Nurture', color: 'bg-slate-500', ghlId: 'c62fba13-2975-4fdf-8fa3-ab0de5c5c912' },
+  { id: 'lost', label: 'Won / Lost', color: 'bg-gray-500', ghlId: 'c07610dc-3293-45f7-b8ba-dd1de4426e24' },
 ];
-
-// Map GHL stage IDs to our stage keys (will be populated from API response)
-const stageIdToKey: Record<string, SellerAcquisitionStage> = {};
-const stageKeyToId: Record<SellerAcquisitionStage, string> = {} as Record<SellerAcquisitionStage, string>;
 
 interface SellerAcquisition {
   id: string;
@@ -67,7 +77,7 @@ interface SellerAcquisition {
 }
 
 // Transform GHL opportunity to SellerAcquisition
-const transformToSellerAcquisition = (opp: GHLOpportunity, stageIndex: number): SellerAcquisition => {
+const transformToSellerAcquisition = (opp: GHLOpportunity): SellerAcquisition => {
   const getCustomField = (fieldKey: string): string => {
     const field = opp.customFields?.find(
       (cf) => cf.id?.includes(fieldKey)
@@ -75,13 +85,13 @@ const transformToSellerAcquisition = (opp: GHLOpportunity, stageIndex: number): 
     return typeof field?.fieldValue === 'string' ? field.fieldValue : '';
   };
 
-  // Map stage index to our stage key
-  const stageKey = stages[Math.min(stageIndex, stages.length - 1)]?.id || 'new-lead';
+  // Map the GHL stage ID directly to our stage
+  const stage = stageIdMap[opp.pipelineStageId] || 'new-lead';
   
   return {
     id: opp.id,
     ghlStageId: opp.pipelineStageId,
-    stage: stageKey,
+    stage,
     sellerName: opp.contact?.name || opp.name || 'Unknown Seller',
     propertyAddress: getCustomField('address') || opp.name || '',
     city: getCustomField('city') || '',
@@ -103,37 +113,15 @@ export default function SellerAcquisitions() {
   const [selectedAcquisition, setSelectedAcquisition] = useState<SellerAcquisition | null>(null);
   const [draggedItem, setDraggedItem] = useState<SellerAcquisition | null>(null);
 
-  // Fetch real data from GHL
-  const { data: opportunities, isLoading, error, refetch } = useOpportunities('seller-acquisition');
+  // Fetch from seller-acquisition pipeline
+  const { data: opportunities, isLoading, isError, refetch } = useOpportunities('seller-acquisition');
   const updateStageMutation = useUpdateOpportunityStage();
 
-  // Build stage mappings from opportunities
-  const stageMapping = useMemo(() => {
-    if (!opportunities?.length) return { idToKey: {}, keyToId: {} };
-    
-    const uniqueStageIds = [...new Set(opportunities.map(o => o.pipelineStageId))];
-    const idToKey: Record<string, SellerAcquisitionStage> = {};
-    const keyToId: Record<string, string> = {};
-    
-    uniqueStageIds.forEach((stageId, index) => {
-      const stageKey = stages[Math.min(index, stages.length - 1)]?.id || 'new-lead';
-      idToKey[stageId] = stageKey;
-      keyToId[stageKey] = stageId;
-    });
-    
-    return { idToKey, keyToId };
-  }, [opportunities]);
-
-  // Transform opportunities to acquisitions
+  // Transform opportunities
   const acquisitions = useMemo(() => {
     if (!opportunities) return [];
-    
-    return opportunities.map(opp => {
-      const stageKey = stageMapping.idToKey[opp.pipelineStageId] || 'new-lead';
-      const stageIndex = stages.findIndex(s => s.id === stageKey);
-      return transformToSellerAcquisition(opp, stageIndex >= 0 ? stageIndex : 0);
-    });
-  }, [opportunities, stageMapping]);
+    return opportunities.map(transformToSellerAcquisition);
+  }, [opportunities]);
 
   const filteredAcquisitions = useMemo(() => {
     if (!search) return acquisitions;
@@ -142,6 +130,7 @@ export default function SellerAcquisitions() {
       (a) =>
         a.sellerName.toLowerCase().includes(searchLower) ||
         a.propertyAddress.toLowerCase().includes(searchLower) ||
+        a.city.toLowerCase().includes(searchLower) ||
         a.email?.toLowerCase().includes(searchLower)
     );
   }, [acquisitions, search]);
@@ -163,23 +152,21 @@ export default function SellerAcquisitions() {
   const handleDrop = async (e: React.DragEvent, targetStage: string) => {
     e.preventDefault();
     if (!draggedItem) return;
-
-    const targetStageId = stageMapping.keyToId[targetStage as SellerAcquisitionStage];
-    if (!targetStageId) {
+    
+    const targetStageConfig = stages.find(s => s.id === targetStage);
+    if (!targetStageConfig) {
       toast.error('Unable to find target stage');
       setDraggedItem(null);
       return;
     }
-
-    const stageLabel = stages.find((s) => s.id === targetStage)?.label;
     
     try {
       await updateStageMutation.mutateAsync({
         opportunityId: draggedItem.id,
-        stageId: targetStageId,
+        stageId: targetStageConfig.ghlId,
         pipelineType: 'seller-acquisition',
       });
-      toast.success(`Moved to ${stageLabel}`);
+      toast.success(`Moved to ${targetStageConfig.label}`);
     } catch (err) {
       toast.error('Failed to update stage in GHL');
     }
@@ -189,19 +176,13 @@ export default function SellerAcquisitions() {
 
   const moveToNextStage = async (acquisition: SellerAcquisition) => {
     const currentIndex = stages.findIndex((s) => s.id === acquisition.stage);
-    if (currentIndex < stages.length - 2) {
+    if (currentIndex < stages.length - 1) {
       const nextStage = stages[currentIndex + 1];
-      const nextStageId = stageMapping.keyToId[nextStage.id];
-      
-      if (!nextStageId) {
-        toast.error('Unable to find next stage');
-        return;
-      }
 
       try {
         await updateStageMutation.mutateAsync({
           opportunityId: acquisition.id,
-          stageId: nextStageId,
+          stageId: nextStage.ghlId,
           pipelineType: 'seller-acquisition',
         });
         toast.success(`Moved to ${nextStage.label}`);
@@ -213,54 +194,73 @@ export default function SellerAcquisitions() {
 
   const markAsLost = async (acquisition: SellerAcquisition) => {
     const lostStage = stages.find(s => s.id === 'lost');
-    const lostStageId = stageMapping.keyToId['lost'];
+    if (!lostStage) return;
     
-    if (!lostStageId) {
-      toast.error('Unable to find lost stage');
-      return;
-    }
-
     try {
       await updateStageMutation.mutateAsync({
         opportunityId: acquisition.id,
-        stageId: lostStageId,
+        stageId: lostStage.ghlId,
         pipelineType: 'seller-acquisition',
       });
-      toast.info('Marked as Lost');
+      toast.success('Marked as Lost');
     } catch (err) {
       toast.error('Failed to update stage in GHL');
     }
   };
 
   const renderCard = (acquisition: SellerAcquisition) => (
-    <div className="group">
-      <OpportunityCard
-        id={acquisition.id}
-        title={acquisition.propertyAddress || acquisition.sellerName}
-        subtitle={acquisition.sellerName}
-        location={`${acquisition.city}${acquisition.state ? `, ${acquisition.state}` : ''} ${acquisition.zipCode}`.trim()}
-        amount={acquisition.askingPrice}
-        type={acquisition.propertyType}
-        date={acquisition.createdAt}
-        onClick={() => setSelectedAcquisition(acquisition)}
-        onMoveNext={() => moveToNextStage(acquisition)}
-        onMarkLost={() => markAsLost(acquisition)}
-        variant="seller"
-      />
-    </div>
+    <OpportunityCard
+      id={acquisition.id}
+      title={acquisition.sellerName}
+      subtitle={acquisition.propertyAddress}
+      location={`${acquisition.city}${acquisition.state ? `, ${acquisition.state}` : ''}`}
+      amount={acquisition.askingPrice}
+      type={acquisition.propertyType || 'Property'}
+      date={acquisition.createdAt}
+      onClick={() => setSelectedAcquisition(acquisition)}
+      onMoveNext={() => moveToNextStage(acquisition)}
+      variant="seller"
+    />
   );
 
-  const activeCount = filteredAcquisitions.filter((a) => a.stage !== 'lost' && a.stage !== 'closed-acquired').length;
+  const activeCount = filteredAcquisitions.filter((a) => a.stage !== 'lost').length;
 
-  if (error) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
-        <AlertCircle className="h-12 w-12 text-destructive" />
-        <p className="text-muted-foreground">Failed to load seller acquisitions</p>
-        <Button onClick={() => refetch()} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Retry
-        </Button>
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-4 w-48" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="space-y-3">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <EmptyState
+          icon={User}
+          title="Failed to load acquisitions"
+          description="Could not connect to HighLevel API. Please check your connection settings."
+          action={
+            <Button onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -272,18 +272,12 @@ export default function SellerAcquisitions() {
         <div>
           <h1 className="text-2xl font-bold">Seller Acquisitions</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {isLoading ? 'Loading...' : `${activeCount} active · ${filteredAcquisitions.length} total opportunities`}
+            {activeCount} active · {filteredAcquisitions.length} total opportunities
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4" />
           </Button>
           <Button
             variant={viewMode === 'kanban' ? 'default' : 'outline'}
@@ -318,115 +312,115 @@ export default function SellerAcquisitions() {
         </Button>
       </div>
 
-      {/* Loading State */}
-      {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="space-y-3">
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-32 w-full" />
-              <Skeleton className="h-32 w-full" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Kanban View */}
-      {!isLoading && viewMode === 'kanban' && (
-        <KanbanBoard
-          columns={kanbanColumns}
-          renderCard={renderCard}
-          onDragStart={handleDragStart}
-          onDrop={handleDrop}
-          emptyMessage="Drop here"
-          maxVisibleColumns={5}
+      {filteredAcquisitions.length === 0 ? (
+        <EmptyState
+          icon={User}
+          title="No acquisitions found"
+          description="No seller acquisitions match your search criteria."
         />
-      )}
+      ) : (
+        <>
+          {/* Kanban View */}
+          {viewMode === 'kanban' && (
+            <KanbanBoard
+              columns={kanbanColumns}
+              renderCard={renderCard}
+              onDragStart={handleDragStart}
+              onDrop={handleDrop}
+              emptyMessage="Drop here"
+              maxVisibleColumns={5}
+            />
+          )}
 
-      {/* List View */}
-      {!isLoading && viewMode === 'list' && (
-        <div className="rounded-lg border border-border overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Property</TableHead>
-                <TableHead>Seller</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>Asking Price</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredAcquisitions.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No seller acquisitions found
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredAcquisitions.map((acq) => {
-                  const stage = stages.find((s) => s.id === acq.stage);
-                  return (
-                    <TableRow 
-                      key={acq.id} 
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedAcquisition(acq)}
-                    >
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{acq.propertyAddress || 'No address'}</p>
-                          <p className="text-xs text-muted-foreground">{acq.city}{acq.state && `, ${acq.state}`}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{acq.sellerName}</TableCell>
-                      <TableCell>
-                        <Badge className={`${stage?.color} text-white`}>
-                          {stage?.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {acq.askingPrice ? `$${acq.askingPrice.toLocaleString()}` : '-'}
-                      </TableCell>
-                      <TableCell>{acq.propertyType || '-'}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(acq.createdAt), 'MMM d, yyyy')}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+          {/* List View */}
+          {viewMode === 'list' && (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Seller</TableHead>
+                    <TableHead>Property</TableHead>
+                    <TableHead>Stage</TableHead>
+                    <TableHead>Asking Price</TableHead>
+                    <TableHead>Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAcquisitions.map((acq) => {
+                    const stage = stages.find((s) => s.id === acq.stage);
+                    return (
+                      <TableRow 
+                        key={acq.id} 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSelectedAcquisition(acq)}
+                      >
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{acq.sellerName}</p>
+                            <p className="text-xs text-muted-foreground">{acq.email || '-'}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{acq.propertyAddress}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {acq.city}{acq.state ? `, ${acq.state}` : ''}
+                            </p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={`${stage?.color} text-white`}>
+                            {stage?.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {acq.askingPrice ? `$${acq.askingPrice.toLocaleString()}` : '-'}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(acq.createdAt), 'MMM d, yyyy')}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </>
       )}
 
       {/* Detail Modal */}
       <Dialog open={!!selectedAcquisition} onOpenChange={() => setSelectedAcquisition(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Property Acquisition Details</DialogTitle>
+            <DialogTitle>Seller Details</DialogTitle>
           </DialogHeader>
           {selectedAcquisition && (
             <div className="space-y-4">
-              <div>
-                <h3 className="text-xl font-semibold">{selectedAcquisition.propertyAddress || selectedAcquisition.sellerName}</h3>
-                <p className="text-muted-foreground">
-                  {selectedAcquisition.city}{selectedAcquisition.state && `, ${selectedAcquisition.state}`} {selectedAcquisition.zipCode}
-                </p>
-                <Badge className={`mt-2 ${stages.find(s => s.id === selectedAcquisition.stage)?.color} text-white`}>
-                  {stages.find(s => s.id === selectedAcquisition.stage)?.label}
-                </Badge>
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                  <User className="h-7 w-7 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold">{selectedAcquisition.sellerName}</h3>
+                  <Badge className={`${stages.find(s => s.id === selectedAcquisition.stage)?.color} text-white`}>
+                    {stages.find(s => s.id === selectedAcquisition.stage)?.label}
+                  </Badge>
+                </div>
               </div>
 
               <div className="grid gap-3">
                 <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <User className="h-5 w-5 text-muted-foreground" />
+                  <Building2 className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Seller</p>
-                    <p className="font-medium">{selectedAcquisition.sellerName}</p>
+                    <p className="text-xs text-muted-foreground">Property Address</p>
+                    <p className="font-medium">{selectedAcquisition.propertyAddress}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedAcquisition.city}{selectedAcquisition.state ? `, ${selectedAcquisition.state}` : ''} {selectedAcquisition.zipCode}
+                    </p>
                   </div>
                 </div>
+                
                 {selectedAcquisition.email && (
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <Mail className="h-5 w-5 text-muted-foreground" />
@@ -436,6 +430,7 @@ export default function SellerAcquisitions() {
                     </div>
                   </div>
                 )}
+                
                 {selectedAcquisition.phone && (
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <Phone className="h-5 w-5 text-muted-foreground" />
@@ -445,6 +440,7 @@ export default function SellerAcquisitions() {
                     </div>
                   </div>
                 )}
+                
                 {selectedAcquisition.askingPrice && (
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <DollarSign className="h-5 w-5 text-muted-foreground" />
@@ -454,19 +450,11 @@ export default function SellerAcquisitions() {
                     </div>
                   </div>
                 )}
-                {selectedAcquisition.propertyType && (
-                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                    <Building2 className="h-5 w-5 text-muted-foreground" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Property Type</p>
-                      <p className="font-medium">{selectedAcquisition.propertyType}</p>
-                    </div>
-                  </div>
-                )}
+                
                 <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                   <Calendar className="h-5 w-5 text-muted-foreground" />
                   <div>
-                    <p className="text-xs text-muted-foreground">Lead Created</p>
+                    <p className="text-xs text-muted-foreground">Created</p>
                     <p className="font-medium">{format(new Date(selectedAcquisition.createdAt), 'MMMM d, yyyy')}</p>
                   </div>
                 </div>
