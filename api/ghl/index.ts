@@ -150,6 +150,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (query.status) searchBody.status = query.status;
           if (query.stageId) searchBody.stageId = query.stageId;
           
+          // IMPORTANT: Filter by pipelineId at the API level, not client-side
+          if (pipelineId) {
+            searchBody.pipelineId = pipelineId;
+          }
+          
           const response = await fetch(`${GHL_API_URL}/opportunities/search`, { 
             method: 'POST',
             headers, 
@@ -172,13 +177,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           } else {
             page++;
           }
-        }
-        
-        // Filter by pipeline client-side
-        if (pipelineId) {
-          allOpportunities = allOpportunities.filter(
-            (opp: any) => opp.pipelineId === pipelineId
-          );
         }
         
         return res.status(200).json({ 

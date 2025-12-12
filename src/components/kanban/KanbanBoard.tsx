@@ -151,7 +151,8 @@ function KanbanColumn<T extends { id: string }>({
 
   return (
     <Card 
-      className="bg-muted/20 border-border/50 flex flex-col h-fit max-h-[calc(100vh-280px)]"
+      className="bg-muted/20 border-border/50 flex flex-col"
+      style={{ maxHeight: 'calc(100vh - 280px)', minHeight: '200px' }}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
@@ -173,54 +174,56 @@ function KanbanColumn<T extends { id: string }>({
         </div>
       </CardHeader>
       
-      <ScrollArea className="flex-1 min-h-0">
-        <CardContent className="p-2 pt-0">
-          <div className="space-y-2 min-h-[120px]">
-            {visibleItems.length > 0 ? (
-              <>
-                {visibleItems.map((item) => (
-                  <div
-                    key={item.id}
-                    draggable
-                    onDragStart={(e) => onDragStart?.(e, item)}
-                    className="cursor-grab active:cursor-grabbing"
-                  >
-                    {renderCard(item)}
-                  </div>
-                ))}
-                
-                {/* Load more button */}
-                {hasMoreItems && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setCurrentPage((p) => p + 1)}
-                  >
-                    Show {Math.min(ITEMS_PER_PAGE, column.items.length - visibleItems.length)} more
-                  </Button>
-                )}
-                
-                {/* Expand/Collapse for large lists */}
-                {column.items.length > ITEMS_PER_PAGE && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full text-xs text-muted-foreground hover:text-foreground"
-                    onClick={onToggleExpand}
-                  >
-                    {isExpanded ? 'Collapse' : `View all ${column.items.length}`}
-                  </Button>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-24 text-sm text-muted-foreground border-2 border-dashed border-border/50 rounded-lg">
-                {emptyMessage}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </ScrollArea>
+      <div className="flex-1 overflow-hidden">
+        <ScrollArea className="h-full">
+          <CardContent className="p-2 pt-0">
+            <div className="space-y-2 min-h-[120px]">
+              {visibleItems.length > 0 ? (
+                <>
+                  {visibleItems.map((item) => (
+                    <div
+                      key={item.id}
+                      draggable
+                      onDragStart={(e) => onDragStart?.(e, item)}
+                      className="cursor-grab active:cursor-grabbing"
+                    >
+                      {renderCard(item)}
+                    </div>
+                  ))}
+                  
+                  {/* Load more button */}
+                  {hasMoreItems && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setCurrentPage((p) => p + 1)}
+                    >
+                      Show {Math.min(ITEMS_PER_PAGE, column.items.length - visibleItems.length)} more
+                    </Button>
+                  )}
+                  
+                  {/* Expand/Collapse for large lists */}
+                  {column.items.length > ITEMS_PER_PAGE && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-xs text-muted-foreground hover:text-foreground"
+                      onClick={onToggleExpand}
+                    >
+                      {isExpanded ? 'Collapse' : `View all ${column.items.length}`}
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-24 text-sm text-muted-foreground border-2 border-dashed border-border/50 rounded-lg">
+                  {emptyMessage}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </ScrollArea>
+      </div>
     </Card>
   );
 }

@@ -26,31 +26,31 @@ import type { BuyerAcquisition, AcquisitionStage } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
-// Map GHL stage IDs to our stage types
+// Map GHL stage IDs to our stage types - USING ACTUAL STAGE IDs FROM YOUR PIPELINE
 const stageIdMap: Record<string, AcquisitionStage> = {
-  'inventory-discussions': 'inventory-discussions',
-  'property-sourcing': 'property-sourcing',
-  'buyer-review': 'buyer-review',
-  'underwriting-checklist': 'underwriting-checklist',
-  'offer-submitted': 'offer-submitted',
-  'buyer-contract-signed': 'buyer-contract-signed',
-  'qualification-phase': 'qualification-phase',
-  'closing-scheduled': 'closing-scheduled',
-  'closed-won': 'closed-won',
-  'lost': 'lost',
+  '82b1d31b-4807-44a4-a2e5-aa2fe17a74b0': 'inventory-discussions',
+  'aa7fdb9c-425f-4f09-8345-7d999ec65dce': 'property-sourcing',
+  '75bf05cb-0f78-48ec-962a-708b8d13a6ab': 'buyer-review',
+  '305be21b-3c52-4fae-abdf-23c5477d05a5': 'underwriting-checklist',
+  '1e7c6dc4-9a41-47ff-9445-497f1081774c': 'offer-submitted',
+  '4377ef1f-a103-42e9-adfa-c7a78d22723a': 'buyer-contract-signed',
+  'bc8d6c4b-4da3-4c5d-8aa0-eeb7feed3859': 'qualification-phase',
+  '6f3f0a41-3c31-4f33-aa41-47e4d61fdc51': 'closing-scheduled',
+  '1caa0fe9-608d-4f55-82f9-d43f35bb5123': 'closed-won',
+  '9b88275f-ae74-44f9-85be-f9c8ae78a0c4': 'lost',
 };
 
-const stages: { id: AcquisitionStage; label: string; color: string }[] = [
-  { id: 'inventory-discussions', label: 'Inventory Discussions', color: 'bg-blue-500' },
-  { id: 'property-sourcing', label: 'Property Sourcing', color: 'bg-cyan-500' },
-  { id: 'buyer-review', label: 'Buyer Review', color: 'bg-purple-500' },
-  { id: 'underwriting-checklist', label: 'Underwriting / Checklist', color: 'bg-indigo-500' },
-  { id: 'offer-submitted', label: 'Offer Submitted', color: 'bg-amber-500' },
-  { id: 'buyer-contract-signed', label: 'Buyer Contract Signed', color: 'bg-orange-500' },
-  { id: 'qualification-phase', label: 'Qualification Phase', color: 'bg-pink-500' },
-  { id: 'closing-scheduled', label: 'Closing Scheduled', color: 'bg-teal-500' },
-  { id: 'closed-won', label: 'Closed = Won', color: 'bg-green-500' },
-  { id: 'lost', label: 'Lost', color: 'bg-gray-500' },
+const stages: { id: AcquisitionStage; label: string; color: string; ghlId: string }[] = [
+  { id: 'inventory-discussions', label: 'Inventory Discussions', color: 'bg-blue-500', ghlId: '82b1d31b-4807-44a4-a2e5-aa2fe17a74b0' },
+  { id: 'property-sourcing', label: 'Property Sourcing', color: 'bg-cyan-500', ghlId: 'aa7fdb9c-425f-4f09-8345-7d999ec65dce' },
+  { id: 'buyer-review', label: 'Buyer Review', color: 'bg-purple-500', ghlId: '75bf05cb-0f78-48ec-962a-708b8d13a6ab' },
+  { id: 'underwriting-checklist', label: 'Underwriting / Checklist', color: 'bg-indigo-500', ghlId: '305be21b-3c52-4fae-abdf-23c5477d05a5' },
+  { id: 'offer-submitted', label: 'Offer Submitted', color: 'bg-amber-500', ghlId: '1e7c6dc4-9a41-47ff-9445-497f1081774c' },
+  { id: 'buyer-contract-signed', label: 'Buyer Contract Signed', color: 'bg-orange-500', ghlId: '4377ef1f-a103-42e9-adfa-c7a78d22723a' },
+  { id: 'qualification-phase', label: 'Qualification Phase', color: 'bg-pink-500', ghlId: 'bc8d6c4b-4da3-4c5d-8aa0-eeb7feed3859' },
+  { id: 'closing-scheduled', label: 'Closing Scheduled', color: 'bg-teal-500', ghlId: '6f3f0a41-3c31-4f33-aa41-47e4d61fdc51' },
+  { id: 'closed-won', label: 'Closed = Won', color: 'bg-green-500', ghlId: '1caa0fe9-608d-4f55-82f9-d43f35bb5123' },
+  { id: 'lost', label: 'Lost', color: 'bg-gray-500', ghlId: '9b88275f-ae74-44f9-85be-f9c8ae78a0c4' },
 ];
 
 interface ExtendedBuyerAcquisition extends BuyerAcquisition {
@@ -66,12 +66,8 @@ const transformToBuyerAcquisition = (opp: GHLOpportunity): ExtendedBuyerAcquisit
     return typeof field?.fieldValue === 'string' ? field.fieldValue : '';
   };
 
-  // Try to determine stage from pipelineStageId or custom field
-  const stageName = getCustomField('stage') || opp.pipelineStageId || '';
-  const matchedStage = Object.entries(stageIdMap).find(([key]) => 
-    stageName.toLowerCase().includes(key.replace('-', ' ')) ||
-    stageName.toLowerCase().includes(key)
-  );
+  // Map the GHL stage ID directly to our stage
+  const stage = stageIdMap[opp.pipelineStageId] || 'inventory-discussions';
 
   return {
     id: opp.id,
@@ -83,7 +79,7 @@ const transformToBuyerAcquisition = (opp: GHLOpportunity): ExtendedBuyerAcquisit
     propertyAddress: getCustomField('property_address') || opp.name,
     offerAmount: opp.monetaryValue || undefined,
     message: getCustomField('message') || getCustomField('notes'),
-    stage: matchedStage ? matchedStage[1] : 'inventory-discussions',
+    stage,
     createdAt: opp.createdAt,
     updatedAt: opp.updatedAt,
   };
@@ -98,23 +94,6 @@ export default function BuyerAcquisitions() {
   // Fetch real data from GHL
   const { data: opportunities, isLoading, isError, refetch } = useOpportunities('buyer-acquisition');
   const updateStageMutation = useUpdateOpportunityStage();
-
-  // Build stage mappings from opportunities
-  const stageMapping = useMemo(() => {
-    if (!opportunities?.length) return { idToKey: {}, keyToId: {} };
-    
-    const uniqueStageIds = [...new Set(opportunities.map(o => o.pipelineStageId))];
-    const idToKey: Record<string, AcquisitionStage> = {};
-    const keyToId: Record<string, string> = {};
-    
-    uniqueStageIds.forEach((stageId, index) => {
-      const stageKey = stages[Math.min(index, stages.length - 1)]?.id || 'inventory-discussions';
-      idToKey[stageId] = stageKey;
-      keyToId[stageKey] = stageId;
-    });
-    
-    return { idToKey, keyToId };
-  }, [opportunities]);
 
   // Transform opportunities to acquisitions
   const acquisitions = useMemo(() => {
@@ -151,22 +130,20 @@ export default function BuyerAcquisitions() {
     e.preventDefault();
     if (!draggedItem) return;
     
-    const targetStageId = stageMapping.keyToId[targetStage as AcquisitionStage];
-    if (!targetStageId) {
+    const targetStageConfig = stages.find(s => s.id === targetStage);
+    if (!targetStageConfig) {
       toast.error('Unable to find target stage');
       setDraggedItem(null);
       return;
     }
     
-    const stageLabel = stages.find((s) => s.id === targetStage)?.label;
-    
     try {
       await updateStageMutation.mutateAsync({
         opportunityId: draggedItem.id,
-        stageId: targetStageId,
+        stageId: targetStageConfig.ghlId,
         pipelineType: 'buyer-acquisition',
       });
-      toast.success(`Moved to ${stageLabel}`);
+      toast.success(`Moved to ${targetStageConfig.label}`);
     } catch (err) {
       toast.error('Failed to update stage in GHL');
     }
@@ -178,17 +155,11 @@ export default function BuyerAcquisitions() {
     const currentIndex = stages.findIndex((s) => s.id === acquisition.stage);
     if (currentIndex < stages.length - 2) {
       const nextStage = stages[currentIndex + 1];
-      const nextStageId = stageMapping.keyToId[nextStage.id];
-      
-      if (!nextStageId) {
-        toast.error('Unable to find next stage');
-        return;
-      }
 
       try {
         await updateStageMutation.mutateAsync({
           opportunityId: acquisition.id,
-          stageId: nextStageId,
+          stageId: nextStage.ghlId,
           pipelineType: 'buyer-acquisition',
         });
         toast.success(`Moved to ${nextStage.label}`);
@@ -199,43 +170,35 @@ export default function BuyerAcquisitions() {
   };
 
   const markAsLost = async (acquisition: ExtendedBuyerAcquisition) => {
-    const lostStageId = stageMapping.keyToId['lost'];
+    const lostStage = stages.find(s => s.id === 'lost');
+    if (!lostStage) return;
     
-    if (!lostStageId) {
-      toast.error('Unable to find lost stage');
-      return;
-    }
-
     try {
       await updateStageMutation.mutateAsync({
         opportunityId: acquisition.id,
-        stageId: lostStageId,
+        stageId: lostStage.ghlId,
         pipelineType: 'buyer-acquisition',
       });
-      toast.info('Marked as Lost');
+      toast.success('Marked as Lost');
     } catch (err) {
       toast.error('Failed to update stage in GHL');
     }
   };
 
   const renderCard = (acquisition: ExtendedBuyerAcquisition) => (
-    <div className="group">
-      <OpportunityCard
-        id={acquisition.id}
-        title={acquisition.name}
-        subtitle={acquisition.email}
-        location={acquisition.propertyAddress}
-        amount={acquisition.offerAmount}
-        date={acquisition.createdAt}
-        onClick={() => setSelectedAcquisition(acquisition)}
-        onMoveNext={() => moveToNextStage(acquisition)}
-        onMarkLost={() => markAsLost(acquisition)}
-        variant="buyer"
-      />
-    </div>
+    <OpportunityCard
+      id={acquisition.id}
+      title={acquisition.name}
+      subtitle={acquisition.email}
+      location={acquisition.propertyAddress || ''}
+      amount={acquisition.offerAmount}
+      type="Buyer"
+      date={acquisition.createdAt}
+      onClick={() => setSelectedAcquisition(acquisition)}
+      onMoveNext={() => moveToNextStage(acquisition)}
+      variant="buyer"
+    />
   );
-
-  const activeCount = filteredAcquisitions.filter((a) => a.stage !== 'lost' && a.stage !== 'closed-won').length;
 
   if (isLoading) {
     return (
@@ -245,13 +208,18 @@ export default function BuyerAcquisitions() {
             <Skeleton className="h-8 w-64 mb-2" />
             <Skeleton className="h-4 w-48" />
           </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-9" />
+            <Skeleton className="h-9 w-9" />
+            <Skeleton className="h-9 w-9" />
+          </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {[...Array(5)].map((_, i) => (
             <div key={i} className="space-y-3">
               <Skeleton className="h-6 w-32" />
-              <Skeleton className="h-32 w-full" />
-              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-40 w-full" />
+              <Skeleton className="h-40 w-full" />
             </div>
           ))}
         </div>
@@ -284,12 +252,21 @@ export default function BuyerAcquisitions() {
         <div>
           <h1 className="text-2xl font-bold">Buyer Home Acquisitions</h1>
           <p className="text-muted-foreground text-sm mt-0.5">
-            {activeCount} active · {filteredAcquisitions.length} total opportunities
+            {acquisitions.length} active · {filteredAcquisitions.length} total opportunities
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            <RefreshCw className="h-4 w-4" />
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => refetch()}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
           </Button>
           <Button
             variant={viewMode === 'kanban' ? 'default' : 'outline'}

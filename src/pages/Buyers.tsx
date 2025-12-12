@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, Users, LayoutGrid, List, RefreshCw } from 'lucide-react';
+import { Search, Filter, Users, LayoutGrid, List, RefreshCw, AlertCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -19,10 +19,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BuyerKanbanCard } from '@/components/buyers/BuyerKanbanCard';
 import { BuyerDetailModal } from '@/components/buyers/BuyerDetailModal';
 import { EmptyState } from '@/components/ui/empty-state';
 import { KanbanBoard, type KanbanColumn } from '@/components/kanban/KanbanBoard';
+import { OpportunityCard } from '@/components/kanban/OpportunityCard';
 import { useOpportunities, useUpdateOpportunityStage, GHLOpportunity } from '@/services/ghlApi';
 import type { Buyer, BuyerStage, BuyerStatus, BuyerChecklist } from '@/types';
 import { toast } from 'sonner';
@@ -35,17 +35,17 @@ const statusOptions = [
   { value: 'closed', label: 'Closed' },
 ];
 
-// Map GHL stage IDs to our stage types
+// Map GHL stage IDs to our stage types - UPDATED WITH ACTUAL STAGE IDs
 const stageIdMap: Record<string, BuyerStage> = {
-  'under-contract': 'under-contract',
-  'escrow-opened': 'escrow-opened',
-  'closing-scheduled': 'closing-scheduled',
+  '105d21a7-28f9-4a92-891a-e7c038ac6acd': 'under-contract',
+  'a74f318d-3f91-4c85-8cbf-17b882251d0f': 'escrow-opened',
+  'bd11404a-883a-450a-adc3-0c9ff911373e': 'closing-scheduled',
 };
 
-const stages: { id: BuyerStage; label: string; color: string }[] = [
-  { id: 'under-contract', label: 'Under Contract', color: 'bg-amber-500' },
-  { id: 'escrow-opened', label: 'Escrow Opened', color: 'bg-blue-500' },
-  { id: 'closing-scheduled', label: 'Closing Scheduled', color: 'bg-green-500' },
+const stages: { id: BuyerStage; label: string; color: string; ghlId: string }[] = [
+  { id: 'under-contract', label: '🔒 Under Contract - Send to Title', color: 'bg-amber-500', ghlId: '105d21a7-28f9-4a92-891a-e7c038ac6acd' },
+  { id: 'escrow-opened', label: 'Escrow Opened', color: 'bg-blue-500', ghlId: 'a74f318d-3f91-4c85-8cbf-17b882251d0f' },
+  { id: 'closing-scheduled', label: 'Closing Scheduled', color: 'bg-green-500', ghlId: 'bd11404a-883a-450a-adc3-0c9ff911373e' },
 ];
 
 // Default checklist structure
@@ -81,12 +81,8 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
     return typeof field?.fieldValue === 'string' ? field.fieldValue : '';
   };
 
-  // Try to determine stage from pipelineStageId or custom field
-  const stageName = getCustomField('stage') || opp.pipelineStageId || '';
-  const matchedStage = Object.entries(stageIdMap).find(([key]) => 
-    stageName.toLowerCase().includes(key.replace('-', ' ')) ||
-    stageName.toLowerCase().includes(key)
-  );
+  // Map the GHL stage ID directly to our stage
+  const stage = stageIdMap[opp.pipelineStageId] || 'under-contract';
 
   // Parse status
   const statusField = getCustomField('status')?.toLowerCase() || '';
@@ -121,7 +117,7 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
     },
     dealType: (getCustomField('deal_type') as Buyer['dealType']) || 'Cash',
     status,
-    stage: matchedStage ? matchedStage[1] : 'under-contract',
+    stage,
     checklist: defaultChecklist,
     propertiesSent: [],
     sentDealsForReview: getCustomField('sent_deals') || '0',
@@ -141,23 +137,6 @@ export default function Buyers() {
   // Fetch real data from GHL
   const { data: opportunities, isLoading, isError, refetch } = useOpportunities('deal-acquisition');
   const updateStageMutation = useUpdateOpportunityStage();
-
-  // Build stage mappings from opportunities
-  const stageMapping = useMemo(() => {
-    if (!opportunities?.length) return { idToKey: {}, keyToId: {} };
-    
-    const uniqueStageIds = [...new Set(opportunities.map(o => o.pipelineStageId))];
-    const idToKey: Record<string, BuyerStage> = {};
-    const keyToId: Record<string, string> = {};
-    
-    uniqueStageIds.forEach((stageId, index) => {
-      const stageKey = stages[Math.min(index, stages.length - 1)]?.id || 'under-contract';
-      idToKey[stageId] = stageKey;
-      keyToId[stageKey] = stageId;
-    });
-    
-    return { idToKey, keyToId };
-  }, [opportunities]);
 
   // Transform opportunities to buyers and merge with local state
   const buyers = useMemo(() => {
@@ -205,22 +184,20 @@ export default function Buyers() {
     e.preventDefault();
     if (!draggedItem) return;
 
-    const targetStageId = stageMapping.keyToId[targetStage as BuyerStage];
-    if (!targetStageId) {
+    const targetStageConfig = stages.find(s => s.id === targetStage);
+    if (!targetStageConfig) {
       toast.error('Unable to find target stage');
       setDraggedItem(null);
       return;
     }
 
-    const stageLabel = stages.find((s) => s.id === targetStage)?.label;
-    
     try {
       await updateStageMutation.mutateAsync({
         opportunityId: draggedItem.id,
-        stageId: targetStageId,
+        stageId: targetStageConfig.ghlId,
         pipelineType: 'deal-acquisition',
       });
-      toast.success(`Moved to ${stageLabel}`);
+      toast.success(`Moved to ${targetStageConfig.label}`);
     } catch (err) {
       toast.error('Failed to update stage in GHL');
     }
@@ -271,14 +248,37 @@ export default function Buyers() {
     });
   };
 
+  const moveToNextStage = async (buyer: ExtendedBuyer) => {
+    const currentIndex = stages.findIndex((s) => s.id === buyer.stage);
+    if (currentIndex < stages.length - 1) {
+      const nextStage = stages[currentIndex + 1];
+
+      try {
+        await updateStageMutation.mutateAsync({
+          opportunityId: buyer.id,
+          stageId: nextStage.ghlId,
+          pipelineType: 'deal-acquisition',
+        });
+        toast.success(`Moved to ${nextStage.label}`);
+      } catch (err) {
+        toast.error('Failed to update stage in GHL');
+      }
+    }
+  };
+
   const renderKanbanCard = (buyer: ExtendedBuyer) => (
-    <div
-      draggable
-      onDragStart={(e) => handleDragStart(e, buyer)}
-    >
-      <BuyerKanbanCard
-        buyer={buyer}
+    <div className="group">
+      <OpportunityCard
+        id={buyer.id}
+        title={buyer.name}
+        subtitle={buyer.email}
+        location={buyer.preferredZipCodes.slice(0, 2).join(', ')}
+        amount={buyer.preferences.maxPrice}
+        type={buyer.dealType}
+        date={buyer.createdAt}
         onClick={() => handleBuyerClick(buyer)}
+        onMoveNext={() => moveToNextStage(buyer)}
+        variant="buyer"
       />
     </div>
   );

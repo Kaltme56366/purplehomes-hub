@@ -170,7 +170,9 @@ export const useContacts = (params?: {
       ...(params?.limit && { limit: params.limit.toString() }),
     })}`),
     enabled: !!getApiConfig().apiKey,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 30 * 1000, // 30 seconds
+    refetchOnWindowFocus: true,
+    refetchInterval: 60 * 1000,
   });
 };
 
@@ -305,7 +307,9 @@ export const useOpportunities = (pipelineType: PipelineType = 'seller-acquisitio
       return data.opportunities;
     },
     enabled: !!getApiConfig().apiKey,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // 30 seconds - data is considered fresh for 30s
+    refetchOnWindowFocus: true, // Refetch when user comes back to tab
+    refetchInterval: 60 * 1000, // Auto-refetch every 60 seconds in background
   });
 };
 
@@ -347,7 +351,9 @@ export const useProperties = (pipelineId: string = SELLER_ACQUISITION_PIPELINE_I
       };
     },
     enabled: !!getApiConfig().apiKey,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60 * 1000,
   });
 };
 
