@@ -100,7 +100,8 @@ export interface GHLMessage {
   status: string;
 }
 
-// API Configuration stored in localStorage for now (will use env vars in Vercel)
+// API Configuration - kept for backward compatibility but not required
+// Backend will use Vercel environment variables
 export const getApiConfig = () => {
   const stored = localStorage.getItem('ghl_config');
   return stored ? JSON.parse(stored) : { apiKey: '', locationId: '' };
@@ -110,14 +111,11 @@ export const setApiConfig = (config: { apiKey: string; locationId: string }) => 
   localStorage.setItem('ghl_config', JSON.stringify(config));
 };
 
-// Generic fetch wrapper with error handling
-// Uses consolidated /api/ghl endpoint with resource query param
+// Generic fetch wrapper - calls backend which has credentials in env vars
 const fetchGHL = async <T>(
   resource: string,
   options?: RequestInit & { params?: Record<string, string> }
 ): Promise<T> => {
-  const config = getApiConfig();
-  
   // Build query string from resource path and additional params
   const [resourcePath, queryString] = resource.split('?');
   const params = new URLSearchParams(queryString || '');
@@ -141,8 +139,6 @@ const fetchGHL = async <T>(
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'X-GHL-API-Key': config.apiKey,
-      'X-GHL-Location-ID': config.locationId,
       ...options?.headers,
     },
   });
@@ -190,7 +186,7 @@ export const useContact = (contactId: string) => {
   return useQuery({
     queryKey: ['ghl-contact', contactId],
     queryFn: () => fetchGHL<GHLContact>(`contacts/${contactId}`),
-    enabled: !!contactId && !!getApiConfig().apiKey,
+    enabled: !!contactId,
   });
 };
 
@@ -316,8 +312,6 @@ export const useOpportunities = (pipelineType: PipelineType = 'seller-acquisitio
       );
       return data.opportunities;
     },
-    // Removed enabled check - API key should be in environment variables
-    // If API key is missing, the fetch will fail and retry logic will handle it
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
@@ -416,7 +410,7 @@ export const useProperty = (opportunityId: string) => {
         property: transformOpportunityToProperty(opp.opportunity),
       };
     },
-    enabled: !!opportunityId && !!getApiConfig().apiKey,
+    enabled: !!opportunityId,
   });
 };
 
@@ -490,7 +484,6 @@ export const useMedia = (folderId?: string) => {
     queryFn: () => fetchGHL<{ files: GHLMedia[] }>(
       `media${folderId ? `?folderId=${folderId}` : ''}`
     ),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 5 * 60 * 1000,
   });
 };
@@ -516,7 +509,6 @@ export const useSocialAccounts = () => {
   return useQuery({
     queryKey: ['ghl-social-accounts'],
     queryFn: () => fetchGHL<{ accounts: GHLSocialAccount[] }>('social/accounts'),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 };
@@ -527,7 +519,6 @@ export const useSocialPosts = (status?: string) => {
     queryFn: () => fetchGHL<{ posts: GHLSocialPost[] }>(
       `social/posts${status ? `?status=${status}` : ''}`
     ),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 2 * 60 * 1000,
   });
 };
@@ -590,7 +581,6 @@ export const useCustomFields = (model: 'contact' | 'opportunity' | 'all' = 'oppo
     queryFn: () => fetchGHL<{ customFields: { id: string; name: string; fieldKey: string; dataType: string }[] }>(
       `custom-fields?model=${model}`
     ),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 30 * 60 * 1000, // 30 minutes - these rarely change
   });
 };
@@ -623,7 +613,6 @@ export const useDocumentTemplates = () => {
   return useQuery({
     queryKey: ['ghl-document-templates'],
     queryFn: () => fetchGHL<{ templates: GHLDocumentTemplate[] }>('documents?action=templates'),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 10 * 60 * 1000, // Templates don't change often
   });
 };
@@ -636,7 +625,6 @@ export const useDocuments = (contactId?: string) => {
       if (contactId) params.set('contactId', contactId);
       return fetchGHL<{ documents: GHLDocumentContract[] }>(`documents?${params.toString()}`);
     },
-    enabled: !!getApiConfig().apiKey,
     staleTime: 2 * 60 * 1000,
   });
 };
@@ -726,22 +714,17 @@ export const useSendSMS = () => {
 export const useTestConnection = () => {
   return useMutation({
     mutationFn: async () => {
-      const config = getApiConfig();
-      if (!config.apiKey || !config.locationId) {
-        throw new Error('API Key and Location ID are required');
-      }
-      
-      // Try to fetch contacts as a connection test
-      const response = await fetch(`${API_BASE}/contacts?limit=1`, {
+      // Test connection by fetching a single contact
+      // Backend has credentials in Vercel env vars
+      const response = await fetch(`${API_BASE}?resource=contacts&limit=1`, {
         headers: {
           'Content-Type': 'application/json',
-          'X-GHL-API-Key': config.apiKey,
-          'X-GHL-Location-ID': config.locationId,
         },
       });
 
       if (!response.ok) {
-        throw new Error('Connection failed - check your API credentials');
+        const error = await response.json().catch(() => ({ message: 'Connection failed' }));
+        throw new Error(error.message || 'Connection failed - check your API credentials in Vercel');
       }
 
       return { success: true };
