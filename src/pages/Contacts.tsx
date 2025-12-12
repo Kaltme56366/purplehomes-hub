@@ -120,16 +120,17 @@ export default function Contacts() {
   const ghlConfig = getApiConfig();
   const hasLocalConfig = !!(ghlConfig.apiKey && ghlConfig.locationId);
 
-  // GHL API hooks - fetch all contacts, filter client-side by type
+  // GHL API hooks - fetch all contacts, filter client-side
+  // Only use GHL search for substantial queries (3+ chars) to avoid validation errors
+  const shouldUseGHLSearch = search.length >= 3;
+  
   const { 
     data: ghlContactsData, 
     isLoading: isLoadingContacts, 
     isError: isContactsError,
     refetch: refetchContacts 
   } = useContacts({ 
-    query: search || undefined,
-    // Don't filter by type in API - causes GHL validation error
-    // type: smartList, 
+    query: shouldUseGHLSearch ? search : undefined,
     limit: currentLimit
   });
   
@@ -258,8 +259,9 @@ export default function Contacts() {
       );
     }
     
-    // Search filter (client-side when not using GHL search)
-    if (search && !isGhlConnected) {
+    // Search filter - always apply client-side
+    // GHL search only used for queries 3+ chars to avoid validation errors
+    if (search) {
       const searchLower = search.toLowerCase();
       result = result.filter(c =>
         c.name.toLowerCase().includes(searchLower) ||
