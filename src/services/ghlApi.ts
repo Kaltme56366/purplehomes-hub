@@ -6,7 +6,7 @@ import { useSyncStore } from '@/store/useSyncStore';
 const API_BASE = '/api/ghl';
 
 // Pipeline IDs
-export const SELLER_ACQUISITION_PIPELINE_ID = 'U4FANAMaB1gGddRaaD9x';
+export const SELLER_ACQUISITION_PIPELINE_ID = 'zL3H2M1BdEKlVDa2YWao';
 export const BUYER_ACQUISITION_PIPELINE_ID = 'FRw9XPyTSnPv8ct0cWcm';
 export const DEAL_ACQUISITION_PIPELINE_ID = '2NeLTlKaeMyWOnLXdTCS';
 
