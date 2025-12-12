@@ -73,69 +73,64 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(response.ok ? 200 : response.status).json(await response.json());
         }
         
-        // SIMPLE APPROACH: Just use the deprecated GET endpoint
-        // It works, it's reliable, and GHL says existing integrations will continue to work
+        // Simple approach: Use GET /contacts/ with pagination
+        // This was working before - just needed to add limit and handle pagination
         const requestedLimit = query.limit ? parseInt(query.limit as string) : 10000;
         
         let allContacts: any[] = [];
-        let startAfterId: string | undefined;
-        let startAfter: number | undefined;
+        let nextPageUrl: string | undefined;
         let pageCount = 0;
         const maxPages = 100;
         
-        console.log(`[GHL Contacts] Fetching up to ${requestedLimit} contacts using GET /contacts/`);
+        console.log(`[GHL Contacts] Fetching contacts with limit=${requestedLimit}`);
+        
+        // Build initial request URL
+        let currentUrl = `${GHL_API_URL}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
         
         while (pageCount < maxPages && allContacts.length < requestedLimit) {
-          const params = new URLSearchParams({
-            locationId: GHL_LOCATION_ID,
-          });
+          console.log(`[GHL Contacts] Fetching page ${pageCount + 1}:`, currentUrl);
           
-          if (startAfterId) params.set('startAfterId', startAfterId);
-          if (startAfter !== undefined) params.set('startAfter', String(startAfter));
-          
-          const response = await fetch(`${GHL_API_URL}/contacts/?${params.toString()}`, {
-            method: 'GET',
-            headers
-          });
+          const response = await fetch(currentUrl, { method: 'GET', headers });
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
+            console.error('[GHL Contacts] Error:', errorData);
+            
+            // If first page fails, return error
             if (pageCount === 0) {
-              console.error('[GHL Contacts] Failed:', errorData);
               return res.status(response.status).json(errorData);
             }
-            console.warn(`[GHL Contacts] Page ${pageCount + 1} failed, returning what we have`);
+            
+            // Otherwise, return what we have
+            console.warn(`[GHL Contacts] Page ${pageCount + 1} failed, returning ${allContacts.length} contacts`);
             break;
           }
           
           const data = await response.json();
           const contacts = data.contacts || [];
           
+          console.log(`[GHL Contacts] Page ${pageCount + 1}: Got ${contacts.length} contacts`);
+          
           if (contacts.length === 0) break;
           
           allContacts = allContacts.concat(contacts);
           pageCount++;
           
-          console.log(`[GHL Contacts] Page ${pageCount}: ${contacts.length} contacts (total: ${allContacts.length})`);
-          
-          // Update pagination cursors
-          if (data.meta) {
-            startAfterId = data.meta.startAfterId;
-            startAfter = data.meta.startAfter;
-            if (!startAfterId && startAfter === undefined) break;
+          // Check for next page URL in meta
+          if (data.meta?.nextPageUrl) {
+            currentUrl = data.meta.nextPageUrl;
           } else {
+            // No more pages
             break;
           }
-          
-          if (contacts.length < 100) break; // Last page
         }
         
-        // Trim to requested limit
+        // Trim to requested limit if needed
         if (allContacts.length > requestedLimit) {
           allContacts = allContacts.slice(0, requestedLimit);
         }
         
-        console.log(`[GHL Contacts] ✅ Returned ${allContacts.length} contacts`);
+        console.log(`[GHL Contacts] ✅ Returning ${allContacts.length} contacts (${pageCount} pages)`);
         
         return res.status(200).json({ 
           contacts: allContacts,
