@@ -134,10 +134,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(response.ok ? 200 : response.status).json(await response.json());
         }
         
-        // GHL opportunities/search requires POST with body
+        // GHL opportunities/search requires POST with body (no pipelineId in body)
         const searchBody: Record<string, any> = {
           locationId: GHL_LOCATION_ID,
-          pipelineId,
           limit: parseInt((query.limit as string) || '100', 10),
         };
         if (query.status) searchBody.status = query.status;
@@ -148,7 +147,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           headers, 
           body: JSON.stringify(searchBody)
         });
-        return res.status(response.ok ? 200 : response.status).json(await response.json());
+        
+        // Filter by pipeline client-side if needed
+        const data = await response.json();
+        if (response.ok && pipelineId && data.opportunities) {
+          data.opportunities = data.opportunities.filter(
+            (opp: any) => opp.pipelineId === pipelineId
+          );
+        }
+        return res.status(response.ok ? 200 : response.status).json(data);
       }
       
       if (method === 'POST') {
