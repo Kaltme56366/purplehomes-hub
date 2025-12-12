@@ -88,7 +88,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         while (pageCount < maxPages) {
           const searchBody: any = {
             locationId: GHL_LOCATION_ID,
-            limit: 100,
+            pageLimit: 100,  // Changed from 'limit' to 'pageLimit'
           };
           
           if (queryText && queryText.trim()) {
