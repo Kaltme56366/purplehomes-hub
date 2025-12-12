@@ -120,7 +120,7 @@ export default function Contacts() {
   const ghlConfig = getApiConfig();
   const hasLocalConfig = !!(ghlConfig.apiKey && ghlConfig.locationId);
 
-  // GHL API hooks - always filter by type (no "all contacts")
+  // GHL API hooks - fetch all contacts, filter client-side by type
   const { 
     data: ghlContactsData, 
     isLoading: isLoadingContacts, 
@@ -128,7 +128,8 @@ export default function Contacts() {
     refetch: refetchContacts 
   } = useContacts({ 
     query: search || undefined,
-    type: smartList, // Always filter by selected type
+    // Don't filter by type in API - causes GHL validation error
+    // type: smartList, 
     limit: currentLimit
   });
   
@@ -240,7 +241,10 @@ export default function Contacts() {
   const filteredContacts = useMemo(() => {
     let result = [...baseContacts];
     
-    // No need for smart list filter - handled by API call
+    // Filter by smart list (contact type) - client-side
+    if (smartList) {
+      result = result.filter(c => c.type === smartList);
+    }
     
     // Status filter
     if (statusFilter !== 'all') {
