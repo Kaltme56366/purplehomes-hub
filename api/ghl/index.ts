@@ -48,7 +48,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (!GHL_API_KEY || !GHL_LOCATION_ID) {
-    return res.status(500).json({ error: 'GHL API credentials not configured' });
+    return res.status(500).json({ 
+      error: 'GHL API credentials not configured',
+      missing: {
+        GHL_API_KEY: !GHL_API_KEY,
+        GHL_LOCATION_ID: !GHL_LOCATION_ID
+      }
+    });
   }
 
   const headers = {
@@ -128,15 +134,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(response.ok ? 200 : response.status).json(await response.json());
         }
         
-        const params = new URLSearchParams({
+        // GHL opportunities/search requires POST with body
+        const searchBody: Record<string, any> = {
           locationId: GHL_LOCATION_ID,
           pipelineId,
-          limit: (query.limit as string) || '100',
-        });
-        if (query.status) params.append('status', query.status as string);
-        if (query.stageId) params.append('stageId', query.stageId as string);
+          limit: parseInt((query.limit as string) || '100', 10),
+        };
+        if (query.status) searchBody.status = query.status;
+        if (query.stageId) searchBody.stageId = query.stageId;
         
-        const response = await fetch(`${GHL_API_URL}/opportunities/search?${params}`, { headers });
+        const response = await fetch(`${GHL_API_URL}/opportunities/search`, { 
+          method: 'POST',
+          headers, 
+          body: JSON.stringify(searchBody)
+        });
         return res.status(response.ok ? 200 : response.status).json(await response.json());
       }
       
@@ -756,7 +767,9 @@ Generate ONLY the caption text, nothing else.`;
           );
           
           if (!sheetResponse.ok) {
-            return res.status(500).json({ error: 'Failed to fetch users from sheet' });
+            const errorData = await sheetResponse.json();
+            console.error('Google Sheets error:', errorData);
+            return res.status(500).json({ error: 'Failed to fetch users from sheet', details: errorData });
           }
           
           const sheetData = await sheetResponse.json();
@@ -778,10 +791,10 @@ Generate ONLY the caption text, nothing else.`;
             }
           }
           
-          return res.status(401).json({ authenticated: false, error: 'Invalid credentials' });
+          return res.status(401).json({ authenticated: false, error: 'Invalid email or password' });
         } catch (error) {
           console.error('Auth error:', error);
-          return res.status(500).json({ error: 'Authentication failed' });
+          return res.status(500).json({ error: 'Authentication failed', details: error instanceof Error ? error.message : 'Unknown error' });
         }
       }
     }
