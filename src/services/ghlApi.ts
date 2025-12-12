@@ -336,7 +336,40 @@ export const useUpdateOpportunityStage = () => {
         params: { action: 'update-stage' }
       });
     },
-    onSuccess: (_, variables) => {
+    // Optimistic update for instant UI feedback
+    onMutate: async ({ opportunityId, stageId, pipelineType }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['ghl-opportunities', pipelineType] });
+      
+      // Snapshot the previous value
+      const previousOpportunities = queryClient.getQueryData<GHLOpportunity[]>(['ghl-opportunities', pipelineType]);
+      
+      // Optimistically update the cache
+      if (previousOpportunities) {
+        queryClient.setQueryData<GHLOpportunity[]>(
+          ['ghl-opportunities', pipelineType],
+          previousOpportunities.map(opp => 
+            opp.id === opportunityId 
+              ? { ...opp, pipelineStageId: stageId, updatedAt: new Date().toISOString() }
+              : opp
+          )
+        );
+      }
+      
+      // Return context for rollback on error
+      return { previousOpportunities, pipelineType };
+    },
+    // Rollback on error
+    onError: (err, variables, context) => {
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(
+          ['ghl-opportunities', context.pipelineType],
+          context.previousOpportunities
+        );
+      }
+    },
+    // Always refetch after success or error
+    onSettled: (_, __, variables) => {
       queryClient.invalidateQueries({ queryKey: ['ghl-opportunities', variables.pipelineType] });
     },
   });
