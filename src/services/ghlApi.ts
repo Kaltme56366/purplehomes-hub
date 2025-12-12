@@ -309,7 +309,9 @@ export const useOpportunities = (pipelineType: PipelineType = 'seller-acquisitio
     enabled: !!getApiConfig().apiKey,
     staleTime: 30 * 1000, // 30 seconds - data is considered fresh for 30s
     refetchOnWindowFocus: true, // Refetch when user comes back to tab
-    refetchInterval: 60 * 1000, // Auto-refetch every 60 seconds in background
+    refetchInterval: 2 * 60 * 1000, // Auto-refetch every 2 minutes (less aggressive)
+    retry: 2, // Retry failed requests twice
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   });
 };
 

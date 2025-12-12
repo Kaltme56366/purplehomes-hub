@@ -150,10 +150,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (query.status) searchBody.status = query.status;
           if (query.stageId) searchBody.stageId = query.stageId;
           
-          // IMPORTANT: Filter by pipelineId at the API level, not client-side
-          if (pipelineId) {
-            searchBody.pipelineId = pipelineId;
-          }
+          // Note: GHL API doesn't support pipelineId in search body
+          // We'll filter client-side after fetching
           
           const response = await fetch(`${GHL_API_URL}/opportunities/search`, { 
             method: 'POST',
@@ -171,12 +169,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           allOpportunities = allOpportunities.concat(opportunities);
           
           // Check if there are more pages
-          if (opportunities.length < limit || page >= 10) {
-            // Stop after 10 pages max (1000 opportunities) to prevent infinite loops
+          // Keep fetching until we get no results or hit reasonable limit
+          if (opportunities.length < limit) {
+            hasMore = false;
+          } else if (page >= 50) {
+            // Safety limit: stop after 50 pages (5000 opportunities)
             hasMore = false;
           } else {
             page++;
           }
+        }
+        
+        // Filter by pipeline client-side after fetching all
+        if (pipelineId) {
+          allOpportunities = allOpportunities.filter(
+            (opp: any) => opp.pipelineId === pipelineId
+          );
         }
         
         return res.status(200).json({ 
