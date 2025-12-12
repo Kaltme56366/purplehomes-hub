@@ -81,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let pageCount = 0;
         const maxPages = 100;
         
-        console.log(`[GHL Contacts] Starting fetch - limit: ${requestedLimit}`);
+        console.log(`[GHL Contacts] Starting fetch - requested limit: ${requestedLimit}`);
         
         // DUAL-ENDPOINT STRATEGY:
         // 1. Try POST /contacts/search (modern, recommended)
@@ -91,10 +91,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let firstPageError: any = null;
         
         while (pageCount < maxPages) {
-          let response: Response;
+          let response: Response | undefined;
           
           if (!useDeprecatedEndpoint) {
             // TRY: Modern POST /contacts/search endpoint
+            // DON'T send limit/pageLimit - GHL returns 100 per page by default
             const searchBody: Record<string, any> = {
               locationId: GHL_LOCATION_ID,
             };
@@ -102,7 +103,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             if (startAfterId) searchBody.startAfterId = startAfterId;
             if (startAfter !== undefined) searchBody.startAfter = Number(startAfter);
             
-            console.log('[GHL Contacts] Trying POST /contacts/search - page', pageCount + 1);
+            console.log('[GHL Contacts] POST /contacts/search body:', JSON.stringify(searchBody));
             
             response = await fetch(`${GHL_API_URL}/contacts/search`, {
               method: 'POST',
@@ -133,20 +134,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           if (useDeprecatedEndpoint) {
             // FALLBACK: Deprecated GET /contacts/ endpoint
+            // GHL's GET endpoint uses DIFFERENT parameter names than POST
             const params = new URLSearchParams({
               locationId: GHL_LOCATION_ID,
-              limit: '100'
             });
             
+            // For GET endpoint: use startAfterId and startAfter for pagination (no limit param)
             if (startAfterId) params.set('startAfterId', startAfterId);
             if (startAfter !== undefined) params.set('startAfter', String(startAfter));
             
             console.log('[GHL Contacts] Using deprecated GET /contacts/ - page', pageCount + 1);
+            console.log('[GHL Contacts] GET params:', params.toString());
             
             response = await fetch(`${GHL_API_URL}/contacts/?${params.toString()}`, {
               method: 'GET',
               headers
             });
+          }
+          
+          // Ensure response exists
+          if (!response) {
+            console.error('[GHL Contacts] No response - this should not happen');
+            return res.status(500).json({ error: 'Internal error: no response from GHL' });
           }
           
           if (!response.ok) {
