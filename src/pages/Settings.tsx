@@ -53,14 +53,6 @@ export default function Settings() {
   };
 
   const handleTestGhlConnection = async () => {
-    if (!ghlApiKey || !ghlLocationId) {
-      toast.error('Please enter API Key and Location ID first');
-      return;
-    }
-    
-    // Save config first
-    setApiConfig({ apiKey: ghlApiKey, locationId: ghlLocationId });
-    
     try {
       await testConnection.mutateAsync();
       setConnectionStatus({ ...connectionStatus, highLevel: true });
@@ -324,54 +316,21 @@ export default function Settings() {
                 </a>
               </div>
               
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="ghl-api-key">API Key *</Label>
-                  <div className="relative mt-1">
-                    <Input 
-                      id="ghl-api-key"
-                      type={showApiKey ? "text" : "password"} 
-                      value={ghlApiKey}
-                      onChange={(e) => setGhlApiKey(e.target.value)}
-                      placeholder="eyJhbGciOiJIUzI1NiIs..."
-                      className="pr-20"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-1 top-1 h-7 text-xs"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                    >
-                      {showApiKey ? 'Hide' : 'Show'}
-                    </Button>
+              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Key className="h-8 w-8 text-muted-foreground" />
+                    <div>
+                      <p className="font-medium">API credentials configured via Vercel</p>
+                      <p className="text-sm text-muted-foreground">
+                        Environment variables: GHL_API_KEY, GHL_LOCATION_ID
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="ghl-location-id">Location ID *</Label>
-                  <Input 
-                    id="ghl-location-id"
-                    value={ghlLocationId}
-                    onChange={(e) => setGhlLocationId(e.target.value)}
-                    placeholder="zL3H2M1BdEKlVDa2YWao"
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between pt-2">
-                <div className="flex items-center gap-2">
-                  <Button 
-                    onClick={handleSaveGhlConfig}
-                    disabled={!ghlApiKey || !ghlLocationId}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {configSaved ? 'Saved!' : 'Save Configuration'}
-                  </Button>
                   <Button 
                     variant="outline"
                     onClick={handleTestGhlConnection}
-                    disabled={testConnection.isPending || !ghlApiKey || !ghlLocationId}
+                    disabled={testConnection.isPending}
                   >
                     {testConnection.isPending ? (
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -381,12 +340,14 @@ export default function Settings() {
                     Test Connection
                   </Button>
                 </div>
-                {connectionStatus.highLevel && (
-                  <span className="text-sm text-muted-foreground">
-                    Ready to sync contacts and opportunities
-                  </span>
-                )}
               </div>
+              
+              {connectionStatus.highLevel && (
+                <div className="flex items-center gap-2 text-sm text-success">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Ready to sync contacts, opportunities, and documents
+                </div>
+              )}
               
               {/* Deployment Note */}
               <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 mt-4">

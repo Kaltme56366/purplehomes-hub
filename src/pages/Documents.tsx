@@ -13,7 +13,8 @@ import {
   Wifi,
   WifiOff,
   X,
-  ChevronDown
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -143,9 +144,12 @@ export default function Documents() {
     recipientEmail: '',
   });
 
-  // Check GHL connection
+  // Check GHL connection (either in localStorage or working via env vars)
   const ghlConfig = getApiConfig();
-  const isGhlConnected = connectionStatus.highLevel && ghlConfig.apiKey;
+  const hasLocalConfig = !!(ghlConfig.apiKey && ghlConfig.locationId);
+  
+  // If templates load successfully from GHL, we're connected (even if no local config)
+  const isGhlConnected = hasLocalConfig || (!isLoadingTemplates && templatesData?.templates);
 
   // Get custom fields from GHL
   const { data: ghlCustomFields } = useCustomFields('opportunity');
@@ -313,10 +317,20 @@ export default function Documents() {
             Create, send, and track documents via HighLevel
           </p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Document
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => refetchDocuments()}
+            disabled={isLoadingDocuments || isLoadingTemplates}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingDocuments || isLoadingTemplates ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button onClick={() => setShowCreateModal(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Document
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

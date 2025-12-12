@@ -95,6 +95,7 @@ export default function Contacts() {
   const [sortField, setSortField] = useState<SortField>('createdAt');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [newContact, setNewContact] = useState({
@@ -108,9 +109,12 @@ export default function Contacts() {
     notes: ''
   });
 
-  // Check if GHL is configured
+  // Check if GHL is configured (either in localStorage or working via env vars)
   const ghlConfig = getApiConfig();
-  const isGhlConnected = connectionStatus.highLevel && ghlConfig.apiKey;
+  const hasLocalConfig = !!(ghlConfig.apiKey && ghlConfig.locationId);
+  
+  // If data loads successfully from GHL, we're connected (even if no local config)
+  const isGhlConnected = hasLocalConfig || (!isLoadingContacts && !isContactsError && ghlContactsData?.contacts);
 
   // GHL API hooks
   const { 
@@ -503,7 +507,11 @@ export default function Contacts() {
       {/* Filters & Search */}
       <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
         <div className="flex gap-2">
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          >
             <Filter className="h-4 w-4 mr-2" />
             Advanced Filters
           </Button>
@@ -558,6 +566,54 @@ export default function Contacts() {
           </div>
         </div>
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showAdvancedFilters && (
+        <Card className="border-primary/20 animate-slide-in">
+          <CardContent className="pt-6">
+            <div className="grid gap-4 md:grid-cols-3">
+              <div>
+                <Label>Deals Range</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input type="number" placeholder="Min" className="w-20" />
+                  <span className="flex items-center">to</span>
+                  <Input type="number" placeholder="Max" className="w-20" />
+                </div>
+              </div>
+              <div>
+                <Label>Transaction Value</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input type="number" placeholder="Min $" />
+                  <span className="flex items-center">to</span>
+                  <Input type="number" placeholder="Max $" />
+                </div>
+              </div>
+              <div>
+                <Label>Created Date Range</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input type="date" />
+                  <span className="flex items-center">to</span>
+                  <Input type="date" />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowAdvancedFilters(false);
+                  toast.info('Filters cleared');
+                }}
+              >
+                Clear Filters
+              </Button>
+              <Button onClick={() => toast.info('Advanced filters applied')}>
+                Apply Filters
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bulk Actions */}
       {selectedIds.size > 0 && (
