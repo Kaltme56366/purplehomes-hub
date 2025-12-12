@@ -73,6 +73,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(response.ok ? 200 : response.status).json(await response.json());
         }
         
+        // SIMPLE APPROACH: Just use the deprecated GET endpoint
+        // It works, it's reliable, and GHL says existing integrations will continue to work
         const requestedLimit = query.limit ? parseInt(query.limit as string) : 10000;
         
         let allContacts: any[] = [];
@@ -81,90 +83,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         let pageCount = 0;
         const maxPages = 100;
         
-        console.log(`[GHL Contacts] Starting fetch - requested limit: ${requestedLimit}`);
+        console.log(`[GHL Contacts] Fetching up to ${requestedLimit} contacts using GET /contacts/`);
         
-        // DUAL-ENDPOINT STRATEGY:
-        // 1. Try POST /contacts/search (modern, recommended)
-        // 2. If validation error occurs, fallback to GET /contacts/ (deprecated but working)
-        
-        let useDeprecatedEndpoint = false;
-        let firstPageError: any = null;
-        
-        while (pageCount < maxPages) {
-          let response: Response | undefined;
+        while (pageCount < maxPages && allContacts.length < requestedLimit) {
+          const params = new URLSearchParams({
+            locationId: GHL_LOCATION_ID,
+          });
           
-          if (!useDeprecatedEndpoint) {
-            // TRY: Modern POST /contacts/search endpoint
-            // DON'T send limit/pageLimit - GHL returns 100 per page by default
-            const searchBody: Record<string, any> = {
-              locationId: GHL_LOCATION_ID,
-            };
-            
-            if (startAfterId) searchBody.startAfterId = startAfterId;
-            if (startAfter !== undefined) searchBody.startAfter = Number(startAfter);
-            
-            console.log('[GHL Contacts] POST /contacts/search body:', JSON.stringify(searchBody));
-            
-            response = await fetch(`${GHL_API_URL}/contacts/search`, {
-              method: 'POST',
-              headers,
-              body: JSON.stringify(searchBody)
-            });
-            
-            // Check for validation error on first page
-            if (!response.ok && pageCount === 0) {
-              const errorData = await response.json().catch(() => ({}));
-              const errorMsg = errorData.message || errorData.error || '';
-              
-              // If it's a validation error about missing fields, try deprecated endpoint
-              if (errorMsg.includes('email') || errorMsg.includes('phone') || 
-                  errorMsg.includes('firstName') || errorMsg.includes('lastName')) {
-                console.warn('[GHL Contacts] ⚠️ Validation error detected, falling back to deprecated GET endpoint');
-                console.warn('[GHL Contacts] Error:', errorMsg);
-                useDeprecatedEndpoint = true;
-                firstPageError = errorData;
-                continue; // Retry with deprecated endpoint
-              } else {
-                // Different error, fail immediately
-                console.error('[GHL Contacts] POST /contacts/search failed:', errorData);
-                return res.status(response.status).json(errorData);
-              }
-            }
-          }
+          if (startAfterId) params.set('startAfterId', startAfterId);
+          if (startAfter !== undefined) params.set('startAfter', String(startAfter));
           
-          if (useDeprecatedEndpoint) {
-            // FALLBACK: Deprecated GET /contacts/ endpoint
-            // GHL's GET endpoint uses DIFFERENT parameter names than POST
-            const params = new URLSearchParams({
-              locationId: GHL_LOCATION_ID,
-            });
-            
-            // For GET endpoint: use startAfterId and startAfter for pagination (no limit param)
-            if (startAfterId) params.set('startAfterId', startAfterId);
-            if (startAfter !== undefined) params.set('startAfter', String(startAfter));
-            
-            console.log('[GHL Contacts] Using deprecated GET /contacts/ - page', pageCount + 1);
-            console.log('[GHL Contacts] GET params:', params.toString());
-            
-            response = await fetch(`${GHL_API_URL}/contacts/?${params.toString()}`, {
-              method: 'GET',
-              headers
-            });
-          }
-          
-          // Ensure response exists
-          if (!response) {
-            console.error('[GHL Contacts] No response - this should not happen');
-            return res.status(500).json({ error: 'Internal error: no response from GHL' });
-          }
+          const response = await fetch(`${GHL_API_URL}/contacts/?${params.toString()}`, {
+            method: 'GET',
+            headers
+          });
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
             if (pageCount === 0) {
-              console.error('[GHL Contacts] Both endpoints failed:', errorData);
+              console.error('[GHL Contacts] Failed:', errorData);
               return res.status(response.status).json(errorData);
             }
-            console.warn(`[GHL Contacts] Page ${pageCount + 1} failed, stopping pagination`);
+            console.warn(`[GHL Contacts] Page ${pageCount + 1} failed, returning what we have`);
             break;
           }
           
@@ -178,33 +118,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           console.log(`[GHL Contacts] Page ${pageCount}: ${contacts.length} contacts (total: ${allContacts.length})`);
           
-          if (allContacts.length >= requestedLimit) {
-            allContacts = allContacts.slice(0, requestedLimit);
-            break;
-          }
-          
+          // Update pagination cursors
           if (data.meta) {
             startAfterId = data.meta.startAfterId;
             startAfter = data.meta.startAfter;
-            if (!startAfterId && !startAfter) break;
+            if (!startAfterId && startAfter === undefined) break;
           } else {
             break;
           }
           
-          if (contacts.length < 100) break;
+          if (contacts.length < 100) break; // Last page
         }
         
-        const endpoint = useDeprecatedEndpoint ? 'GET /contacts/ (deprecated)' : 'POST /contacts/search';
-        console.log(`[GHL Contacts] ✅ Fetched ${allContacts.length} contacts using ${endpoint}`);
+        // Trim to requested limit
+        if (allContacts.length > requestedLimit) {
+          allContacts = allContacts.slice(0, requestedLimit);
+        }
+        
+        console.log(`[GHL Contacts] ✅ Returned ${allContacts.length} contacts`);
         
         return res.status(200).json({ 
           contacts: allContacts,
-          meta: { 
-            total: allContacts.length, 
-            pages: pageCount,
-            endpoint: useDeprecatedEndpoint ? 'deprecated' : 'modern',
-            note: useDeprecatedEndpoint ? 'Using deprecated endpoint due to validation errors' : undefined
-          }
+          meta: { total: allContacts.length, pages: pageCount }
         });
       }
       
