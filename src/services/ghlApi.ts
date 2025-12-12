@@ -170,20 +170,11 @@ export const useContacts = (params?: {
     queryFn: () => {
       const searchParams = new URLSearchParams();
       
-      // Only add query if it's substantial (3+ characters) to avoid GHL validation errors
-      if (params?.query && params.query.trim().length >= 3) {
-        searchParams.set('query', params.query.trim());
-      }
+      // Backend will fetch ALL contacts and paginate automatically
+      // Just pass the limit (default 10000 to get all contacts)
+      searchParams.set('limit', (params?.limit || 10000).toString());
       
-      if (params?.type) searchParams.set('type', params.type);
-      
-      // Increase default limit to get more contacts
-      searchParams.set('limit', (params?.limit || 100).toString());
-      
-      if (params?.startAfterId) searchParams.set('startAfterId', params.startAfterId);
-      if (params?.startAfter) searchParams.set('startAfter', params.startAfter);
-      
-      return fetchGHL<{ contacts: GHLContact[]; meta?: { startAfterId?: string; startAfter?: number; nextPage?: string } }>(
+      return fetchGHL<{ contacts: GHLContact[]; meta?: { total: number; pages: number } }>(
         `contacts?${searchParams.toString()}`
       );
     },
@@ -734,22 +725,17 @@ export const useSendSMS = () => {
 export const useTestConnection = () => {
   return useMutation({
     mutationFn: async () => {
-      const config = getApiConfig();
-      if (!config.apiKey || !config.locationId) {
-        throw new Error('API Key and Location ID are required');
-      }
-      
-      // Try to fetch contacts as a connection test
-      const response = await fetch(`${API_BASE}/contacts?limit=1`, {
+      // Test connection by fetching a single contact from backend
+      // Backend has credentials in Vercel env vars
+      const response = await fetch(`${API_BASE}?resource=contacts&limit=1`, {
         headers: {
           'Content-Type': 'application/json',
-          'X-GHL-API-Key': config.apiKey,
-          'X-GHL-Location-ID': config.locationId,
         },
       });
 
       if (!response.ok) {
-        throw new Error('Connection failed - check your API credentials');
+        const error = await response.json().catch(() => ({ message: 'Connection failed' }));
+        throw new Error(error.message || 'Connection failed - check your API credentials in Vercel');
       }
 
       return { success: true };

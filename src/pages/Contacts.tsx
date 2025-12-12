@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Filter, 
@@ -56,6 +56,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/ui/empty-state';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { mockContacts } from '@/data/mockData';
 import type { Contact, ContactType, ContactStatus } from '@/types';
@@ -72,18 +73,12 @@ import {
 } from '@/services/ghlApi';
 import { useAppStore } from '@/store/useAppStore';
 
-const SMART_LISTS: { value: ContactType; label: string }[] = [
-  { value: 'buyer', label: 'Buyers' },
+const SMART_LISTS: { value: ContactType | 'all'; label: string }[] = [
+  { value: 'all', label: 'All Contacts' },
   { value: 'seller', label: 'Sellers' },
+  { value: 'buyer', label: 'Buyers' },
+  { value: 'agent', label: 'Agents' },
   { value: 'wholesaler', label: 'Wholesalers' },
-  { value: 'agent', label: 'Real Estate Agents' },
-  { value: 'buyer-representative', label: 'Buyer Representatives' },
-  { value: 'owner', label: 'Owners' },
-  { value: 'contractor', label: 'Contractors' },
-  { value: 'private-money-lender', label: 'Private Money Lenders' },
-  { value: 'institutional-lender', label: 'Institutional Lenders' },
-  { value: 'unknown', label: 'Unknown' },
-  { value: 'other', label: 'Other' },
 ];
 
 const STATUS_OPTIONS: ContactStatus[] = ['active', 'inactive', 'pending', 'closed'];
@@ -93,7 +88,7 @@ type SortOrder = 'asc' | 'desc';
 
 export default function Contacts() {
   const { connectionStatus } = useAppStore();
-  const [smartList, setSmartList] = useState<ContactType>('buyer');
+  const [smartList, setSmartList] = useState<ContactType | 'all'>('all');
   const [search, setSearch] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [statusFilter, setStatusFilter] = useState<ContactStatus | 'all'>('all');
@@ -104,7 +99,6 @@ export default function Contacts() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [currentLimit, setCurrentLimit] = useState(100);
   const [newContact, setNewContact] = useState({
     firstName: '',
     lastName: '',
@@ -120,19 +114,13 @@ export default function Contacts() {
   const ghlConfig = getApiConfig();
   const hasLocalConfig = !!(ghlConfig.apiKey && ghlConfig.locationId);
 
-  // GHL API hooks - fetch all contacts, filter client-side
-  // Only use GHL search for substantial queries (3+ chars) to avoid validation errors
-  const shouldUseGHLSearch = search.length >= 3;
-  
+  // GHL API hooks - backend fetches ALL contacts automatically
   const { 
     data: ghlContactsData, 
     isLoading: isLoadingContacts, 
     isError: isContactsError,
     refetch: refetchContacts 
-  } = useContacts({ 
-    query: shouldUseGHLSearch ? search : undefined,
-    limit: currentLimit
-  });
+  } = useContacts();
   
   // If data loads successfully from GHL, we're connected (even if no local config)
   const isGhlConnected = hasLocalConfig || (!isLoadingContacts && !isContactsError && ghlContactsData?.contacts);
@@ -242,8 +230,8 @@ export default function Contacts() {
   const filteredContacts = useMemo(() => {
     let result = [...baseContacts];
     
-    // Filter by smart list (contact type) - client-side
-    if (smartList) {
+    // Smart list filter (client-side when not using GHL search)
+    if (smartList !== 'all' && !isGhlConnected) {
       result = result.filter(c => c.type === smartList);
     }
     
@@ -259,9 +247,8 @@ export default function Contacts() {
       );
     }
     
-    // Search filter - always apply client-side
-    // GHL search only used for queries 3+ chars to avoid validation errors
-    if (search) {
+    // Search filter (client-side when not using GHL search)
+    if (search && !isGhlConnected) {
       const searchLower = search.toLowerCase();
       result = result.filter(c =>
         c.name.toLowerCase().includes(searchLower) ||
@@ -461,13 +448,6 @@ export default function Contacts() {
       case 'buyer': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
       case 'agent': return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
       case 'wholesaler': return 'bg-green-500/10 text-green-500 border-green-500/20';
-      case 'buyer-representative': return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20';
-      case 'owner': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
-      case 'contractor': return 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20';
-      case 'private-money-lender': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-      case 'institutional-lender': return 'bg-teal-500/10 text-teal-500 border-teal-500/20';
-      case 'unknown': return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
-      case 'other': return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
     }
   };
 
@@ -537,7 +517,7 @@ export default function Contacts() {
           </h1>
           <p className="text-muted-foreground mt-1">
             {isLoadingContacts ? 'Loading...' : `${filteredContacts.length} contacts`}
-            {` in ${SMART_LISTS.find(s => s.value === smartList)?.label}`}
+            {smartList !== 'all' && ` in ${SMART_LISTS.find(s => s.value === smartList)?.label}`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -579,6 +559,11 @@ export default function Contacts() {
             className={smartList === list.value ? '' : 'text-muted-foreground'}
           >
             {list.label}
+            {list.value !== 'all' && (
+              <span className="ml-2 text-xs opacity-70">
+                ({baseContacts.filter(c => c.type === list.value).length})
+              </span>
+            )}
           </Button>
         ))}
       </div>
@@ -925,24 +910,6 @@ export default function Contacts() {
               </TableBody>
             </Table>
           </div>
-          
-          {/* Load More Button */}
-          {isGhlConnected && filteredContacts.length >= currentLimit && (
-            <div className="flex justify-center pt-4">
-              <Button 
-                variant="outline" 
-                onClick={() => setCurrentLimit(prev => prev + 100)}
-                disabled={isLoadingContacts}
-              >
-                {isLoadingContacts ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <ChevronDown className="h-4 w-4 mr-2" />
-                )}
-                Load More Contacts
-              </Button>
-            </div>
-          )}
         </>
       ) : (
         <EmptyState
@@ -1012,15 +979,8 @@ export default function Contacts() {
                   <SelectContent>
                     <SelectItem value="buyer">Buyer</SelectItem>
                     <SelectItem value="seller">Seller</SelectItem>
+                    <SelectItem value="agent">Agent</SelectItem>
                     <SelectItem value="wholesaler">Wholesaler</SelectItem>
-                    <SelectItem value="agent">Real Estate Agent</SelectItem>
-                    <SelectItem value="buyer-representative">Buyer Representative</SelectItem>
-                    <SelectItem value="owner">Owner</SelectItem>
-                    <SelectItem value="contractor">Contractor</SelectItem>
-                    <SelectItem value="private-money-lender">Private Money Lender</SelectItem>
-                    <SelectItem value="institutional-lender">Institutional Lender</SelectItem>
-                    <SelectItem value="unknown">Unknown</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
