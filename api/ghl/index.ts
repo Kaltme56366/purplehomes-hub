@@ -85,18 +85,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         
         console.log(`[GHL Contacts] Starting fetch - limit: ${requestedLimit}`);
         
+        // GHL's /contacts/search is very strict when using 'query' parameter
+        // It validates ALL contacts and rejects the entire request if any contact is missing required fields
+        // Solution: Don't use 'query' at all - just fetch by locationId and filter client-side
+        
         while (pageCount < maxPages) {
-          const searchBody: any = {
+          // ONLY send locationId - no query parameter to avoid validation errors
+          const searchBody: Record<string, any> = {
             locationId: GHL_LOCATION_ID,
-            pageLimit: 100,  // Changed from 'limit' to 'pageLimit'
           };
           
-          if (queryText && queryText.trim()) {
-            searchBody.query = queryText.trim();
+          // Add pagination params if available
+          if (startAfterId) {
+            searchBody.startAfterId = startAfterId;
           }
           
-          if (startAfterId) searchBody.startAfterId = startAfterId;
-          if (startAfter) searchBody.startAfter = startAfter;
+          if (startAfter !== undefined) {
+            searchBody.startAfter = Number(startAfter);
+          }
+          
+          console.log('[GHL Contacts] Fetching page', pageCount + 1);
           
           const response = await fetch(`${GHL_API_URL}/contacts/search`, {
             method: 'POST',
