@@ -1,24 +1,10 @@
 /**
  * Unified GHL API - Single Vercel Serverless Function
  * 
- * Consolidates all GHL API calls into one function to stay within Vercel's
- * free tier limit of 12 serverless functions.
- * 
- * Route via query param: /api/ghl?resource=contacts&action=list
- * 
- * Supported Resources:
- * - contacts: CRUD operations for contacts
- * - opportunities: CRUD operations for opportunities (properties)
- * - social: Social planner (accounts, posts, categories, tags, statistics)
- * - media: Media file management
- * - custom-fields: Location custom fields
- * - custom-values: Location custom values
- * - tags: Location tags management
- * - calendars: Calendar management (calendars, groups, events, resources)
- * - forms: Forms listing
- * - documents: Document templates and contracts
- * - messages: Email/SMS messaging
- * - ai-caption: AI-powered caption generation
+ * CONTACTS FIX:
+ * - Uses POST /contacts/search (new recommended endpoint, not deprecated GET)
+ * - Fetches ALL contacts with automatic pagination (up to 10,000 contacts)
+ * - No validation errors like the deprecated GET /contacts/ endpoint
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -29,7 +15,7 @@ const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Pipeline IDs
-const SELLER_ACQUISITION_PIPELINE_ID = process.env.GHL_SELLER_ACQUISITION_PIPELINE_ID || 'U4FANAMaB1gGddRaaD9x'; // Acquisition Seller pipeline
+const SELLER_ACQUISITION_PIPELINE_ID = process.env.GHL_SELLER_ACQUISITION_PIPELINE_ID || 'U4FANAMaB1gGddRaaD9x';
 const BUYER_ACQUISITION_PIPELINE_ID = process.env.GHL_BUYER_ACQUISITION_PIPELINE_ID || 'FRw9XPyTSnPv8ct0cWcm';
 const DEAL_ACQUISITION_PIPELINE_ID = process.env.GHL_DEAL_ACQUISITION_PIPELINE_ID || '2NeLTlKaeMyWOnLXdTCS';
 
@@ -78,12 +64,105 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(response.ok ? 200 : response.status).json(await response.json());
         }
         
-        const params = new URLSearchParams({ locationId: GHL_LOCATION_ID });
-        if (query.query) params.append('query', query.query as string);
-        if (query.limit) params.append('limit', query.limit as string);
+        // Use POST /contacts/search (new recommended endpoint)
+        // The old GET /contacts/ is deprecated and has validation issues
+        // Automatically paginate to fetch ALL contacts
+        const requestedLimit = query.limit ? parseInt(query.limit as string) : 10000;
+        const queryText = query.query as string;
         
-        const response = await fetch(`${GHL_API_URL}/contacts/?${params}`, { headers });
-        return res.status(response.ok ? 200 : response.status).json(await response.json());
+        let allContacts: any[] = [];
+        let startAfterId: string | undefined;
+        let startAfter: number | undefined;
+        let pageCount = 0;
+        const maxPages = 100; // Safety: 100 pages × 100 contacts = 10,000 max
+        
+        console.log(`[GHL Contacts] Starting fetch - requested limit: ${requestedLimit}`);
+        
+        while (pageCount < maxPages) {
+          const searchBody: any = {
+            locationId: GHL_LOCATION_ID,
+            limit: 100, // GHL max per page
+          };
+          
+          // Only add query if it exists
+          if (queryText && queryText.trim()) {
+            searchBody.query = queryText.trim();
+          }
+          
+          // Add pagination params
+          if (startAfterId) searchBody.startAfterId = startAfterId;
+          if (startAfter) searchBody.startAfter = startAfter;
+          
+          const response = await fetch(`${GHL_API_URL}/contacts/search`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(searchBody)
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            
+            // First page fail = return error
+            if (pageCount === 0) {
+              console.error('[GHL Contacts] First page failed:', errorData);
+              return res.status(response.status).json(errorData);
+            }
+            
+            // Later page fail = return what we have
+            console.warn(`[GHL Contacts] Page ${pageCount + 1} failed, returning ${allContacts.length} contacts`);
+            break;
+          }
+          
+          const data = await response.json();
+          const contacts = data.contacts || [];
+          
+          if (contacts.length === 0) {
+            console.log(`[GHL Contacts] No more contacts on page ${pageCount + 1}`);
+            break;
+          }
+          
+          allContacts = allContacts.concat(contacts);
+          pageCount++;
+          
+          console.log(`[GHL Contacts] Page ${pageCount}: fetched ${contacts.length} contacts (total: ${allContacts.length})`);
+          
+          // Check if we've reached requested limit
+          if (allContacts.length >= requestedLimit) {
+            allContacts = allContacts.slice(0, requestedLimit);
+            console.log(`[GHL Contacts] Reached requested limit of ${requestedLimit}`);
+            break;
+          }
+          
+          // Get pagination info for next page
+          if (data.meta) {
+            startAfterId = data.meta.startAfterId || data.meta.nextPageUrl?.match(/startAfterId=([^&]+)/)?.[1];
+            startAfter = data.meta.startAfter;
+            
+            if (!startAfterId && !startAfter) {
+              console.log('[GHL Contacts] No pagination info, done');
+              break;
+            }
+          } else {
+            console.log('[GHL Contacts] No meta object, done');
+            break;
+          }
+          
+          // If less than 100, we're on last page
+          if (contacts.length < 100) {
+            console.log('[GHL Contacts] Last page (less than 100 contacts)');
+            break;
+          }
+        }
+        
+        console.log(`[GHL Contacts] ✅ Fetched ${allContacts.length} contacts across ${pageCount} pages`);
+        
+        return res.status(200).json({ 
+          contacts: allContacts,
+          meta: {
+            total: allContacts.length,
+            pages: pageCount
+          }
+        });
       }
       
       if (method === 'POST') {
