@@ -145,27 +145,56 @@ export default function Contacts() {
         const lastName = c.lastName || '';
         const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
         
+        // Debug EVERY contact initially to see what's coming through
+        if (index < 3) {
+          console.log(`🔍 RAW CONTACT ${index + 1}:`, {
+            id: c.id,
+            name: fullName,
+            customFields: c.customFields,
+            customFieldsType: typeof c.customFields,
+            isArray: Array.isArray(c.customFields),
+            length: c.customFields?.length
+          });
+        }
+        
         // Helper to find custom field by ID (GHL uses field ID: "3rhpAE0UxnesZ78gMXZF")
         const getCustomFieldById = (fieldId: string): string | undefined => {
-          if (!c.customFields || !Array.isArray(c.customFields)) return undefined;
+          console.log(`🔍 getCustomFieldById called:`, {
+            fieldId,
+            customFields: c.customFields,
+            isArray: Array.isArray(c.customFields)
+          });
+          
+          if (!c.customFields || !Array.isArray(c.customFields)) {
+            console.log(`❌ customFields check failed:`, {
+              exists: !!c.customFields,
+              isArray: Array.isArray(c.customFields)
+            });
+            return undefined;
+          }
+          
           const field = c.customFields.find((cf: { id: string; value: string | number | boolean }) => cf.id === fieldId);
+          console.log(`🔍 Field search result:`, {
+            fieldId,
+            found: !!field,
+            value: field ? `${field.value}` : undefined
+          });
+          
           return field ? `${field.value}` : undefined;
         };
         
         // Get lead type from custom field - use the ID from your screenshot
         const leadTypeValue = getCustomFieldById('3rhpAE0UxnesZ78gMXZF');
         
-        // Debug first few contacts
-        if (index < 5) {
-          console.log(`Contact ${index + 1} (${fullName}):`, {
-            customFields: c.customFields,
-            leadTypeValue,
-            hasLeadType: !!leadTypeValue
-          });
-        }
+        console.log(`📝 Contact ${index + 1} (${fullName}) lead type check:`, {
+          leadTypeValue,
+          typeOfValue: typeof leadTypeValue,
+          willFilter: !leadTypeValue || typeof leadTypeValue !== 'string'
+        });
         
         // Skip contacts without lead_type - these are not relevant
         if (!leadTypeValue || typeof leadTypeValue !== 'string') {
+          console.log(`❌ FILTERING OUT contact ${fullName} - no valid lead_type`);
           return null;
         }
         
@@ -522,7 +551,7 @@ export default function Contacts() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Connection Status Banner */}
-      {!isGhlConnected && (
+      {!isLoadingContacts && !isGhlConnected && (
         <div className="flex items-center gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
           <AlertCircle className="h-5 w-5 text-yellow-500" />
           <div className="flex-1">
@@ -553,16 +582,18 @@ export default function Contacts() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             Contacts
-            {isGhlConnected ? (
-              <Badge className="bg-success flex items-center gap-1">
-                <Wifi className="h-3 w-3" />
-                GHL Connected
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <WifiOff className="h-3 w-3" />
-                Demo Mode
-              </Badge>
+            {!isLoadingContacts && (
+              isGhlConnected ? (
+                <Badge className="bg-success flex items-center gap-1">
+                  <Wifi className="h-3 w-3" />
+                  GHL Connected
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <WifiOff className="h-3 w-3" />
+                  Demo Mode
+                </Badge>
+              )
             )}
           </h1>
           <p className="text-muted-foreground mt-1">
