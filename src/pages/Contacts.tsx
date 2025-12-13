@@ -70,6 +70,7 @@ import {
   type GHLContact 
 } from '@/services/ghlApi';
 import { useAppStore } from '@/store/useAppStore';
+import { ContactDetailModal } from '@/components/contacts/ContactDetailModal';
 
 const SMART_LISTS: { value: ContactType | 'all'; label: string }[] = [
   { value: 'all', label: 'All Contacts' },
@@ -107,6 +108,8 @@ export default function Contacts() {
     zipCodes: '',
     notes: ''
   });
+
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
   // Check if GHL is configured
   const ghlConfig = getApiConfig();
@@ -240,6 +243,12 @@ export default function Contacts() {
           company: getCustomField('company'),
           isFavorite: getCustomField('favorite') === 'true',
           markets: getCustomField('market')?.split(',').map((m: string) => m.trim()) || [],
+          propertyPreferences: {
+          bedCount: parseInt(getCustomField('bed_count') || getCustomFieldById('aZpoXXBf0DCm8ZbwSCBQ')) || undefined,
+          bathCount: parseInt(getCustomField('bath_count') || getCustomFieldById('6dnLT9WrX4G1NDFgRbiw')) || undefined,
+          squareFeet: parseInt(getCustomField('square_feet') || getCustomFieldById('yqIAK6Cqqiu8E2ASD9ku')) || undefined,
+          propertyType: getCustomField('property_type') || getCustomFieldById('bagWtxQFWwBbGf9kn9th') || undefined,
+        },
           updatedAt: c.lastActivity || c.dateAdded
         };
       })
@@ -771,7 +780,7 @@ export default function Contacts() {
               <div 
                 key={contact.id}
                 className="p-4 border rounded-lg bg-card hover:border-primary/50 transition-colors"
-                onClick={() => handleSelect(contact.id)}
+                onClick={() => setSelectedContact(contact)}
               >
                 <div className="flex items-start gap-3">
                   <Checkbox 
@@ -873,7 +882,11 @@ export default function Contacts() {
               </TableHeader>
               <TableBody>
                 {filteredContacts.map((contact) => (
-                  <TableRow key={contact.id} className="hover:bg-muted/30">
+                  <TableRow 
+                  key={contact.id} 
+                  className="hover:bg-muted/30 cursor-pointer"
+                  onClick={() => setSelectedContact(contact)}
+                    >
                     <TableCell>
                       <Checkbox 
                         checked={selectedIds.has(contact.id)}
