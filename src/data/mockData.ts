@@ -199,7 +199,7 @@ export const mockBuyers: Buyer[] = [
     preferredZipCodes: ['85001', '85003', '85004', '85006', '85007'],
     preferences: { minBeds: 3, maxBeds: 5, minBaths: 2, maxBaths: 3, minPrice: 150000, maxPrice: 350000 },
     matches: { internal: 3, external: 12 },
-    dealType: 'Cash',
+    dealType: 'Lease Option',
     status: 'active',
     stage: 'under-contract',
     checklist: {
@@ -220,7 +220,7 @@ export const mockBuyers: Buyer[] = [
     preferredZipCodes: ['85251', '85257', '85260'],
     preferences: { minBeds: 4, maxBeds: 6, minBaths: 2, maxBaths: 4, minPrice: 300000, maxPrice: 500000 },
     matches: { internal: 2, external: 8 },
-    dealType: 'Wrap',
+    dealType: 'Lease Option',
     status: 'qualified',
     stage: 'escrow-opened',
     checklist: {
