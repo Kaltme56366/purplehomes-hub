@@ -865,7 +865,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (query.limit) params.append('limit', query.limit as string);
           if (query.skip) params.append('skip', query.skip as string);
           
-          const url = `${GHL_API_URL}/proposals/template?${params}`;
+          const url = `${GHL_API_URL}/proposals/templates?${params}`;
           console.log('[DOCUMENTS] Templates URL:', url);
           
           const response = await fetch(url, { headers });
@@ -896,7 +896,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (method === 'POST' && id) {
           console.log('[DOCUMENTS] Sending template:', id);
           const response = await fetch(
-            `${GHL_API_URL}/proposals/template/${id}/send`,
+            `${GHL_API_URL}/proposals/templates/${id}/send`,
             { method: 'POST', headers, body: JSON.stringify({ ...body, locationId: GHL_LOCATION_ID }) }
           );
           const text = await response.text();
