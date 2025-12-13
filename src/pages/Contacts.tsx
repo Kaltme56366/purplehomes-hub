@@ -136,8 +136,7 @@ export default function Contacts() {
     if (ghlContactsData.contacts.length > 0) {
       console.log('🔍 FIRST CONTACT RAW DATA:', {
         fullContact: ghlContactsData.contacts[0],
-        customFieldsKeys: Object.keys(ghlContactsData.contacts[0].customFields || {}),
-        customFieldsSample: ghlContactsData.contacts[0].customFields
+        customFields: ghlContactsData.contacts[0].customFields
       });
     }
     
@@ -147,12 +146,14 @@ export default function Contacts() {
         const lastName = c.lastName || '';
         const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
         
-        // Get lead type from custom field - try multiple possible field names
-        const leadTypeValue = 
-          c.customFields?.['contact.lead_type'] || 
-          c.customFields?.lead_type ||
-          c.customFields?.['Lead Type'] ||
-          c.customFields?.leadType;
+        // Helper to find custom field by ID (GHL uses field ID: "3rhpAE0UxnesZ78gMXZF")
+        const getCustomFieldById = (fieldId: string): string | undefined => {
+          const field = c.customFields?.find(cf => cf.id === fieldId);
+          return field ? `${field.value}` : undefined;
+        };
+        
+        // Get lead type from custom field - use the ID from your screenshot
+        const leadTypeValue = getCustomFieldById('3rhpAE0UxnesZ78gMXZF');
         
         // Debug first few contacts
         if (index < 5) {
@@ -213,10 +214,13 @@ export default function Contacts() {
             return null;
         }
         
-        // Helper function to get custom field value
+        // Helper function to get custom field value by searching the array
         const getCustomField = (fieldKey: string): string | undefined => {
-          const value = c.customFields?.[fieldKey] || c.customFields?.[fieldKey.replace('contact.', '')];
-          return typeof value === 'string' ? value : undefined;
+          // Try to find by matching field key in the id
+          const field = c.customFields?.find(cf => 
+            cf.id.toLowerCase().includes(fieldKey.toLowerCase())
+          );
+          return field ? `${field.value}` : undefined;
         };
         
         return {
@@ -228,16 +232,16 @@ export default function Contacts() {
           email: c.email,
           phone: c.phone,
           type: contactType,
-          status: (getCustomField('contact.status') as ContactStatus) || 'active',
+          status: (getCustomField('status') as ContactStatus) || 'active',
           tags: c.tags || [],
-          zipCodes: getCustomField('contact.zip_codes')?.split(',').map((z: string) => z.trim()) || [],
-          dealsClosed: parseInt(getCustomField('contact.deals_closed') || '0') || 0,
-          transactionValue: parseFloat(getCustomField('contact.transaction_value') || '0') || 0,
+          zipCodes: getCustomField('zip')?.split(',').map((z: string) => z.trim()) || [],
+          dealsClosed: parseInt(getCustomField('deals') || '0') || 0,
+          transactionValue: parseFloat(getCustomField('transaction') || '0') || 0,
           createdAt: c.dateAdded,
           lastActivityAt: c.lastActivity,
-          company: getCustomField('contact.company'),
-          isFavorite: getCustomField('contact.is_favorite') === 'true',
-          markets: getCustomField('contact.markets')?.split(',').map((m: string) => m.trim()) || [],
+          company: getCustomField('company'),
+          isFavorite: getCustomField('favorite') === 'true',
+          markets: getCustomField('market')?.split(',').map((m: string) => m.trim()) || [],
           updatedAt: c.lastActivity || c.dateAdded
         };
       })
