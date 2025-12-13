@@ -58,7 +58,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { mockContacts } from '@/data/mockData';
 import type { Contact, ContactType, ContactStatus } from '@/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -258,8 +257,8 @@ export default function Contacts() {
     return transformed;
   }, [ghlContactsData, isGhlConnected]);
 
-  // Use GHL contacts if connected, otherwise fall back to mock data
-  const baseContacts = isGhlConnected ? ghlContacts : mockContacts;
+  // Use GHL contacts only - no mock data fallback
+  const baseContacts = ghlContacts;
 
   // Filter and sort contacts
   const filteredContacts = useMemo(() => {
