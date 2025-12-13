@@ -430,8 +430,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
       
       if (method === 'PUT' && id) {
+        // Transform customFields from object to array format if needed
+        let payload = body;
+        if (body.customFields && !Array.isArray(body.customFields)) {
+          // Convert { fieldKey: value } to [{ id: fieldKey, field_value: value }]
+          payload = {
+            ...body,
+            customFields: Object.entries(body.customFields).map(([key, value]) => ({
+              id: key,
+              field_value: value
+            }))
+          };
+        }
+        
         const response = await fetch(`${GHL_API_URL}/opportunities/${id}`, {
-          method: 'PUT', headers, body: JSON.stringify(body)
+          method: 'PUT', headers, body: JSON.stringify(payload)
         });
         return res.status(response.ok ? 200 : response.status).json(await response.json());
       }
