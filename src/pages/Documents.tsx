@@ -415,10 +415,11 @@ export default function Documents() {
             {templates.map((template) => (
               <Card 
                 key={template.id} 
-                className="cursor-pointer hover:border-primary/50 transition-colors"
+                className="cursor-pointer hover:border-primary/50 transition-colors group"
                 onClick={() => {
-                  setNewDocument(prev => ({ ...prev, template: template.id }));
-                  setShowCreateModal(true);
+                  const ghlConfig = getApiConfig();
+                  const locationId = ghlConfig.locationId || 'fJgopVh0YwOMQJtUeQRk';
+                  window.open(`https://app.gohighlevel.com/v2/location/${locationId}/payments/proposals-estimates/templates/edit/${template.id}`, '_blank');
                 }}
               >
                 <CardContent className="p-4 flex items-center gap-3">
@@ -428,6 +429,9 @@ export default function Documents() {
                   <div className="flex-1">
                     <div className="font-medium text-sm">{template.name}</div>
                     <div className="text-xs text-muted-foreground capitalize">{template.type || 'document'}</div>
+                  </div>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Eye className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </CardContent>
               </Card>

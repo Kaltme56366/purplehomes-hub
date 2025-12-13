@@ -386,6 +386,31 @@ export const useUpdateOpportunityStage = () => {
   });
 };
 
+export const useUpdateOpportunityCustomFields = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ 
+      opportunityId, 
+      customFields,
+      pipelineType
+    }: { 
+      opportunityId: string; 
+      customFields: Record<string, any>;
+      pipelineType: PipelineType;
+    }) => {
+      return fetchGHL<GHLOpportunity>(`opportunities/${opportunityId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ customFields }),
+        params: { action: 'update-custom-fields' }
+      });
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['ghl-opportunities', variables.pipelineType] });
+    },
+  });
+};
+
 export const useProperties = (pipelineId: string = SELLER_ACQUISITION_PIPELINE_ID) => {
   return useQuery({
     queryKey: ['ghl-properties', pipelineId],
