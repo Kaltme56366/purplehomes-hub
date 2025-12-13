@@ -120,19 +120,25 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
   const zipCodesField = getContactField('zip_codes') || getContactField('preferred_zip_codes') || '';
   const zipCodes = zipCodesField.split(',').map(z => z.trim()).filter(Boolean);
 
+  // Get property details from OPPORTUNITY custom fields (from Image 1 screenshot)
+  const propertyAddress = getOppField('property_address') || opp.name || '';
+  const bedroomCount = parseInt(getOppField('bedroom_count')) || parseInt(getOppField('bedrooms')) || undefined;
+  const bathroomCount = parseInt(getOppField('bathroom_count')) || parseInt(getOppField('bathrooms')) || undefined;
+  const squareFeet = parseInt(getOppField('square_feet')) || parseInt(getOppField('sqft')) || undefined;
+
   return {
     id: opp.id,
     ghlStageId: opp.pipelineStageId,
     name: opp.name || opp.contact?.name || 'Unknown', // Opportunity name first
     email: opp.contact?.email || getContactField('email') || '',
     phone: opp.contact?.phone || getContactField('phone') || '',
-    location: getContactField('location') || getContactField('city') || '',
+    location: getContactField('location') || getContactField('city') || propertyAddress.split(',').pop()?.trim() || '',
     preferredZipCodes: zipCodes.length > 0 ? zipCodes : ['00000'],
     preferences: {
-      minBeds: parseInt(getContactField('min_beds')) || undefined,
-      maxBeds: parseInt(getContactField('max_beds')) || undefined,
-      minBaths: parseInt(getContactField('min_baths')) || undefined,
-      maxBaths: parseInt(getContactField('max_baths')) || undefined,
+      minBeds: bedroomCount || parseInt(getContactField('min_beds')) || undefined,
+      maxBeds: bedroomCount || parseInt(getContactField('max_beds')) || undefined,
+      minBaths: bathroomCount || parseInt(getContactField('min_baths')) || undefined,
+      maxBaths: bathroomCount || parseInt(getContactField('max_baths')) || undefined,
       minPrice: parseInt(getContactField('min_price')) || undefined,
       maxPrice: parseInt(getContactField('max_price')) || opp.monetaryValue || undefined,
     },
@@ -148,6 +154,13 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
     propertiesSent: [],
     sentDealsForReview: getContactField('sent_deals') || '0',
     createdAt: opp.createdAt,
+    // Add property details for display
+    propertyAddress,
+    propertyDetails: {
+      beds: bedroomCount,
+      baths: bathroomCount,
+      sqft: squareFeet,
+    },
   };
 };
 

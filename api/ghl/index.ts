@@ -408,10 +408,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         
         // Filter by pipeline client-side after fetching all
+        console.log('[OPPORTUNITIES] Pre-filter:', {
+          totalOpportunities: allOpportunities.length,
+          requestedPipelineId: pipelineId,
+          samplePipelineIds: allOpportunities.slice(0, 5).map(o => ({ id: o.id, name: o.name, pipelineId: o.pipelineId }))
+        });
+        
         if (pipelineId) {
           allOpportunities = allOpportunities.filter(
             (opp: any) => opp.pipelineId === pipelineId
           );
+          console.log('[OPPORTUNITIES] Post-filter:', {
+            filteredCount: allOpportunities.length,
+            pipelineId
+          });
         }
         
         return res.status(200).json({ 
