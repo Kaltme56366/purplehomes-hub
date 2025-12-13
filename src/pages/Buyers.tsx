@@ -86,6 +86,12 @@ const defaultChecklist: BuyerChecklist = {
 interface ExtendedBuyer extends Buyer {
   ghlStageId: string;
   maxBudget?: number;
+  propertyAddress?: string;
+  propertyDetails?: {
+    beds?: number;
+    baths?: number;
+    sqft?: number;
+  };
 }
 
 // Transform GHL Opportunity to Buyer
@@ -126,6 +132,12 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
   const bathroomCount = parseInt(getOppField('bathroom_count')) || parseInt(getOppField('bathrooms')) || undefined;
   const squareFeet = parseInt(getOppField('square_feet')) || parseInt(getOppField('sqft')) || undefined;
 
+  // Get CONTACT property preferences for matching
+  const contactBedCount = parseInt(getContactField('bed_count')) || undefined;
+  const contactBathCount = parseInt(getContactField('bath_count')) || undefined;
+  const contactSquareFeet = parseInt(getContactField('square_feet')) || undefined;
+  const contactPropertyType = getContactField('property_type') || undefined;
+
   return {
     id: opp.id,
     ghlStageId: opp.pipelineStageId,
@@ -135,12 +147,14 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
     location: getContactField('location') || getContactField('city') || propertyAddress.split(',').pop()?.trim() || '',
     preferredZipCodes: zipCodes.length > 0 ? zipCodes : ['00000'],
     preferences: {
-      minBeds: bedroomCount || parseInt(getContactField('min_beds')) || undefined,
-      maxBeds: bedroomCount || parseInt(getContactField('max_beds')) || undefined,
-      minBaths: bathroomCount || parseInt(getContactField('min_baths')) || undefined,
-      maxBaths: bathroomCount || parseInt(getContactField('max_baths')) || undefined,
+      minBeds: contactBedCount || bedroomCount || parseInt(getContactField('min_beds')) || undefined,
+      maxBeds: contactBedCount || bedroomCount || parseInt(getContactField('max_beds')) || undefined,
+      minBaths: contactBathCount || bathroomCount || parseInt(getContactField('min_baths')) || undefined,
+      maxBaths: contactBathCount || bathroomCount || parseInt(getContactField('max_baths')) || undefined,
       minPrice: parseInt(getContactField('min_price')) || undefined,
       maxPrice: parseInt(getContactField('max_price')) || opp.monetaryValue || undefined,
+      propertyType: contactPropertyType, // For property matching
+      sqft: contactSquareFeet, // For property matching
     },
     matches: {
       internal: parseInt(getContactField('internal_matches')) || 0,
@@ -157,9 +171,9 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
     // Add property details for display
     propertyAddress,
     propertyDetails: {
-      beds: bedroomCount,
-      baths: bathroomCount,
-      sqft: squareFeet,
+      beds: bedroomCount || contactBedCount,
+      baths: bathroomCount || contactBathCount,
+      sqft: squareFeet || contactSquareFeet,
     },
   };
 };

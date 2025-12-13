@@ -90,6 +90,8 @@ export interface BuyerPreferences {
   maxBaths?: number;
   minPrice?: number;
   maxPrice?: number;
+  propertyType?: string;
+  sqft?: number;
 }
 
 export interface BuyerMatches {

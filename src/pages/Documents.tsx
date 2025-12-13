@@ -334,7 +334,7 @@ export default function Documents() {
             )}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Create, send, and track documents via HighLevel
+            View and track documents generated via HighLevel workflows
           </p>
         </div>
         <div className="flex gap-2">
@@ -345,10 +345,6 @@ export default function Documents() {
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingDocuments || isLoadingTemplates ? 'animate-spin' : ''}`} />
             Refresh
-          </Button>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Document
           </Button>
         </div>
       </div>
