@@ -58,6 +58,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
+import { ContactDetailModal } from '@/components/contacts/ContactDetailModal';
 import type { Contact, ContactType, ContactStatus } from '@/types';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -70,7 +71,6 @@ import {
   type GHLContact 
 } from '@/services/ghlApi';
 import { useAppStore } from '@/store/useAppStore';
-import { ContactDetailModal } from '@/components/contacts/ContactDetailModal';
 
 const SMART_LISTS: { value: ContactType | 'all'; label: string }[] = [
   { value: 'all', label: 'All Contacts' },
@@ -98,6 +98,7 @@ export default function Contacts() {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [newContact, setNewContact] = useState({
     firstName: '',
     lastName: '',
@@ -109,13 +110,9 @@ export default function Contacts() {
     notes: ''
   });
 
-  const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
-
-  // Check if GHL is configured
   const ghlConfig = getApiConfig();
   const hasLocalConfig = !!(ghlConfig.apiKey && ghlConfig.locationId);
 
-  // GHL API hooks - backend fetches ALL contacts automatically
   const { 
     data: ghlContactsData, 
     isLoading: isLoadingContacts, 
@@ -123,14 +120,12 @@ export default function Contacts() {
     refetch: refetchContacts 
   } = useContacts();
   
-  // If data loads successfully from GHL, we're connected (even if no local config)
   const isGhlConnected = hasLocalConfig || (ghlContactsData?.contacts && ghlContactsData.contacts.length >= 0);
   
   const sendEmail = useSendEmail();
   const sendSMS = useSendSMS();
   const createContact = useCreateContact();
 
-  // Transform GHL contacts to local format or use mock data
   const ghlContacts: Contact[] = useMemo(() => {
     if (!isGhlConnected || !ghlContactsData?.contacts) return [];
     
@@ -140,20 +135,16 @@ export default function Contacts() {
         const lastName = c.lastName || '';
         const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
         
-        // Helper to find custom field by ID (GHL uses field ID: "3rhpAE0UxnesZ78gMXZF")
         const getCustomFieldById = (fieldId: string): string | undefined => {
-          // Handle if customFields comes as any type
           const fields = c.customFields;
           
           if (!fields) return undefined;
           
-          // Check if it's already an array
           if (Array.isArray(fields)) {
             const field = fields.find((cf: any) => cf.id === fieldId);
             return field ? String(field.value) : undefined;
           }
           
-          // Check if it's an object with the field ID as a key
           if (typeof fields === 'object' && fieldId in fields) {
             return String((fields as any)[fieldId]);
           }
@@ -161,19 +152,15 @@ export default function Contacts() {
           return undefined;
         };
         
-        // Get lead type from custom field - use the ID from your screenshot
         const leadTypeValue = getCustomFieldById('3rhpAE0UxnesZ78gMXZF');
         
-        // Skip contacts without lead_type - these are not relevant
         if (!leadTypeValue || typeof leadTypeValue !== 'string' || leadTypeValue.trim() === '') {
           return null;
         }
         
-        // Map exact GHL lead type values to contact type
         let contactType: ContactType;
         const lowerType = leadTypeValue.toLowerCase();
         
-        // Map all picklist options
         switch (lowerType) {
           case 'seller':
             contactType = 'seller';
@@ -209,15 +196,12 @@ export default function Contacts() {
             contactType = 'other';
             break;
           default:
-            // If it doesn't match any known type, skip it
             console.warn(`Unknown lead type: "${leadTypeValue}" for contact ${fullName}`);
             return null;
         }
         
-        // Helper function to get custom field value by searching the array
         const getCustomField = (fieldKey: string): string | undefined => {
           if (!c.customFields || !Array.isArray(c.customFields)) return undefined;
-          // Try to find by matching field key in the id
           const field = c.customFields.find((cf: { id: string; value: string | number | boolean }) => 
             cf.id.toLowerCase().includes(fieldKey.toLowerCase())
           );
@@ -244,15 +228,15 @@ export default function Contacts() {
           isFavorite: getCustomField('favorite') === 'true',
           markets: getCustomField('market')?.split(',').map((m: string) => m.trim()) || [],
           propertyPreferences: {
-          bedCount: parseInt(getCustomField('bed_count') || getCustomFieldById('aZpoXXBf0DCm8ZbwSCBQ')) || undefined,
-          bathCount: parseInt(getCustomField('bath_count') || getCustomFieldById('6dnLT9WrX4G1NDFgRbiw')) || undefined,
-          squareFeet: parseInt(getCustomField('square_feet') || getCustomFieldById('yqIAK6Cqqiu8E2ASD9ku')) || undefined,
-          propertyType: getCustomField('property_type') || getCustomFieldById('bagWtxQFWwBbGf9kn9th') || undefined,
-        },
+            bedCount: parseInt(getCustomField('bed_count') || getCustomFieldById('aZpoXXBf0DCm8ZbwSCBQ')) || undefined,
+            bathCount: parseInt(getCustomField('bath_count') || getCustomFieldById('6dnLT9WrX4G1NDFgRbiw')) || undefined,
+            squareFeet: parseInt(getCustomField('square_feet') || getCustomFieldById('yqIAK6Cqqiu8E2ASD9ku')) || undefined,
+            propertyType: getCustomField('property_type') || getCustomFieldById('bagWtxQFWwBbGf9kn9th') || undefined,
+          },
           updatedAt: c.lastActivity || c.dateAdded
         };
       })
-      .filter((c): c is Contact => c !== null); // Remove null entries
+      .filter((c): c is Contact => c !== null);
     
     if (transformed.length > 0) {
       console.log('✅ Contacts loaded:', {
@@ -267,31 +251,25 @@ export default function Contacts() {
     return transformed;
   }, [ghlContactsData, isGhlConnected]);
 
-  // Use GHL contacts only - no mock data fallback
   const baseContacts = ghlContacts;
 
-  // Filter and sort contacts
   const filteredContacts = useMemo(() => {
     let result = [...baseContacts];
     
-    // Smart list filter
     if (smartList !== 'all') {
       result = result.filter(c => c.type === smartList);
     }
     
-    // Status filter
     if (statusFilter !== 'all') {
       result = result.filter(c => c.status === statusFilter);
     }
     
-    // Zip code filter
     if (zipCode) {
       result = result.filter(c => 
         c.zipCodes.some(z => z.includes(zipCode))
       );
     }
     
-    // Search filter
     if (search) {
       const searchLower = search.toLowerCase();
       result = result.filter(c =>
@@ -302,7 +280,6 @@ export default function Contacts() {
       );
     }
     
-    // Sort
     result.sort((a, b) => {
       let comparison = 0;
       switch (sortField) {
@@ -327,7 +304,6 @@ export default function Contacts() {
     return result;
   }, [baseContacts, smartList, statusFilter, zipCode, search, sortField, sortOrder]);
 
-  // Sync contacts from GHL - just refetch since backend already fetches all contacts
   const handleSyncContacts = async () => {
     if (!isGhlConnected) {
       toast.error('Please configure GHL API in Settings first');
@@ -337,13 +313,11 @@ export default function Contacts() {
     setIsSyncing(true);
     setSyncProgress(0);
 
-    // Simulate progress
     const progressInterval = setInterval(() => {
       setSyncProgress(prev => Math.min(prev + 10, 90));
     }, 200);
 
     try {
-      // Just refetch contacts - backend handles fetching all contacts automatically
       await refetchContacts();
       setSyncProgress(100);
       toast.success('Contacts synced successfully from HighLevel!');
@@ -384,7 +358,6 @@ export default function Contacts() {
       setSortOrder('desc');
     }
   };
-
   const handleBulkAction = async (action: string) => {
     const count = selectedIds.size;
     const contactIds = Array.from(selectedIds);
@@ -425,7 +398,6 @@ export default function Contacts() {
         toast.info(`Managing tags for ${count} contacts... (Modal coming soon)`);
         break;
       case 'export':
-        // Export to CSV
         const contacts = filteredContacts.filter(c => selectedIds.has(c.id));
         const csv = [
           ['Name', 'Email', 'Phone', 'Type', 'Status', 'Deals', 'Transactions'].join(','),
@@ -458,21 +430,12 @@ export default function Contacts() {
     
     if (isGhlConnected) {
       try {
-        // Note: customFields should use actual field IDs from GHL
-        // For now, we'll just create the contact with basic info
         await createContact.mutateAsync({
           firstName: newContact.firstName,
           lastName: newContact.lastName,
           email: newContact.email,
           phone: newContact.phone,
           tags: [newContact.type],
-          // TODO: Add customFields array with proper field IDs once we have them
-          // customFields: [
-          //   { id: 'FIELD_ID_FOR_CONTACT_TYPE', value: newContact.type },
-          //   { id: 'FIELD_ID_FOR_COMPANY', value: newContact.company },
-          //   { id: 'FIELD_ID_FOR_ZIP_CODES', value: newContact.zipCodes },
-          //   { id: 'FIELD_ID_FOR_NOTES', value: newContact.notes }
-          // ]
         });
         toast.success('Contact created in HighLevel!');
         refetchContacts();
@@ -495,6 +458,7 @@ export default function Contacts() {
       case 'buyer': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
       case 'agent': return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
       case 'wholesaler': return 'bg-green-500/10 text-green-500 border-green-500/20';
+      default: return 'bg-muted text-muted-foreground';
     }
   };
 
@@ -518,7 +482,6 @@ export default function Contacts() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Connection Status Banner */}
       {!isLoadingContacts && !isGhlConnected && (
         <div className="flex items-center gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
           <AlertCircle className="h-5 w-5 text-yellow-500" />
@@ -534,7 +497,6 @@ export default function Contacts() {
         </div>
       )}
 
-      {/* Sync Progress */}
       {isSyncing && (
         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20">
           <div className="flex items-center gap-3 mb-2">
@@ -545,7 +507,6 @@ export default function Contacts() {
         </div>
       )}
 
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
@@ -597,7 +558,6 @@ export default function Contacts() {
         </div>
       </div>
 
-      {/* Smart Lists Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-border pb-4">
         {SMART_LISTS.map((list) => (
           <Button
@@ -617,7 +577,6 @@ export default function Contacts() {
         ))}
       </div>
 
-      {/* Filters & Search */}
       <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
         <div className="flex gap-2">
           <Button 
@@ -680,7 +639,6 @@ export default function Contacts() {
         </div>
       </div>
 
-      {/* Advanced Filters Panel */}
       {showAdvancedFilters && (
         <Card className="border-primary/20 animate-slide-in">
           <CardContent className="pt-6">
@@ -728,7 +686,6 @@ export default function Contacts() {
         </Card>
       )}
 
-      {/* Bulk Actions */}
       {selectedIds.size > 0 && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 p-4 bg-primary/10 rounded-lg animate-slide-in">
           <span className="font-medium">{selectedIds.size} contacts selected</span>
@@ -757,7 +714,6 @@ export default function Contacts() {
         </div>
       )}
 
-      {/* Contacts List */}
       {isLoadingContacts ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
@@ -774,12 +730,11 @@ export default function Contacts() {
         </div>
       ) : filteredContacts.length > 0 ? (
         <>
-          {/* Mobile Card View */}
           <div className="md:hidden space-y-3">
             {filteredContacts.map((contact) => (
               <div 
                 key={contact.id}
-                className="p-4 border rounded-lg bg-card hover:border-primary/50 transition-colors"
+                className="p-4 border rounded-lg bg-card hover:border-primary/50 transition-colors cursor-pointer"
                 onClick={() => setSelectedContact(contact)}
               >
                 <div className="flex items-start gap-3">
@@ -837,7 +792,6 @@ export default function Contacts() {
             ))}
           </div>
 
-          {/* Desktop Table View */}
           <div className="hidden md:block border rounded-lg overflow-hidden overflow-x-auto">
             <Table>
               <TableHeader>
@@ -883,11 +837,11 @@ export default function Contacts() {
               <TableBody>
                 {filteredContacts.map((contact) => (
                   <TableRow 
-                  key={contact.id} 
-                  className="hover:bg-muted/30 cursor-pointer"
-                  onClick={() => setSelectedContact(contact)}
-                    >
-                    <TableCell>
+                    key={contact.id} 
+                    className="hover:bg-muted/30 cursor-pointer"
+                    onClick={() => setSelectedContact(contact)}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox 
                         checked={selectedIds.has(contact.id)}
                         onCheckedChange={() => handleSelect(contact.id)}
@@ -986,7 +940,6 @@ export default function Contacts() {
         />
       )}
 
-      {/* Add Contact Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -1088,6 +1041,12 @@ export default function Contacts() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ContactDetailModal
+        contact={selectedContact}
+        open={!!selectedContact}
+        onOpenChange={(open) => !open && setSelectedContact(null)}
+      />
     </div>
   );
 }
