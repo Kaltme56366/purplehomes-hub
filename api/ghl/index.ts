@@ -869,7 +869,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.log('[DOCUMENTS] Templates URL:', url);
           
           const response = await fetch(url, { headers });
-          const data = await response.json();
+          
+          // Check if response has content before parsing
+          const text = await response.text();
+          console.log('[DOCUMENTS] Templates response text length:', text.length);
+          
+          let data;
+          try {
+            data = text ? JSON.parse(text) : { templates: [] };
+          } catch (e) {
+            console.error('[DOCUMENTS] Failed to parse response:', text.substring(0, 200));
+            data = { templates: [] };
+          }
           
           console.log('[DOCUMENTS] Templates response:', {
             status: response.status,
@@ -906,7 +917,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.log('[DOCUMENTS] Contracts URL:', url);
           
           const response = await fetch(url, { headers });
-          const data = await response.json();
+          
+          // Check if response has content before parsing
+          const text = await response.text();
+          console.log('[DOCUMENTS] Contracts response text length:', text.length);
+          
+          let data;
+          try {
+            data = text ? JSON.parse(text) : { documents: [] };
+          } catch (e) {
+            console.error('[DOCUMENTS] Failed to parse response:', text.substring(0, 200));
+            data = { documents: [] };
+          }
           
           console.log('[DOCUMENTS] Contracts response:', {
             status: response.status,
