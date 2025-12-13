@@ -853,46 +853,81 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // ============ DOCUMENTS & CONTRACTS ============
     // Scopes: documents_contracts_template/list.readonly, documents_contracts_template/sendLink.write
     // Scopes: documents_contracts/list.readonly, documents_contracts/sendLink.write
+    // Base path: /documents-and-contracts/v1
     if (resource === 'documents') {
+      console.log('[DOCUMENTS] Handling documents resource:', { action, method, id });
+      
       // Document Templates
       if (action === 'templates') {
         if (method === 'GET') {
+          console.log('[DOCUMENTS] Fetching templates');
           const params = new URLSearchParams({ locationId: GHL_LOCATION_ID });
           if (query.limit) params.append('limit', query.limit as string);
           if (query.skip) params.append('skip', query.skip as string);
           
-          const response = await fetch(`${GHL_API_URL}/documents/templates?${params}`, { headers });
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
+          const url = `${GHL_API_URL}/documents-and-contracts/v1/templates?${params}`;
+          console.log('[DOCUMENTS] Templates URL:', url);
+          
+          const response = await fetch(url, { headers });
+          const data = await response.json();
+          
+          console.log('[DOCUMENTS] Templates response:', {
+            status: response.status,
+            ok: response.ok,
+            hasTemplates: !!data.templates,
+            count: data.templates?.length
+          });
+          
+          return res.status(response.ok ? 200 : response.status).json(data);
         }
         
         // Send template link
         if (method === 'POST' && id) {
+          console.log('[DOCUMENTS] Sending template:', id);
           const response = await fetch(
-            `${GHL_API_URL}/documents/templates/${id}/send`,
+            `${GHL_API_URL}/documents-and-contracts/v1/templates/${id}/send`,
             { method: 'POST', headers, body: JSON.stringify({ ...body, locationId: GHL_LOCATION_ID }) }
           );
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
+          const data = await response.json();
+          console.log('[DOCUMENTS] Send template response:', response.status, response.ok);
+          return res.status(response.ok ? 200 : response.status).json(data);
         }
       }
       
       // Document Contracts (sent documents)
       if (action === 'contracts') {
         if (method === 'GET') {
+          console.log('[DOCUMENTS] Fetching contracts/documents');
           const params = new URLSearchParams({ locationId: GHL_LOCATION_ID });
           if (query.contactId) params.append('contactId', query.contactId as string);
           if (query.limit) params.append('limit', query.limit as string);
           
-          const response = await fetch(`${GHL_API_URL}/documents?${params}`, { headers });
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
+          const url = `${GHL_API_URL}/documents-and-contracts/v1/documents?${params}`;
+          console.log('[DOCUMENTS] Contracts URL:', url);
+          
+          const response = await fetch(url, { headers });
+          const data = await response.json();
+          
+          console.log('[DOCUMENTS] Contracts response:', {
+            status: response.status,
+            ok: response.ok,
+            hasDocuments: !!data.documents,
+            count: data.documents?.length
+          });
+          
+          return res.status(response.ok ? 200 : response.status).json(data);
         }
         
         // Send document link
         if (method === 'POST' && id) {
+          console.log('[DOCUMENTS] Sending document:', id);
           const response = await fetch(
-            `${GHL_API_URL}/documents/${id}/send`,
+            `${GHL_API_URL}/documents-and-contracts/v1/documents/${id}/send`,
             { method: 'POST', headers, body: JSON.stringify(body) }
           );
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
+          const data = await response.json();
+          console.log('[DOCUMENTS] Send document response:', response.status, response.ok);
+          return res.status(response.ok ? 200 : response.status).json(data);
         }
       }
       
@@ -900,20 +935,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!action) {
         if (method === 'GET') {
           const params = new URLSearchParams({ locationId: GHL_LOCATION_ID });
-          const response = await fetch(`${GHL_API_URL}/documents?${params}`, { headers });
+          const response = await fetch(`${GHL_API_URL}/documents-and-contracts/v1/documents?${params}`, { headers });
           return res.status(response.ok ? 200 : response.status).json(await response.json());
         }
         
         if (method === 'POST') {
           if (id) {
             // Send document
-            const response = await fetch(`${GHL_API_URL}/documents/${id}/send`, {
+            const response = await fetch(`${GHL_API_URL}/documents-and-contracts/v1/documents/${id}/send`, {
               method: 'POST', headers, body: JSON.stringify(body)
             });
             return res.status(response.ok ? 200 : response.status).json(await response.json());
           }
           
-          const response = await fetch(`${GHL_API_URL}/documents`, {
+          const response = await fetch(`${GHL_API_URL}/documents-and-contracts/v1/documents`, {
             method: 'POST', headers, body: JSON.stringify({ ...body, locationId: GHL_LOCATION_ID })
           });
           return res.status(response.ok ? 201 : response.status).json(await response.json());

@@ -152,21 +152,41 @@ export default function Documents() {
   const { data: ghlCustomFields } = useCustomFields('opportunity');
   
   // Get templates and documents from GHL
-  const { data: templatesData, isLoading: isLoadingTemplates } = useDocumentTemplates();
-  const { data: documentsData, isLoading: isLoadingDocuments, refetch: refetchDocuments } = useDocuments();
+  const { data: templatesData, isLoading: isLoadingTemplates, isError: isTemplatesError } = useDocumentTemplates();
+  const { data: documentsData, isLoading: isLoadingDocuments, isError: isDocumentsError, refetch: refetchDocuments } = useDocuments();
   
-  // If templates load successfully from GHL, we're connected (even if no local config)
-  const isGhlConnected = hasLocalConfig || (!isLoadingTemplates && templatesData?.templates);
+  // Connection check: We're connected if API returns data successfully (even if empty arrays)
+  const isGhlConnected = hasLocalConfig || (templatesData !== undefined && !isTemplatesError);
+  
+  // Debug logging
+  console.log('📄 Documents Page State:', {
+    hasLocalConfig,
+    isGhlConnected,
+    isLoadingTemplates,
+    isLoadingDocuments,
+    isTemplatesError,
+    isDocumentsError,
+    templatesData: templatesData ? { 
+      hasTemplates: !!templatesData.templates,
+      count: templatesData.templates?.length 
+    } : 'undefined',
+    documentsData: documentsData ? {
+      hasDocuments: !!documentsData.documents,
+      count: documentsData.documents?.length
+    } : 'undefined'
+  });
   
   // Mutations
   const createDocument = useCreateDocument();
   const sendTemplate = useSendTemplate();
 
   // Use real GHL templates or fall back to mock
-  const templates = isGhlConnected && templatesData?.templates ? templatesData.templates : mockTemplates;
+  const templates = templatesData?.templates && templatesData.templates.length > 0 
+    ? templatesData.templates 
+    : isGhlConnected ? [] : mockTemplates;
   
   // Use real GHL documents or fall back to mock
-  const allDocuments = isGhlConnected && documentsData?.documents 
+  const allDocuments = documentsData?.documents && documentsData.documents.length > 0
     ? documentsData.documents.map(doc => ({
         id: doc.id,
         name: doc.name,
@@ -179,7 +199,7 @@ export default function Documents() {
         viewedAt: doc.viewedAt,
         signedAt: doc.signedAt,
       }))
-    : mockDocuments;
+    : isGhlConnected ? [] : mockDocuments;
 
   // Merge GHL custom fields with predefined ones
   const availableCustomFields = ghlCustomFields?.customFields 
@@ -284,7 +304,7 @@ export default function Documents() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Connection Banner */}
-      {!isGhlConnected && (
+      {!isGhlConnected && !isLoadingTemplates && (
         <div className="flex items-center gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
           <AlertCircle className="h-5 w-5 text-yellow-500" />
           <div className="flex-1">
@@ -382,9 +402,14 @@ export default function Documents() {
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <Folder className="h-5 w-5 text-muted-foreground" />
           Document Templates
+          {isLoadingTemplates && <span className="text-sm text-muted-foreground">(Loading...)</span>}
         </h2>
         {isLoadingTemplates ? (
           <div className="text-center py-8 text-muted-foreground">Loading templates...</div>
+        ) : isTemplatesError ? (
+          <div className="text-center py-8 text-red-500">
+            Failed to load templates. Please check your GHL connection.
+          </div>
         ) : templates.length > 0 ? (
           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {templates.map((template) => (
@@ -409,9 +434,14 @@ export default function Documents() {
             ))}
           </div>
         ) : (
-          <p className="text-center py-8 text-muted-foreground">
-            {isGhlConnected ? 'No templates found' : 'Connect GHL to load templates'}
-          </p>
+          <div className="text-center py-8 border border-dashed border-border rounded-lg">
+            <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-2 opacity-50" />
+            <p className="text-muted-foreground">
+              {isGhlConnected 
+                ? 'No templates found in your GHL account. Create templates in HighLevel to get started.' 
+                : 'Connect GHL API to load your document templates.'}
+            </p>
+          </div>
         )}
       </div>
 
