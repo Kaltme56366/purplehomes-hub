@@ -121,7 +121,7 @@ export default function Contacts() {
   } = useContacts();
   
   // If data loads successfully from GHL, we're connected (even if no local config)
-  const isGhlConnected = hasLocalConfig || (!isLoadingContacts && !isContactsError && ghlContactsData?.contacts);
+  const isGhlConnected = hasLocalConfig || (ghlContactsData?.contacts && ghlContactsData.contacts.length >= 0);
   
   const sendEmail = useSendEmail();
   const sendSMS = useSendSMS();
@@ -759,7 +759,21 @@ export default function Contacts() {
       )}
 
       {/* Contacts List */}
-      {filteredContacts.length > 0 ? (
+      {isLoadingContacts ? (
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <Card key={i} className="p-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-48" />
+                  <Skeleton className="h-3 w-32" />
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : filteredContacts.length > 0 ? (
         <>
           {/* Mobile Card View */}
           <div className="md:hidden space-y-3">
