@@ -181,22 +181,42 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                     </div>
 
                     {/* Property Type & Square Feet (from contact) */}
-                    {(buyer as any).contactPropertyPreferences && ((buyer as any).contactPropertyPreferences.propertyType || (buyer as any).contactPropertyPreferences.squareFeet) && (
-                      <div className="grid grid-cols-2 gap-4">
-                        {(buyer as any).contactPropertyPreferences.propertyType && (
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">Property Type</p>
-                            <Badge variant="outline" className="text-sm">
-                              {(buyer as any).contactPropertyPreferences.propertyType}
-                            </Badge>
-                          </div>
-                        )}
-                        {(buyer as any).contactPropertyPreferences.squareFeet && (
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-1">Square Feet</p>
-                            <p className="font-semibold">{(buyer as any).contactPropertyPreferences.squareFeet.toLocaleString()} sqft</p>
-                          </div>
-                        )}
+                    {(buyer as any).contactPropertyPreferences && (
+                      (buyer as any).contactPropertyPreferences.bedCount ||
+                      (buyer as any).contactPropertyPreferences.bathCount ||
+                      (buyer as any).contactPropertyPreferences.squareFeet ||
+                      (buyer as any).contactPropertyPreferences.propertyType
+                    ) && (
+                      <div className="space-y-3 pt-3 border-t border-primary/20">
+                        <p className="text-xs text-muted-foreground font-semibold uppercase">From Contact Profile</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          {(buyer as any).contactPropertyPreferences.bedCount && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">Beds</p>
+                              <p className="font-semibold">{(buyer as any).contactPropertyPreferences.bedCount} beds</p>
+                            </div>
+                          )}
+                          {(buyer as any).contactPropertyPreferences.bathCount && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">Baths</p>
+                              <p className="font-semibold">{(buyer as any).contactPropertyPreferences.bathCount} baths</p>
+                            </div>
+                          )}
+                          {(buyer as any).contactPropertyPreferences.squareFeet && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">Square Feet</p>
+                              <p className="font-semibold">{(buyer as any).contactPropertyPreferences.squareFeet.toLocaleString()} sqft</p>
+                            </div>
+                          )}
+                          {(buyer as any).contactPropertyPreferences.propertyType && (
+                            <div>
+                              <p className="text-xs text-muted-foreground mb-1">Property Type</p>
+                              <Badge variant="outline" className="text-sm">
+                                {(buyer as any).contactPropertyPreferences.propertyType}
+                              </Badge>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 

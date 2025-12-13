@@ -1,4 +1,4 @@
-import { Mail, Phone, MapPin, Building2, Bed, Bath, Maximize2, Tag, Calendar, DollarSign, X } from 'lucide-react';
+import { Mail, Phone, MapPin, Building2, Bed, Bath, Maximize2, Tag, Calendar, DollarSign } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,13 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
       default: return 'bg-muted text-muted-foreground';
     }
   };
+
+  const hasPropertyPreferences = contact.propertyPreferences && (
+    contact.propertyPreferences.bedCount ||
+    contact.propertyPreferences.bathCount ||
+    contact.propertyPreferences.squareFeet ||
+    contact.propertyPreferences.propertyType
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -121,46 +128,46 @@ export function ContactDetailModal({ contact, open, onOpenChange }: ContactDetai
             </div>
           </div>
 
-          {/* Property Preferences (for buyers) */}
-          {contact.type === 'buyer' && contact.propertyPreferences && (contact.propertyPreferences.bedCount || contact.propertyPreferences.bathCount || contact.propertyPreferences.squareFeet || contact.propertyPreferences.propertyType) && (
+          {/* Property Preferences - SHOW FOR ALL CONTACTS IF DATA EXISTS */}
+          {hasPropertyPreferences && (
             <>
               <Separator />
               <div className="space-y-3">
                 <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Property Preferences</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  {contact.propertyPreferences.bedCount && (
-                    <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
-                      <Bed className="h-5 w-5 text-primary" />
+                  {contact.propertyPreferences?.bedCount && (
+                    <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                      <Bed className="h-6 w-6 text-primary" />
                       <div>
                         <p className="text-xs text-muted-foreground">Bedrooms</p>
-                        <p className="font-semibold">{contact.propertyPreferences.bedCount}</p>
+                        <p className="text-lg font-semibold">{contact.propertyPreferences.bedCount}</p>
                       </div>
                     </div>
                   )}
-                  {contact.propertyPreferences.bathCount && (
-                    <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
-                      <Bath className="h-5 w-5 text-primary" />
+                  {contact.propertyPreferences?.bathCount && (
+                    <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                      <Bath className="h-6 w-6 text-primary" />
                       <div>
                         <p className="text-xs text-muted-foreground">Bathrooms</p>
-                        <p className="font-semibold">{contact.propertyPreferences.bathCount}</p>
+                        <p className="text-lg font-semibold">{contact.propertyPreferences.bathCount}</p>
                       </div>
                     </div>
                   )}
-                  {contact.propertyPreferences.squareFeet && (
-                    <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
-                      <Maximize2 className="h-5 w-5 text-primary" />
+                  {contact.propertyPreferences?.squareFeet && (
+                    <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                      <Maximize2 className="h-6 w-6 text-primary" />
                       <div>
                         <p className="text-xs text-muted-foreground">Square Feet</p>
-                        <p className="font-semibold">{contact.propertyPreferences.squareFeet.toLocaleString()} sqft</p>
+                        <p className="text-lg font-semibold">{contact.propertyPreferences.squareFeet.toLocaleString()} sqft</p>
                       </div>
                     </div>
                   )}
-                  {contact.propertyPreferences.propertyType && (
-                    <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
-                      <Building2 className="h-5 w-5 text-primary" />
+                  {contact.propertyPreferences?.propertyType && (
+                    <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                      <Building2 className="h-6 w-6 text-primary" />
                       <div>
                         <p className="text-xs text-muted-foreground">Property Type</p>
-                        <p className="font-semibold">{contact.propertyPreferences.propertyType}</p>
+                        <p className="text-lg font-semibold">{contact.propertyPreferences.propertyType}</p>
                       </div>
                     </div>
                   )}
