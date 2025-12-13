@@ -1,8 +1,11 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, User, Mail, Phone, DollarSign, Building2, Calendar, ArrowRight, LayoutGrid, List, RefreshCw, Loader2 } from 'lucide-react';
+import { Search, Filter, User, Mail, Phone, DollarSign, Building2, Calendar, ArrowRight, LayoutGrid, List, RefreshCw, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
 import {
   Dialog,
   DialogContent,
@@ -21,8 +24,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { KanbanBoard, type KanbanColumn } from '@/components/kanban/KanbanBoard';
 import { OpportunityCard } from '@/components/kanban/OpportunityCard';
-import { useOpportunities, useUpdateOpportunityStage, GHLOpportunity } from '@/services/ghlApi';
-import type { BuyerAcquisition, AcquisitionStage } from '@/types';
+import { useOpportunities, useUpdateOpportunityStage, useUpdateOpportunityCustomFields, GHLOpportunity } from '@/services/ghlApi';
+import type { BuyerAcquisition, AcquisitionStage, ChecklistItem, BuyerChecklist } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -53,8 +56,44 @@ const stages: { id: AcquisitionStage; label: string; color: string; ghlId: strin
   { id: 'lost', label: 'Lost', color: 'bg-gray-500', ghlId: '9b88275f-ae74-44f9-85be-f9c8ae78a0c4' },
 ];
 
+// Default checklist structure - USING REAL GHL CUSTOM FIELDS
+const defaultChecklist: BuyerChecklist = {
+  bcClosing: [
+    { id: 'draft_receipt', label: 'Send them Draft Receipt and E-sign Purchase Agreement', completed: false },
+    { id: 'signed_agreement', label: 'Received signed Purchase Agreement', completed: false },
+    { id: 'deposit_received', label: 'Deposit Received', completed: false },
+    { id: 'open_title', label: 'Open file with title/Send docs', completed: false },
+    { id: 'begin_qualification', label: 'If Wrap Buyer, begin Qualification Process', completed: false },
+    { id: 'submitted_to_larry', label: 'If Wrap Buyer, submitted all items to Larry', completed: false },
+    { id: 'qualification_completed', label: 'If Wrap Buyer, Qualification Completed', completed: false },
+    { id: 'servicing_agreement', label: 'Received Servicing Agreement to Buyer', completed: false },
+    { id: 'title_clear', label: 'Title clean & clear to close', completed: false },
+    { id: 'closing_scheduled', label: 'Closing Scheduled', completed: false },
+    { id: 'closing_packet', label: 'Send closing packet to Title', completed: false },
+    { id: 'closing_complete', label: 'Closing Complete', completed: false },
+  ],
+  postClose: [
+    { id: 'closing_docs', label: 'Received scanned copy of closing docs from title', completed: false },
+    { id: 'buyer_email', label: 'Send buyer email with copy of documents', completed: false },
+    { id: 'transmittal_sheet', label: 'Received Transmittal Sheet from Larry', completed: false },
+    { id: 'insurance_policy', label: 'Add Buyer to insurance policy', completed: false },
+    { id: 'utilities', label: 'Turn off/switch Utilities', completed: false },
+  ],
+  activeBuyer: [
+    { id: 'mls_search', label: 'MLS Search', completed: false },
+    { id: 'fb_group_search', label: 'Facebook Group Search', completed: false },
+    { id: 'fb_marketplace', label: 'Facebook Marketplace', completed: false },
+    { id: 'wholesaler_outreach', label: 'Wholesaler Outreach', completed: false },
+    { id: 'agent_outreach', label: 'Agent Outreach', completed: false },
+    { id: 'zillow_scrape', label: 'Zillow Scrape', completed: false },
+    { id: 'sms_wholesalers', label: 'Send SMS to Wholesalers', completed: false },
+    { id: 'send_inventory', label: 'Send Inventory', completed: false },
+  ],
+};
+
 interface ExtendedBuyerAcquisition extends BuyerAcquisition {
   ghlStageId: string;
+  checklist: BuyerChecklist;
 }
 
 // Transform GHL Opportunity to BuyerAcquisition
@@ -80,6 +119,7 @@ const transformToBuyerAcquisition = (opp: GHLOpportunity): ExtendedBuyerAcquisit
     offerAmount: opp.monetaryValue || undefined,
     message: getCustomField('message') || getCustomField('notes'),
     stage,
+    checklist: defaultChecklist,
     createdAt: opp.createdAt,
     updatedAt: opp.updatedAt,
   };
@@ -90,16 +130,23 @@ export default function BuyerAcquisitions() {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [selectedAcquisition, setSelectedAcquisition] = useState<ExtendedBuyerAcquisition | null>(null);
   const [draggedItem, setDraggedItem] = useState<ExtendedBuyerAcquisition | null>(null);
+  const [localAcquisitions, setLocalAcquisitions] = useState<Record<string, Partial<ExtendedBuyerAcquisition>>>({});
+  const [hideEmpty, setHideEmpty] = useState(false);
 
   // Fetch real data from GHL
   const { data: opportunities, isLoading, isError, refetch } = useOpportunities('buyer-acquisition');
   const updateStageMutation = useUpdateOpportunityStage();
+  const updateCustomFieldsMutation = useUpdateOpportunityCustomFields();
 
-  // Transform opportunities to acquisitions
+  // Transform opportunities to acquisitions and merge with local state
   const acquisitions = useMemo(() => {
     if (!opportunities) return [];
-    return opportunities.map(transformToBuyerAcquisition);
-  }, [opportunities]);
+    return opportunities.map(opp => {
+      const baseAcquisition = transformToBuyerAcquisition(opp);
+      const localUpdates = localAcquisitions[baseAcquisition.id];
+      return localUpdates ? { ...baseAcquisition, ...localUpdates } as ExtendedBuyerAcquisition : baseAcquisition;
+    });
+  }, [opportunities, localAcquisitions]);
 
   const filteredAcquisitions = useMemo(() => {
     if (!search) return acquisitions;
@@ -182,6 +229,128 @@ export default function BuyerAcquisitions() {
       toast.success('Marked as Lost');
     } catch (err) {
       toast.error('Failed to update stage in GHL');
+    }
+  };
+
+  const renderChecklistSection = (
+    title: string,
+    items: ChecklistItem[],
+    section: 'bcClosing' | 'postClose' | 'activeBuyer',
+    acquisitionId: string
+  ) => {
+    const displayItems = hideEmpty ? items.filter(item => item.completed) : items;
+    const completedCount = items.filter(i => i.completed).length;
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="font-semibold text-foreground">{title}</h4>
+          <span className="text-xs text-muted-foreground">
+            {completedCount}/{items.length} completed
+          </span>
+        </div>
+        <div className="space-y-2">
+          {displayItems.map((item) => (
+            <div key={item.id} className="flex items-center gap-3">
+              <Checkbox
+                id={item.id}
+                checked={item.completed}
+                onCheckedChange={(checked) => 
+                  handleUpdateChecklist(acquisitionId, section, item.id, checked as boolean)
+                }
+              />
+              <label
+                htmlFor={item.id}
+                className={`text-sm cursor-pointer ${
+                  item.completed ? 'text-muted-foreground line-through' : 'text-foreground'
+                }`}
+              >
+                {item.label}
+              </label>
+            </div>
+          ))}
+          {hideEmpty && displayItems.length === 0 && (
+            <p className="text-sm text-muted-foreground italic">No completed items</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const handleUpdateChecklist = async (
+    acquisitionId: string,
+    section: 'bcClosing' | 'postClose' | 'activeBuyer',
+    itemId: string,
+    completed: boolean
+  ) => {
+    // Update UI immediately (local state)
+    setLocalAcquisitions(prev => {
+      const existing = prev[acquisitionId] || {};
+      const currentChecklist = existing.checklist || defaultChecklist;
+      return {
+        ...prev,
+        [acquisitionId]: {
+          ...existing,
+          checklist: {
+            ...currentChecklist,
+            [section]: currentChecklist[section].map(item =>
+              item.id === itemId ? { ...item, completed } : item
+            ),
+          },
+        },
+      };
+    });
+    
+    // Update selected acquisition for modal
+    setSelectedAcquisition(prev => {
+      if (!prev || prev.id !== acquisitionId) return prev;
+      return {
+        ...prev,
+        checklist: {
+          ...prev.checklist,
+          [section]: prev.checklist[section].map(item =>
+            item.id === itemId ? { ...item, completed } : item
+          ),
+        },
+      };
+    });
+
+    // Sync to GHL - Map section to GHL custom field name
+    const customFieldMap: Record<string, string> = {
+      'bcClosing': 'bc_closing_checklist',
+      'postClose': 'post_close_actions_checklist',
+      'activeBuyer': 'deploy_deal_finder',
+    };
+
+    const fieldKey = customFieldMap[section];
+    
+    try {
+      // Get the updated checklist for this section
+      const acquisition = acquisitions.find(a => a.id === acquisitionId);
+      if (!acquisition) return;
+
+      const updatedSection = acquisition.checklist[section].map(item =>
+        item.id === itemId ? { ...item, completed } : item
+      );
+
+      // Convert checklist to GHL format (array of completed item labels)
+      const completedItems = updatedSection
+        .filter(item => item.completed)
+        .map(item => item.label);
+
+      // Update in GHL
+      await updateCustomFieldsMutation.mutateAsync({
+        opportunityId: acquisitionId,
+        customFields: {
+          [fieldKey]: completedItems,
+        },
+        pipelineType: 'buyer-acquisition',
+      });
+
+      toast.success('Checklist synced to GHL');
+    } catch (err) {
+      console.error('Failed to sync checklist to GHL:', err);
+      toast.error('Failed to sync to GHL');
     }
   };
 
@@ -363,12 +532,12 @@ export default function BuyerAcquisitions() {
 
       {/* Detail Modal */}
       <Dialog open={!!selectedAcquisition} onOpenChange={() => setSelectedAcquisition(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl max-h-[90vh] p-0">
+          <DialogHeader className="p-6 pb-0">
             <DialogTitle>Buyer Details</DialogTitle>
           </DialogHeader>
           {selectedAcquisition && (
-            <div className="space-y-4">
+            <div className="max-h-[calc(90vh-80px)] overflow-y-auto p-6 pt-4 space-y-6">
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
                   <User className="h-7 w-7 text-primary" />
@@ -429,6 +598,37 @@ export default function BuyerAcquisitions() {
                   <p className="text-sm">{selectedAcquisition.message}</p>
                 </div>
               )}
+
+              <Separator />
+
+              {/* Hide Empty Toggle */}
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Buyer Closing Checklist</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setHideEmpty(!hideEmpty)}
+                  className="text-muted-foreground"
+                >
+                  {hideEmpty ? <Eye className="h-4 w-4 mr-2" /> : <EyeOff className="h-4 w-4 mr-2" />}
+                  {hideEmpty ? 'Show All' : 'Hide Empty Fields'}
+                </Button>
+              </div>
+
+              {/* B-C Closing Checklist */}
+              {renderChecklistSection('B-C Closing Checklist', selectedAcquisition.checklist.bcClosing, 'bcClosing', selectedAcquisition.id)}
+
+              <Separator />
+
+              {/* Post Close Actions */}
+              {renderChecklistSection('Post Close Actions: Checklist', selectedAcquisition.checklist.postClose, 'postClose', selectedAcquisition.id)}
+
+              <Separator />
+
+              {/* Active Buyer Checklist */}
+              {renderChecklistSection('Deploy Deal Finder', selectedAcquisition.checklist.activeBuyer, 'activeBuyer', selectedAcquisition.id)}
+
+              <Separator />
 
               <div className="flex gap-2">
                 <Button 
