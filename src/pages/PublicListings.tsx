@@ -36,6 +36,7 @@ import { toast } from 'sonner';
 import { PropertyMap } from '@/components/listings/PropertyMap';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useSubmitForm } from '@/services/ghlApi';
 
 const PROPERTY_TYPES: PropertyType[] = [
   'Single Family', 'Duplex', 'Multi Family', 'Condo', 'Lot', 
@@ -69,12 +70,16 @@ export default function PublicListings() {
   // Forms
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [offerForm, setOfferForm] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     offerAmount: '',
     message: ''
   });
+  
+  // GHL Form submission
+  const submitForm = useSubmitForm();
 
   const filteredProperties = useMemo(() => {
     let results = allProperties.filter((property) => {
@@ -133,12 +138,35 @@ export default function PublicListings() {
     });
   };
 
-  const handleOfferSubmit = (e: React.FormEvent) => {
+  const handleOfferSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProperty) return;
-    toast.success('Your offer has been submitted! We\'ll contact you within 24 hours.');
-    setOfferForm({ name: '', email: '', phone: '', offerAmount: '', message: '' });
-    setShowOfferForm(false);
+    
+    try {
+      // Submit to GHL Form API (Form ID: NrB0CMNYIpR8JpVDqpsE)
+      await submitForm.mutateAsync({
+        formId: 'NrB0CMNYIpR8JpVDqpsE',
+        data: {
+          first_name: offerForm.firstName,
+          last_name: offerForm.lastName,
+          email: offerForm.email,
+          phone: offerForm.phone,
+          offer_amount: offerForm.offerAmount,
+          listing_message: offerForm.message,
+          // Include property details for context
+          property_address: selectedProperty.address,
+          property_city: selectedProperty.city,
+          property_price: selectedProperty.price.toString(),
+        }
+      });
+      
+      toast.success('Your offer has been submitted! We\'ll contact you within 24 hours.');
+      setOfferForm({ firstName: '', lastName: '', email: '', phone: '', offerAmount: '', message: '' });
+      setShowOfferForm(false);
+    } catch (error) {
+      console.error('Form submission error:', error);
+      toast.error('Failed to submit offer. Please try again or call us directly.');
+    }
   };
 
   const clearFilters = () => {
@@ -660,39 +688,54 @@ export default function PublicListings() {
                     <h3 className="font-semibold">Submit Your Offer</h3>
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div>
-                        <Label>Full Name</Label>
+                        <Label>First Name *</Label>
                         <Input
-                          value={offerForm.name}
-                          onChange={(e) => setOfferForm(prev => ({ ...prev, name: e.target.value }))}
+                          value={offerForm.firstName}
+                          onChange={(e) => setOfferForm(prev => ({ ...prev, firstName: e.target.value }))}
                           required
+                          placeholder="John"
                           className="mt-1"
                         />
                       </div>
                       <div>
-                        <Label>Phone</Label>
+                        <Label>Last Name *</Label>
+                        <Input
+                          value={offerForm.lastName}
+                          onChange={(e) => setOfferForm(prev => ({ ...prev, lastName: e.target.value }))}
+                          required
+                          placeholder="Doe"
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid sm:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Email *</Label>
+                        <Input
+                          type="email"
+                          value={offerForm.email}
+                          onChange={(e) => setOfferForm(prev => ({ ...prev, email: e.target.value }))}
+                          required
+                          placeholder="john@example.com"
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label>Phone *</Label>
                         <Input
                           type="tel"
                           value={offerForm.phone}
                           onChange={(e) => setOfferForm(prev => ({ ...prev, phone: e.target.value }))}
                           required
+                          placeholder="(555) 123-4567"
                           className="mt-1"
                         />
                       </div>
                     </div>
                     <div>
-                      <Label>Email</Label>
-                      <Input
-                        type="email"
-                        value={offerForm.email}
-                        onChange={(e) => setOfferForm(prev => ({ ...prev, email: e.target.value }))}
-                        required
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
                       <Label>Your Offer Amount</Label>
                       <Input
-                        placeholder="$"
+                        placeholder="$250,000"
                         value={offerForm.offerAmount}
                         onChange={(e) => setOfferForm(prev => ({ ...prev, offerAmount: e.target.value }))}
                         className="mt-1"
