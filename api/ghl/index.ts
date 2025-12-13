@@ -38,18 +38,44 @@ const GOOGLE_SHEET_ID = process.env.GOOGLE_SHEET_ID;
 const GOOGLE_SHEET_CREDENTIALS = process.env.GOOGLE_SHEET_CREDENTIALS;
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('[GHL API] Request received:', {
+    method: req.method,
+    resource: req.query.resource,
+    action: req.query.action,
+    id: req.query.id,
+    hasBody: !!req.body,
+    timestamp: new Date().toISOString()
+  });
+  
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-GHL-API-Key, X-GHL-Location-ID');
 
   if (req.method === 'OPTIONS') {
+    console.log('[GHL API] OPTIONS request - returning CORS headers');
     return res.status(200).end();
   }
 
+  console.log('[GHL API] Environment check:', {
+    GHL_API_KEY_exists: !!GHL_API_KEY,
+    GHL_API_KEY_length: GHL_API_KEY?.length,
+    GHL_API_KEY_prefix: GHL_API_KEY?.substring(0, 15) + '...',
+    GHL_LOCATION_ID_exists: !!GHL_LOCATION_ID,
+    GHL_LOCATION_ID: GHL_LOCATION_ID,
+    OPENAI_API_KEY_exists: !!OPENAI_API_KEY,
+    GOOGLE_SHEET_ID_exists: !!GOOGLE_SHEET_ID,
+    SELLER_PIPELINE: SELLER_ACQUISITION_PIPELINE_ID,
+    BUYER_PIPELINE: BUYER_ACQUISITION_PIPELINE_ID,
+    DEAL_PIPELINE: DEAL_ACQUISITION_PIPELINE_ID
+  });
+
   if (!GHL_API_KEY || !GHL_LOCATION_ID) {
+    console.error('[GHL API] ❌ MISSING CREDENTIALS');
     return res.status(500).json({ 
       error: 'GHL API credentials not configured',
+      message: 'Please add GHL_API_KEY and GHL_LOCATION_ID to Vercel environment variables',
       missing: {
         GHL_API_KEY: !GHL_API_KEY,
         GHL_LOCATION_ID: !GHL_LOCATION_ID
@@ -57,11 +83,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
+  console.log('[GHL API] ✅ Credentials loaded successfully');
+
   const headers = {
     'Authorization': `Bearer ${GHL_API_KEY}`,
     'Content-Type': 'application/json',
     'Version': '2021-07-28',
   };
+
+  console.log('[GHL API] Headers prepared:', {
+    Authorization: 'Bearer ' + GHL_API_KEY.substring(0, 15) + '...',
+    ContentType: headers['Content-Type'],
+    Version: headers['Version']
+  });
 
   try {
     const { method, query, body } = req;
@@ -71,84 +105,232 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ============ CONTACTS ============
     // Scopes: contacts.readonly, contacts.write
-    // Uses Search Contacts API (recommended endpoint replacing deprecated GET contacts/)
     if (resource === 'contacts') {
+      console.log('[CONTACTS] Handling contacts resource');
+      
       if (method === 'GET') {
+        console.log('[CONTACTS] GET request');
+        
         // Get single contact by ID
         if (id) {
-          const response = await fetch(`${GHL_API_URL}/contacts/${id}`, { headers });
-          const data = await response.json();
-          return res.status(response.ok ? 200 : response.status).json(data);
+          console.log('[CONTACTS] Fetching single contact:', id);
+          try {
+            const fetchUrl = `${GHL_API_URL}/contacts/${id}`;
+            console.log('[CONTACTS] Request URL:', fetchUrl);
+            
+            const response = await fetch(fetchUrl, { headers });
+            console.log('[CONTACTS] Response status:', response.status, response.statusText);
+            
+            const data = await response.json();
+            console.log('[CONTACTS] Response data:', JSON.stringify(data).substring(0, 200) + '...');
+            
+            if (!response.ok) {
+              console.error('[CONTACTS] ❌ Error fetching contact:', data);
+            } else {
+              console.log('[CONTACTS] ✅ Contact fetched successfully');
+            }
+            
+            return res.status(response.ok ? 200 : response.status).json(data);
+          } catch (error) {
+            console.error('[CONTACTS] ❌ Exception fetching contact:', error);
+            return res.status(500).json({ 
+              error: 'Failed to fetch contact',
+              details: error instanceof Error ? error.message : String(error)
+            });
+          }
         }
         
-        // List/search contacts using Search API
-        // https://marketplace.gohighlevel.com/docs/ghl/contacts/search-contacts-advanced
-        const limit = query.limit ? parseInt(query.limit as string) : 100;
-        const searchQuery = query.query as string;
-        const contactType = query.type as string;
-        const startAfterId = query.startAfterId as string;
-        const startAfter = query.startAfter as string;
+        // Use simple GET /contacts/ endpoint with pagination to fetch ALL contacts
+        const requestedLimit = query.limit ? parseInt(query.limit as string) : 10000;
         
-        // Build search payload - ONLY add fields that have values
-        const searchPayload: any = {
-          locationId: GHL_LOCATION_ID,
-          limit,
-        };
+        let allContacts: any[] = [];
+        let pageCount = 0;
+        const maxPages = 100;
         
-        // Add pagination cursors only if provided
-        if (startAfterId) searchPayload.startAfterId = startAfterId;
-        if (startAfter) searchPayload.startAfter = parseInt(startAfter);
-        
-        // Add search query ONLY if provided and not empty
-        // GHL validates that query is substantial if included
-        if (searchQuery && searchQuery.trim().length > 0) {
-          searchPayload.query = searchQuery.trim();
-        }
-        
-        // Add filters for contact type (using tags) ONLY if provided
-        if (contactType && contactType !== 'all') {
-          searchPayload.tags = [contactType];
-        }
-        
-        // Use Search Contacts endpoint (POST method for advanced search)
-        const response = await fetch(`${GHL_API_URL}/contacts/search`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(searchPayload)
+        console.log('[CONTACTS] Starting pagination fetch:', {
+          requestedLimit,
+          maxPages,
+          ghlApiUrl: GHL_API_URL,
+          locationId: GHL_LOCATION_ID
         });
         
-        const data = await response.json();
+        // Build initial request URL with limit of 100 per page (GHL max)
+        let currentUrl = `${GHL_API_URL}/contacts/?locationId=${GHL_LOCATION_ID}&limit=100`;
+        console.log('[CONTACTS] Initial URL:', currentUrl);
         
-        // Transform response to match expected format
-        return res.status(response.ok ? 200 : response.status).json({
-          contacts: data.contacts || [],
-          meta: data.meta || {
-            total: data.contacts?.length || 0,
-            nextPage: data.meta?.nextPageUrl,
-            startAfterId: data.meta?.startAfterId,
-            startAfter: data.meta?.startAfter,
+        // Paginate through all contacts
+        while (pageCount < maxPages && allContacts.length < requestedLimit) {
+          console.log(`[CONTACTS] 📄 Fetching page ${pageCount + 1}/${maxPages}`);
+          console.log(`[CONTACTS] Current URL: ${currentUrl}`);
+          
+          try {
+            const response = await fetch(currentUrl, { method: 'GET', headers });
+            console.log(`[CONTACTS] Page ${pageCount + 1} response:`, {
+              status: response.status,
+              statusText: response.statusText,
+              ok: response.ok,
+              headers: {
+                contentType: response.headers.get('content-type'),
+                contentLength: response.headers.get('content-length')
+              }
+            });
+            
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(`[CONTACTS] ❌ Page ${pageCount + 1} failed:`, {
+                status: response.status,
+                statusText: response.statusText,
+                errorBody: errorText
+              });
+              
+              let errorData;
+              try {
+                errorData = JSON.parse(errorText);
+              } catch {
+                errorData = { message: errorText };
+              }
+              
+              // If first page fails, return error
+              if (pageCount === 0) {
+                console.error('[CONTACTS] ❌ First page failed, aborting');
+                return res.status(response.status).json({
+                  error: 'Failed to fetch contacts from GHL',
+                  details: errorData,
+                  ghlStatus: response.status,
+                  ghlStatusText: response.statusText
+                });
+              }
+              
+              // Otherwise, return what we have
+              console.warn(`[CONTACTS] ⚠️ Page ${pageCount + 1} failed, returning ${allContacts.length} contacts collected so far`);
+              break;
+            }
+            
+            const data = await response.json();
+            const contacts = data.contacts || [];
+            
+            console.log(`[CONTACTS] ✅ Page ${pageCount + 1} success:`, {
+              contactsReceived: contacts.length,
+              totalSoFar: allContacts.length + contacts.length,
+              hasNextPage: !!data.meta?.nextPageUrl,
+              metaInfo: data.meta
+            });
+            
+            if (contacts.length === 0) {
+              console.log('[CONTACTS] No more contacts, stopping pagination');
+              break;
+            }
+            
+            allContacts = allContacts.concat(contacts);
+            pageCount++;
+            
+            // Check for next page URL in meta
+            if (data.meta?.nextPageUrl) {
+              currentUrl = data.meta.nextPageUrl;
+              console.log(`[CONTACTS] Next page URL: ${currentUrl}`);
+            } else {
+              console.log('[CONTACTS] No nextPageUrl in meta, stopping pagination');
+              break;
+            }
+            
+            // Stop if we've reached requested limit
+            if (allContacts.length >= requestedLimit) {
+              console.log(`[CONTACTS] Reached requested limit (${requestedLimit}), stopping`);
+              break;
+            }
+          } catch (error) {
+            console.error(`[CONTACTS] ❌ Exception on page ${pageCount + 1}:`, {
+              error: error instanceof Error ? error.message : String(error),
+              stack: error instanceof Error ? error.stack : undefined
+            });
+            
+            if (pageCount === 0) {
+              return res.status(500).json({
+                error: 'Exception while fetching contacts',
+                details: error instanceof Error ? error.message : String(error)
+              });
+            }
+            break;
           }
+        }
+        
+        // Trim to requested limit if needed
+        if (allContacts.length > requestedLimit) {
+          console.log(`[CONTACTS] Trimming from ${allContacts.length} to ${requestedLimit}`);
+          allContacts = allContacts.slice(0, requestedLimit);
+        }
+        
+        console.log('[CONTACTS] ✅✅✅ PAGINATION COMPLETE:', {
+          totalContacts: allContacts.length,
+          pagesProcessed: pageCount,
+          requestedLimit
+        });
+        
+        return res.status(200).json({ 
+          contacts: allContacts,
+          meta: { total: allContacts.length, pages: pageCount }
         });
       }
       
       if (method === 'POST') {
-        const payload = { ...body, locationId: GHL_LOCATION_ID };
-        const response = await fetch(`${GHL_API_URL}/contacts/`, {
-          method: 'POST', headers, body: JSON.stringify(payload)
-        });
-        return res.status(response.ok ? 201 : response.status).json(await response.json());
+        console.log('[CONTACTS] POST - Creating contact');
+        try {
+          const payload = { ...body, locationId: GHL_LOCATION_ID };
+          console.log('[CONTACTS] Create payload:', JSON.stringify(payload).substring(0, 200));
+          
+          const response = await fetch(`${GHL_API_URL}/contacts/`, {
+            method: 'POST', headers, body: JSON.stringify(payload)
+          });
+          console.log('[CONTACTS] Create response:', response.status, response.statusText);
+          
+          const data = await response.json();
+          if (!response.ok) {
+            console.error('[CONTACTS] ❌ Create failed:', data);
+          }
+          
+          return res.status(response.ok ? 201 : response.status).json(data);
+        } catch (error) {
+          console.error('[CONTACTS] ❌ Exception creating contact:', error);
+          return res.status(500).json({ error: 'Exception creating contact', details: String(error) });
+        }
       }
       
       if (method === 'PUT' && id) {
-        const response = await fetch(`${GHL_API_URL}/contacts/${id}`, {
-          method: 'PUT', headers, body: JSON.stringify(body)
-        });
-        return res.status(response.ok ? 200 : response.status).json(await response.json());
+        console.log('[CONTACTS] PUT - Updating contact:', id);
+        try {
+          const response = await fetch(`${GHL_API_URL}/contacts/${id}`, {
+            method: 'PUT', headers, body: JSON.stringify(body)
+          });
+          console.log('[CONTACTS] Update response:', response.status);
+          
+          const data = await response.json();
+          if (!response.ok) {
+            console.error('[CONTACTS] ❌ Update failed:', data);
+          }
+          
+          return res.status(response.ok ? 200 : response.status).json(data);
+        } catch (error) {
+          console.error('[CONTACTS] ❌ Exception updating contact:', error);
+          return res.status(500).json({ error: 'Exception updating contact', details: String(error) });
+        }
       }
       
       if (method === 'DELETE' && id) {
-        const response = await fetch(`${GHL_API_URL}/contacts/${id}`, { method: 'DELETE', headers });
-        return res.status(response.ok ? 204 : response.status).end();
+        console.log('[CONTACTS] DELETE - Deleting contact:', id);
+        try {
+          const response = await fetch(`${GHL_API_URL}/contacts/${id}`, { method: 'DELETE', headers });
+          console.log('[CONTACTS] Delete response:', response.status);
+          
+          if (!response.ok) {
+            const error = await response.text();
+            console.error('[CONTACTS] ❌ Delete failed:', error);
+          }
+          
+          return res.status(response.ok ? 204 : response.status).end();
+        } catch (error) {
+          console.error('[CONTACTS] ❌ Exception deleting contact:', error);
+          return res.status(500).json({ error: 'Exception deleting contact', details: String(error) });
+        }
       }
     }
 
@@ -972,13 +1154,28 @@ Generate ONLY the caption text, nothing else.`;
       }
     }
 
-    return res.status(400).json({ error: 'Invalid resource or action', resource, action });
+    console.log('[GHL API] ⚠️ No handler found for resource/action:', { resource, action, method });
+    return res.status(400).json({ error: 'Invalid resource or action', resource, action, method });
 
   } catch (error) {
-    console.error('GHL API Error:', error);
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('[GHL API] ❌❌❌ UNHANDLED EXCEPTION ❌❌❌');
+    console.error('[GHL API] Error type:', error?.constructor?.name);
+    console.error('[GHL API] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[GHL API] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('[GHL API] Request info:', {
+      method: req.method,
+      resource: req.query.resource,
+      action: req.query.action,
+      id: req.query.id
+    });
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
     return res.status(500).json({
       error: 'Internal server error',
       message: error instanceof Error ? error.message : 'Unknown error',
+      type: error?.constructor?.name,
+      stack: error instanceof Error ? error.stack : undefined
     });
   }
 }
