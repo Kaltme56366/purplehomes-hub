@@ -131,70 +131,38 @@ export default function Contacts() {
   const ghlContacts: Contact[] = useMemo(() => {
     if (!isGhlConnected || !ghlContactsData?.contacts) return [];
     
-    // Log first contact to see actual structure
-    if (ghlContactsData.contacts.length > 0) {
-      console.log('🔍 FIRST CONTACT RAW DATA:', {
-        fullContact: ghlContactsData.contacts[0],
-        customFields: ghlContactsData.contacts[0].customFields
-      });
-    }
-    
     const transformed = ghlContactsData.contacts
       .map((c: GHLContact, index: number): Contact | null => {
         const firstName = c.firstName || '';
         const lastName = c.lastName || '';
         const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
         
-        // Debug EVERY contact initially to see what's coming through
-        if (index < 3) {
-          console.log(`🔍 RAW CONTACT ${index + 1}:`, {
-            id: c.id,
-            name: fullName,
-            customFields: c.customFields,
-            customFieldsType: typeof c.customFields,
-            isArray: Array.isArray(c.customFields),
-            length: c.customFields?.length
-          });
-        }
-        
         // Helper to find custom field by ID (GHL uses field ID: "3rhpAE0UxnesZ78gMXZF")
         const getCustomFieldById = (fieldId: string): string | undefined => {
-          console.log(`🔍 getCustomFieldById called:`, {
-            fieldId,
-            customFields: c.customFields,
-            isArray: Array.isArray(c.customFields)
-          });
+          // Handle if customFields comes as any type
+          const fields = c.customFields;
           
-          if (!c.customFields || !Array.isArray(c.customFields)) {
-            console.log(`❌ customFields check failed:`, {
-              exists: !!c.customFields,
-              isArray: Array.isArray(c.customFields)
-            });
-            return undefined;
+          if (!fields) return undefined;
+          
+          // Check if it's already an array
+          if (Array.isArray(fields)) {
+            const field = fields.find((cf: any) => cf.id === fieldId);
+            return field ? String(field.value) : undefined;
           }
           
-          const field = c.customFields.find((cf: { id: string; value: string | number | boolean }) => cf.id === fieldId);
-          console.log(`🔍 Field search result:`, {
-            fieldId,
-            found: !!field,
-            value: field ? `${field.value}` : undefined
-          });
+          // Check if it's an object with the field ID as a key
+          if (typeof fields === 'object' && fieldId in fields) {
+            return String((fields as any)[fieldId]);
+          }
           
-          return field ? `${field.value}` : undefined;
+          return undefined;
         };
         
         // Get lead type from custom field - use the ID from your screenshot
         const leadTypeValue = getCustomFieldById('3rhpAE0UxnesZ78gMXZF');
         
-        console.log(`📝 Contact ${index + 1} (${fullName}) lead type check:`, {
-          leadTypeValue,
-          typeOfValue: typeof leadTypeValue,
-          willFilter: !leadTypeValue || typeof leadTypeValue !== 'string'
-        });
-        
         // Skip contacts without lead_type - these are not relevant
-        if (!leadTypeValue || typeof leadTypeValue !== 'string') {
-          console.log(`❌ FILTERING OUT contact ${fullName} - no valid lead_type`);
+        if (!leadTypeValue || typeof leadTypeValue !== 'string' || leadTypeValue.trim() === '') {
           return null;
         }
         
@@ -277,11 +245,15 @@ export default function Contacts() {
       })
       .filter((c): c is Contact => c !== null); // Remove null entries
     
-    console.log('✅ CONTACTS TRANSFORM COMPLETE:', {
-      total: ghlContactsData.contacts.length,
-      filtered: transformed.length,
-      skipped: ghlContactsData.contacts.length - transformed.length
-    });
+    if (transformed.length > 0) {
+      console.log('✅ Contacts loaded:', {
+        total: ghlContactsData.contacts.length,
+        displayed: transformed.length,
+        filtered: ghlContactsData.contacts.length - transformed.length
+      });
+    } else {
+      console.warn('⚠️ No contacts with valid lead_type field found');
+    }
     
     return transformed;
   }, [ghlContactsData, isGhlConnected]);
@@ -292,15 +264,6 @@ export default function Contacts() {
   // Filter and sort contacts
   const filteredContacts = useMemo(() => {
     let result = [...baseContacts];
-    
-    console.log('[Contacts Filter] Starting with:', {
-      total: result.length,
-      smartList,
-      types: result.reduce((acc, c) => {
-        acc[c.type] = (acc[c.type] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>)
-    });
     
     // Smart list filter
     if (smartList !== 'all') {
@@ -350,13 +313,6 @@ export default function Contacts() {
           break;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
-    });
-    
-    console.log('[Contacts Filter] After filtering:', {
-      total: result.length,
-      smartList,
-      statusFilter,
-      search
     });
     
     return result;
