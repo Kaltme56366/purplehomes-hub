@@ -132,16 +132,38 @@ export default function Contacts() {
   const ghlContacts: Contact[] = useMemo(() => {
     if (!isGhlConnected || !ghlContactsData?.contacts) return [];
     
-    return ghlContactsData.contacts
-      .map((c: GHLContact): Contact | null => {
+    // Log first contact to see actual structure
+    if (ghlContactsData.contacts.length > 0) {
+      console.log('🔍 FIRST CONTACT RAW DATA:', {
+        fullContact: ghlContactsData.contacts[0],
+        customFieldsKeys: Object.keys(ghlContactsData.contacts[0].customFields || {}),
+        customFieldsSample: ghlContactsData.contacts[0].customFields
+      });
+    }
+    
+    const transformed = ghlContactsData.contacts
+      .map((c: GHLContact, index: number): Contact | null => {
         const firstName = c.firstName || '';
         const lastName = c.lastName || '';
         const fullName = `${firstName} ${lastName}`.trim() || 'Unknown';
         
-        // Get lead type from custom field - customFields is a Record/object
-        const leadTypeValue = c.customFields?.['contact.lead_type'] || c.customFields?.lead_type;
+        // Get lead type from custom field - try multiple possible field names
+        const leadTypeValue = 
+          c.customFields?.['contact.lead_type'] || 
+          c.customFields?.lead_type ||
+          c.customFields?.['Lead Type'] ||
+          c.customFields?.leadType;
         
-        // Skip contacts without lead_type
+        // Debug first few contacts
+        if (index < 5) {
+          console.log(`Contact ${index + 1} (${fullName}):`, {
+            customFields: c.customFields,
+            leadTypeValue,
+            hasLeadType: !!leadTypeValue
+          });
+        }
+        
+        // Skip contacts without lead_type - these are not relevant
         if (!leadTypeValue || typeof leadTypeValue !== 'string') {
           return null;
         }
@@ -187,6 +209,7 @@ export default function Contacts() {
             break;
           default:
             // If it doesn't match any known type, skip it
+            console.warn(`Unknown lead type: "${leadTypeValue}" for contact ${fullName}`);
             return null;
         }
         
@@ -219,6 +242,14 @@ export default function Contacts() {
         };
       })
       .filter((c): c is Contact => c !== null); // Remove null entries
+    
+    console.log('✅ CONTACTS TRANSFORM COMPLETE:', {
+      total: ghlContactsData.contacts.length,
+      filtered: transformed.length,
+      skipped: ghlContactsData.contacts.length - transformed.length
+    });
+    
+    return transformed;
   }, [ghlContactsData, isGhlConnected]);
 
   // Use GHL contacts if connected, otherwise fall back to mock data
@@ -228,8 +259,17 @@ export default function Contacts() {
   const filteredContacts = useMemo(() => {
     let result = [...baseContacts];
     
-    // Smart list filter (client-side when not using GHL search)
-    if (smartList !== 'all' && !isGhlConnected) {
+    console.log('[Contacts Filter] Starting with:', {
+      total: result.length,
+      smartList,
+      types: result.reduce((acc, c) => {
+        acc[c.type] = (acc[c.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>)
+    });
+    
+    // Smart list filter
+    if (smartList !== 'all') {
       result = result.filter(c => c.type === smartList);
     }
     
@@ -245,8 +285,8 @@ export default function Contacts() {
       );
     }
     
-    // Search filter (client-side when not using GHL search)
-    if (search && !isGhlConnected) {
+    // Search filter
+    if (search) {
       const searchLower = search.toLowerCase();
       result = result.filter(c =>
         c.name.toLowerCase().includes(searchLower) ||
@@ -278,8 +318,15 @@ export default function Contacts() {
       return sortOrder === 'asc' ? comparison : -comparison;
     });
     
+    console.log('[Contacts Filter] After filtering:', {
+      total: result.length,
+      smartList,
+      statusFilter,
+      search
+    });
+    
     return result;
-  }, [baseContacts, smartList, statusFilter, zipCode, search, sortField, sortOrder, isGhlConnected]);
+  }, [baseContacts, smartList, statusFilter, zipCode, search, sortField, sortOrder]);
 
   // Sync contacts from GHL - just refetch since backend already fetches all contacts
   const handleSyncContacts = async () => {
