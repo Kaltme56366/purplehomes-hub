@@ -723,8 +723,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ============ FORMS ============
-    // Scopes: forms.readonly
+    // Scopes: forms.readonly, forms.write
     if (resource === 'forms') {
+      // Submit form (create contact + trigger workflow)
+      if (method === 'POST' && action === 'submit' && id) {
+        console.log('[FORMS] Submitting form:', id);
+        const response = await fetch(
+          `${GHL_API_URL}/forms/submit/${id}`,
+          { 
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body)
+          }
+        );
+        
+        const data = await response.json();
+        console.log('[FORMS] Submit response:', response.status, data);
+        return res.status(response.ok ? 200 : response.status).json(data);
+      }
+      
       if (method === 'GET') {
         if (id) {
           const response = await fetch(`${GHL_API_URL}/forms/${id}`, { headers });

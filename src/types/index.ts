@@ -252,7 +252,7 @@ export type ContactStatus = 'active' | 'inactive' | 'pending' | 'closed';
 
 export interface Contact {
   id: string;
-  ghlContactId?: string; // HighLevel Contact ID
+  ghlContactId?: string;
   name: string;
   firstName?: string;
   lastName?: string;
@@ -260,7 +260,7 @@ export interface Contact {
   phone?: string;
   type: ContactType;
   status: ContactStatus;
-  zipCodes: string[]; // interested (buyers) or associated (sellers)
+  zipCodes: string[];
   tags: string[];
   dealsClosed: number;
   transactionValue?: number;
@@ -273,4 +273,10 @@ export interface Contact {
   lastActivityAt?: string;
   createdAt: string;
   updatedAt: string;
+  propertyPreferences?: {
+    bedCount?: number;
+    bathCount?: number;
+    squareFeet?: number;
+    propertyType?: string;
+  };
 }

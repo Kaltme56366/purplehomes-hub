@@ -822,14 +822,14 @@ export const useSubmitForm = () => {
   return useMutation({
     mutationFn: async ({ formId, data }: { formId: string; data: Record<string, any> }) => {
       const response = await fetch(`${API_BASE}?resource=forms&action=submit&id=${formId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
       
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || 'Failed to submit form');
+        throw new Error(error.message || "Failed to submit form");
       }
       
       return response.json();

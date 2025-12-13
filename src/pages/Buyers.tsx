@@ -92,6 +92,12 @@ interface ExtendedBuyer extends Buyer {
     baths?: number;
     sqft?: number;
   };
+  contactPropertyPreferences?: {
+    bedCount?: number;
+    bathCount?: number;
+    squareFeet?: number;
+    propertyType?: string;
+  };
 }
 
 // Transform GHL Opportunity to Buyer
@@ -133,10 +139,10 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
   const squareFeet = parseInt(getOppField('square_feet')) || parseInt(getOppField('sqft')) || undefined;
 
   // Get CONTACT property preferences for matching
-  const contactBedCount = parseInt(getContactField('bed_count')) || undefined;
-  const contactBathCount = parseInt(getContactField('bath_count')) || undefined;
-  const contactSquareFeet = parseInt(getContactField('square_feet')) || undefined;
-  const contactPropertyType = getContactField('property_type') || undefined;
+  const contactBedCount = parseInt(getContactField('bed_count') || getContactField('aZpoXXBf0DCm8ZbwSCBQ')) || undefined;
+  const contactBathCount = parseInt(getContactField('bath_count') || getContactField('6dnLT9WrX4G1NDFgRbiw')) || undefined;
+  const contactSquareFeet = parseInt(getContactField('square_feet') || getContactField('yqIAK6Cqqiu8E2ASD9ku')) || undefined;
+  const contactPropertyType = getContactField('property_type') || getContactField('bagWtxQFWwBbGf9kn9th') || undefined;
 
   return {
     id: opp.id,
@@ -174,6 +180,13 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
       beds: bedroomCount || contactBedCount,
       baths: bathroomCount || contactBathCount,
       sqft: squareFeet || contactSquareFeet,
+    },
+    // Add contact property preferences for easy access
+    contactPropertyPreferences: {
+      bedCount: contactBedCount,
+      bathCount: contactBathCount,
+      squareFeet: contactSquareFeet,
+      propertyType: contactPropertyType,
     },
   };
 };

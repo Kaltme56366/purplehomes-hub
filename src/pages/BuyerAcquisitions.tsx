@@ -94,6 +94,12 @@ const defaultChecklist: BuyerChecklist = {
 interface ExtendedBuyerAcquisition extends BuyerAcquisition {
   ghlStageId: string;
   checklist: BuyerChecklist;
+  contactPropertyPreferences?: {
+    bedCount?: number;
+    bathCount?: number;
+    squareFeet?: number;
+    propertyType?: string;
+  };
 }
 
 // Transform GHL Opportunity to BuyerAcquisition
@@ -104,6 +110,20 @@ const transformToBuyerAcquisition = (opp: GHLOpportunity): ExtendedBuyerAcquisit
     );
     return typeof field?.fieldValue === 'string' ? field.fieldValue : '';
   };
+
+  // Get CONTACT custom fields (including property preferences)
+  const getContactField = (fieldKey: string): string => {
+    const field = opp.contact?.customFields?.find(
+      (cf) => cf.id === fieldKey || cf.id.toLowerCase().includes(fieldKey.toLowerCase())
+    );
+    return typeof field?.fieldValue === 'string' ? field.fieldValue : '';
+  };
+
+  // Extract contact property preferences
+  const contactBedCount = parseInt(getContactField('bed_count') || getContactField('aZpoXXBf0DCm8ZbwSCBQ')) || undefined;
+  const contactBathCount = parseInt(getContactField('bath_count') || getContactField('6dnLT9WrX4G1NDFgRbiw')) || undefined;
+  const contactSquareFeet = parseInt(getContactField('square_feet') || getContactField('yqIAK6Cqqiu8E2ASD9ku')) || undefined;
+  const contactPropertyType = getContactField('property_type') || getContactField('bagWtxQFWwBbGf9kn9th') || undefined;
 
   // Map the GHL stage ID directly to our stage
   const stage = stageIdMap[opp.pipelineStageId] || 'inventory-discussions';
@@ -122,6 +142,13 @@ const transformToBuyerAcquisition = (opp: GHLOpportunity): ExtendedBuyerAcquisit
     checklist: defaultChecklist,
     createdAt: opp.createdAt,
     updatedAt: opp.updatedAt,
+    // Add contact property preferences
+    contactPropertyPreferences: {
+      bedCount: contactBedCount,
+      bathCount: contactBathCount,
+      squareFeet: contactSquareFeet,
+      propertyType: contactPropertyType,
+    },
   };
 };
 
@@ -597,6 +624,53 @@ export default function BuyerAcquisitions() {
                   <p className="text-xs text-muted-foreground mb-1">Message</p>
                   <p className="text-sm">{selectedAcquisition.message}</p>
                 </div>
+              )}
+
+              {/* Property Preferences */}
+              {selectedAcquisition.contactPropertyPreferences && (selectedAcquisition.contactPropertyPreferences.bedCount || selectedAcquisition.contactPropertyPreferences.bathCount || selectedAcquisition.contactPropertyPreferences.squareFeet || selectedAcquisition.contactPropertyPreferences.propertyType) && (
+                <>
+                  <div className="space-y-3">
+                    <h4 className="font-semibold text-sm">Property Preferences</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {selectedAcquisition.contactPropertyPreferences.bedCount && (
+                        <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                          <Bed className="h-5 w-5 text-primary" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Bedrooms</p>
+                            <p className="font-semibold">{selectedAcquisition.contactPropertyPreferences.bedCount}</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedAcquisition.contactPropertyPreferences.bathCount && (
+                        <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                          <Bath className="h-5 w-5 text-primary" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Bathrooms</p>
+                            <p className="font-semibold">{selectedAcquisition.contactPropertyPreferences.bathCount}</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedAcquisition.contactPropertyPreferences.squareFeet && (
+                        <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                          <Maximize2 className="h-5 w-5 text-primary" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Square Feet</p>
+                            <p className="font-semibold">{selectedAcquisition.contactPropertyPreferences.squareFeet.toLocaleString()} sqft</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedAcquisition.contactPropertyPreferences.propertyType && (
+                        <div className="flex items-center gap-3 p-3 bg-primary/5 rounded-lg border border-primary/20">
+                          <Building2 className="h-5 w-5 text-primary" />
+                          <div>
+                            <p className="text-xs text-muted-foreground">Property Type</p>
+                            <p className="font-semibold">{selectedAcquisition.contactPropertyPreferences.propertyType}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
 
               <Separator />

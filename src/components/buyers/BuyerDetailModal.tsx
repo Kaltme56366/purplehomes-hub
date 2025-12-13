@@ -180,6 +180,26 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                       </div>
                     </div>
 
+                    {/* Property Type & Square Feet (from contact) */}
+                    {(buyer as any).contactPropertyPreferences && ((buyer as any).contactPropertyPreferences.propertyType || (buyer as any).contactPropertyPreferences.squareFeet) && (
+                      <div className="grid grid-cols-2 gap-4">
+                        {(buyer as any).contactPropertyPreferences.propertyType && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Property Type</p>
+                            <Badge variant="outline" className="text-sm">
+                              {(buyer as any).contactPropertyPreferences.propertyType}
+                            </Badge>
+                          </div>
+                        )}
+                        {(buyer as any).contactPropertyPreferences.squareFeet && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-1">Square Feet</p>
+                            <p className="font-semibold">{(buyer as any).contactPropertyPreferences.squareFeet.toLocaleString()} sqft</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Zip Codes */}
                     <div>
                       <p className="text-xs text-muted-foreground mb-2">Preferred Zip Codes</p>
@@ -219,19 +239,18 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
 
               <Separator />
 
-              {/* Deal Type Selector */}
+              {/* Deal Type Selector - FROM GHL contact.deal_type */}
               <div className="space-y-2">
                 <Label>Deal Type</Label>
                 <Select defaultValue={buyer.dealType}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Select Deal Type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Cash">Cash</SelectItem>
-                    <SelectItem value="Wrap">Wrap</SelectItem>
-                    <SelectItem value="Subject-To">Subject-To</SelectItem>
-                    <SelectItem value="Novation">Novation</SelectItem>
-                    <SelectItem value="Multiple">Multiple</SelectItem>
+                    <SelectItem value="Lease Option">Lease Option</SelectItem>
+                    <SelectItem value="Bond for Deed">Bond for Deed</SelectItem>
+                    <SelectItem value="Assignment">Assignment</SelectItem>
+                    <SelectItem value="Traditional Sale">Traditional Sale</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
