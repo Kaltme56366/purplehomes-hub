@@ -449,18 +449,21 @@ export default function Contacts() {
     
     if (isGhlConnected) {
       try {
+        // Note: customFields should use actual field IDs from GHL
+        // For now, we'll just create the contact with basic info
         await createContact.mutateAsync({
           firstName: newContact.firstName,
           lastName: newContact.lastName,
           email: newContact.email,
           phone: newContact.phone,
           tags: [newContact.type],
-          customFields: {
-            contactType: newContact.type,
-            company: newContact.company,
-            zipCodes: newContact.zipCodes,
-            notes: newContact.notes
-          }
+          // TODO: Add customFields array with proper field IDs once we have them
+          // customFields: [
+          //   { id: 'FIELD_ID_FOR_CONTACT_TYPE', value: newContact.type },
+          //   { id: 'FIELD_ID_FOR_COMPANY', value: newContact.company },
+          //   { id: 'FIELD_ID_FOR_ZIP_CODES', value: newContact.zipCodes },
+          //   { id: 'FIELD_ID_FOR_NOTES', value: newContact.notes }
+          // ]
         });
         toast.success('Contact created in HighLevel!');
         refetchContacts();

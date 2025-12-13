@@ -107,7 +107,7 @@ export interface Buyer {
   preferences: BuyerPreferences;
   matches: BuyerMatches;
   maxBudget?: number;
-  dealType: 'Lease Option' | 'Bond for Deed' | 'Assignment' | 'Traditional Sale';
+dealType: 'Lease Option' | 'Bond for Deed' | 'Assignment' | 'Traditional Sale' | 'Cash' | 'Wrap' | 'Subject-To' | 'Multiple';
   status: BuyerStatus;
   stage: BuyerStage;
   checklist: BuyerChecklist;

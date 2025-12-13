@@ -21,7 +21,7 @@ export interface GHLContact {
   email: string;
   phone: string;
   tags: string[];
-  customFields: Record<string, string>;
+  customFields: Array<{ id: string; value: string | number | boolean }>;
   dateAdded: string;
   lastActivity: string;
 }
@@ -178,10 +178,12 @@ export const useContacts = (params?: {
         `contacts?${searchParams.toString()}`
       );
     },
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchInterval: 2 * 60 * 1000,
+    staleTime: 0, // Always refetch
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
+    refetchOnMount: true, // Always refetch on mount
+    refetchOnWindowFocus: false, // Don't refetch on window focus to avoid too many requests
+    retry: 1, // Only retry once on failure
+    retryDelay: 1000, // Wait 1 second before retry
   });
 };
 
@@ -589,8 +591,8 @@ export const useCustomFields = (model: 'contact' | 'opportunity' | 'all' = 'oppo
     queryFn: () => fetchGHL<{ customFields: { id: string; name: string; fieldKey: string; dataType: string }[] }>(
       `custom-fields?model=${model}`
     ),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 30 * 60 * 1000, // 30 minutes - these rarely change
+    retry: 2,
   });
 };
 
@@ -622,8 +624,8 @@ export const useDocumentTemplates = () => {
   return useQuery({
     queryKey: ['ghl-document-templates'],
     queryFn: () => fetchGHL<{ templates: GHLDocumentTemplate[] }>('documents?action=templates'),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 10 * 60 * 1000, // Templates don't change often
+    retry: 2,
   });
 };
 
@@ -635,8 +637,8 @@ export const useDocuments = (contactId?: string) => {
       if (contactId) params.set('contactId', contactId);
       return fetchGHL<{ documents: GHLDocumentContract[] }>(`documents?${params.toString()}`);
     },
-    enabled: !!getApiConfig().apiKey,
     staleTime: 2 * 60 * 1000,
+    retry: 2,
   });
 };
 
