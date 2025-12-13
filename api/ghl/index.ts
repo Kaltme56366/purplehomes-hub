@@ -876,17 +876,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           let data;
           try {
-            data = text ? JSON.parse(text) : { templates: [] };
+            if (text) {
+              const parsed = JSON.parse(text);
+              // GHL returns { data: [...], total: X } but we need { templates: [...] }
+              data = {
+                templates: parsed.data || [],
+                total: parsed.total || 0,
+                traceId: parsed.traceId
+              };
+            } else {
+              data = { templates: [], total: 0 };
+            }
           } catch (e) {
             console.error('[DOCUMENTS] Failed to parse response:', text.substring(0, 200));
-            data = { templates: [] };
+            data = { templates: [], total: 0 };
           }
           
           console.log('[DOCUMENTS] Templates response:', {
             status: response.status,
             ok: response.ok,
             hasTemplates: !!data.templates,
-            count: data.templates?.length
+            count: data.templates?.length,
+            total: data.total
           });
           
           return res.status(response.ok ? 200 : response.status).json(data);
@@ -925,17 +936,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           
           let data;
           try {
-            data = text ? JSON.parse(text) : { documents: [] };
+            if (text) {
+              const parsed = JSON.parse(text);
+              // GHL returns { data: [...], total: X } but we need { documents: [...] }
+              data = {
+                documents: parsed.data || [],
+                total: parsed.total || 0,
+                traceId: parsed.traceId
+              };
+            } else {
+              data = { documents: [], total: 0 };
+            }
           } catch (e) {
             console.error('[DOCUMENTS] Failed to parse response:', text.substring(0, 200));
-            data = { documents: [] };
+            data = { documents: [], total: 0 };
           }
           
           console.log('[DOCUMENTS] Contracts response:', {
             status: response.status,
             ok: response.ok,
             hasDocuments: !!data.documents,
-            count: data.documents?.length
+            count: data.documents?.length,
+            total: data.total
           });
           
           return res.status(response.ok ? 200 : response.status).json(data);
