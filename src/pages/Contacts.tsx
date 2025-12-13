@@ -64,7 +64,6 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { 
   useContacts, 
-  useSyncContacts, 
   useSendEmail, 
   useSendSMS,
   useCreateContact,
@@ -125,7 +124,6 @@ export default function Contacts() {
   // If data loads successfully from GHL, we're connected (even if no local config)
   const isGhlConnected = hasLocalConfig || (!isLoadingContacts && !isContactsError && ghlContactsData?.contacts);
   
-  const syncContacts = useSyncContacts();
   const sendEmail = useSendEmail();
   const sendSMS = useSendSMS();
   const createContact = useCreateContact();
@@ -283,7 +281,7 @@ export default function Contacts() {
     return result;
   }, [baseContacts, smartList, statusFilter, zipCode, search, sortField, sortOrder, isGhlConnected]);
 
-  // Sync contacts from GHL
+  // Sync contacts from GHL - just refetch since backend already fetches all contacts
   const handleSyncContacts = async () => {
     if (!isGhlConnected) {
       toast.error('Please configure GHL API in Settings first');
@@ -299,10 +297,10 @@ export default function Contacts() {
     }, 200);
 
     try {
-      await syncContacts.mutateAsync();
+      // Just refetch contacts - backend handles fetching all contacts automatically
+      await refetchContacts();
       setSyncProgress(100);
       toast.success('Contacts synced successfully from HighLevel!');
-      refetchContacts();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Sync failed');
     } finally {
