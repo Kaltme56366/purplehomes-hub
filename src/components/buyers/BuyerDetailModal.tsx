@@ -302,7 +302,7 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
         </DialogContent>
       </Dialog>
 
-      {/* Send Inventory Modal */}
+      {/* Send Inventory Modals */}
       <SendInventoryModal
         buyer={buyer}
         open={sendInventoryOpen}
