@@ -153,7 +153,14 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Bedrooms</p>
-                          <p className="font-semibold">{buyer.preferences.minBeds} - {buyer.preferences.maxBeds} beds</p>
+                          <p className="font-semibold">
+                            {(buyer as any).contactPropertyPreferences?.bedCount 
+                              ? `${(buyer as any).contactPropertyPreferences.bedCount} beds`
+                              : buyer.preferences.minBeds && buyer.preferences.maxBeds
+                                ? `${buyer.preferences.minBeds} - ${buyer.preferences.maxBeds} beds`
+                                : '- beds'
+                            }
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -162,7 +169,14 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Bathrooms</p>
-                          <p className="font-semibold">{buyer.preferences.minBaths} - {buyer.preferences.maxBaths} baths</p>
+                          <p className="font-semibold">
+                            {(buyer as any).contactPropertyPreferences?.bathCount 
+                              ? `${(buyer as any).contactPropertyPreferences.bathCount} baths`
+                              : buyer.preferences.minBaths && buyer.preferences.maxBaths
+                                ? `${buyer.preferences.minBaths} - ${buyer.preferences.maxBaths} baths`
+                                : '- baths'
+                            }
+                          </p>
                         </div>
                       </div>
                     </div>
