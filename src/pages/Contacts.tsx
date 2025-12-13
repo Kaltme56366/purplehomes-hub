@@ -148,7 +148,8 @@ export default function Contacts() {
         
         // Helper to find custom field by ID (GHL uses field ID: "3rhpAE0UxnesZ78gMXZF")
         const getCustomFieldById = (fieldId: string): string | undefined => {
-          const field = c.customFields?.find(cf => cf.id === fieldId);
+          if (!c.customFields || !Array.isArray(c.customFields)) return undefined;
+          const field = c.customFields.find((cf: { id: string; value: string | number | boolean }) => cf.id === fieldId);
           return field ? `${field.value}` : undefined;
         };
         
@@ -216,8 +217,9 @@ export default function Contacts() {
         
         // Helper function to get custom field value by searching the array
         const getCustomField = (fieldKey: string): string | undefined => {
+          if (!c.customFields || !Array.isArray(c.customFields)) return undefined;
           // Try to find by matching field key in the id
-          const field = c.customFields?.find(cf => 
+          const field = c.customFields.find((cf: { id: string; value: string | number | boolean }) => 
             cf.id.toLowerCase().includes(fieldKey.toLowerCase())
           );
           return field ? `${field.value}` : undefined;
