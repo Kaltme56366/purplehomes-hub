@@ -139,10 +139,20 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
   const squareFeet = parseInt(getOppField('square_feet')) || parseInt(getOppField('sqft')) || undefined;
 
   // Get CONTACT property preferences for matching
-  const contactBedCount = parseInt(getContactField('bed_count') || getContactField('aZpoXXBf0DCm8ZbwSCBQ')) || undefined;
-  const contactBathCount = parseInt(getContactField('bath_count') || getContactField('6dnLT9WrX4G1NDFgRbiw')) || undefined;
-  const contactSquareFeet = parseInt(getContactField('square_feet') || getContactField('yqIAK6Cqqiu8E2ASD9ku')) || undefined;
-  const contactPropertyType = getContactField('property_type') || getContactField('bagWtxQFWwBbGf9kn9th') || undefined;
+const contactBedCount = parseInt(getContactField('bed_count') || getContactField('aZpoXXBf0DCm8ZbwSCBQ')) || undefined;
+const contactBathCount = parseInt(getContactField('bath_count') || getContactField('6dnLT9WrX4G1NDFgRbiw')) || undefined;
+const contactSquareFeet = parseInt(getContactField('square_feet') || getContactField('yqIAK6Cqqiu8E2ASD9ku')) || undefined;
+const contactPropertyType = getContactField('property_type') || getContactField('bagWtxQFWwBbGf9kn9th') || undefined;
+
+// DEBUG: Log what we're getting
+console.log('🔍 CONTACT FIELDS DEBUG:', {
+  name: opp.contact?.name,
+  allCustomFields: opp.contact?.customFields,
+  bedCount: contactBedCount,
+  bathCount: contactBathCount,
+  squareFeet: contactSquareFeet,
+  propertyType: contactPropertyType,
+});
 
   return {
     id: opp.id,
