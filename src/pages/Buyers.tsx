@@ -138,11 +138,20 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
   const bathroomCount = parseInt(getOppField('bathroom_count')) || parseInt(getOppField('bathrooms')) || undefined;
   const squareFeet = parseInt(getOppField('square_feet')) || parseInt(getOppField('sqft')) || undefined;
 
-  // Get CONTACT property preferences for matching
-const contactBedCount = parseInt(getContactField('bed_count') || getContactField('aZpoXXBf0DCm8ZbwSCBQ')) || undefined;
-const contactBathCount = parseInt(getContactField('bath_count') || getContactField('6dnLT9WrX4G1NDFgRbiw')) || undefined;
-const contactSquareFeet = parseInt(getContactField('square_feet') || getContactField('yqIAK6Cqqiu8E2ASD9ku')) || undefined;
-const contactPropertyType = getContactField('property_type') || getContactField('bagWtxQFWwBbGf9kn9th') || undefined;
+  // Get CONTACT property preferences for matching using exact field IDs
+const getContactFieldById = (fieldId: string): string | undefined => {
+  const fields = opp.contact?.customFields;
+  
+  if (!fields || !Array.isArray(fields)) return undefined;
+  
+  const field = fields.find((cf: any) => cf.id === fieldId);
+  return field ? String(field.value) : undefined;
+};
+
+const contactBedCount = parseInt(getContactFieldById('aZpoXXBf0DCm8ZbwSCBQ')) || undefined;
+const contactBathCount = parseInt(getContactFieldById('6dnLT9WrX4G1NDFgRbiw')) || undefined;
+const contactSquareFeet = parseInt(getContactFieldById('yqIAK6Cqqiu8E2ASD9ku')) || undefined;
+const contactPropertyType = getContactFieldById('bagWtxQFWwBbGf9kn9th') || undefined;
 
 // DEBUG: Log what we're getting
 console.log('🔍 CONTACT FIELDS DEBUG:', {
