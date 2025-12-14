@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Mail, Phone, MapPin, Eye, EyeOff, Bed, Bath, DollarSign, Send } from 'lucide-react';
+import { Mail, Phone, MapPin, Eye, EyeOff, Bed, Bath, DollarSign, Send, Building2, Maximize2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -36,6 +37,12 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
   const [sendInventoryOpen, setSendInventoryOpen] = useState(false);
 
   if (!buyer) return null;
+
+  const contactPrefs = (buyer as any).contactPropertyPreferences || {};
+  const hasBeds = contactPrefs.bedCount !== undefined;
+  const hasBaths = contactPrefs.bathCount !== undefined;
+  const hasSqft = contactPrefs.squareFeet !== undefined;
+  const hasPropertyType = contactPrefs.propertyType !== undefined;
 
   const renderChecklistSection = (
     title: string,
@@ -105,17 +112,14 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl max-h-[90vh] p-0">
           <DialogHeader className="p-6 pb-0">
-            <div className="flex items-start justify-between">
-              <div>
-                <DialogTitle className="text-xl">{buyer.name}</DialogTitle>
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge className={getStatusColor(buyer.status)}>
-                    {buyer.status}
-                  </Badge>
-                  <Badge variant="outline">{buyer.dealType}</Badge>
-                  <Badge variant="secondary">{getStageLabel(buyer.stage)}</Badge>
-                </div>
-              </div>
+            <DialogTitle className="text-xl">{buyer.name}</DialogTitle>
+            <DialogDescription className="sr-only">Buyer details and preferences</DialogDescription>
+            <div className="flex items-center gap-2 mt-2">
+              <Badge className={getStatusColor(buyer.status)}>
+                {buyer.status}
+              </Badge>
+              <Badge variant="outline">{buyer.dealType}</Badge>
+              <Badge variant="secondary">{getStageLabel(buyer.stage)}</Badge>
             </div>
           </DialogHeader>
 
@@ -145,7 +149,7 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                 
                 <Card className="bg-primary/5 border-primary/20">
                   <CardContent className="p-4 space-y-4">
-                    {/* Beds & Baths */}
+                    {/* Beds & Baths - SHOW FROM CONTACT FIRST */}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-primary/10 rounded-lg">
@@ -153,13 +157,10 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Bedrooms</p>
-                          <p className="font-semibold">
-                            {(buyer as any).contactPropertyPreferences?.bedCount 
-                              ? `${(buyer as any).contactPropertyPreferences.bedCount} beds`
-                              : buyer.preferences.minBeds && buyer.preferences.maxBeds
-                                ? `${buyer.preferences.minBeds} - ${buyer.preferences.maxBeds} beds`
-                                : '- beds'
-                            }
+                          <p className="font-semibold text-lg">
+                            {hasBeds ? `${contactPrefs.bedCount}` : 
+                             (buyer.preferences.minBeds && buyer.preferences.maxBeds) ? 
+                             `${buyer.preferences.minBeds}-${buyer.preferences.maxBeds}` : '-'} beds
                           </p>
                         </div>
                       </div>
@@ -169,67 +170,54 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground">Bathrooms</p>
-                          <p className="font-semibold">
-                            {(buyer as any).contactPropertyPreferences?.bathCount 
-                              ? `${(buyer as any).contactPropertyPreferences.bathCount} baths`
-                              : buyer.preferences.minBaths && buyer.preferences.maxBaths
-                                ? `${buyer.preferences.minBaths} - ${buyer.preferences.maxBaths} baths`
-                                : '- baths'
-                            }
+                          <p className="font-semibold text-lg">
+                            {hasBaths ? `${contactPrefs.bathCount}` : 
+                             (buyer.preferences.minBaths && buyer.preferences.maxBaths) ? 
+                             `${buyer.preferences.minBaths}-${buyer.preferences.maxBaths}` : '-'} baths
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Price Range */}
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <DollarSign className="h-5 w-5 text-primary" />
+                    {/* Square Feet & Property Type */}
+                    {(hasSqft || hasPropertyType) && (
+                      <div className="grid grid-cols-2 gap-4">
+                        {hasSqft && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                              <Maximize2 className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Square Feet</p>
+                              <p className="font-semibold text-lg">{contactPrefs.squareFeet.toLocaleString()} sqft</p>
+                            </div>
+                          </div>
+                        )}
+                        {hasPropertyType && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                              <Building2 className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Property Type</p>
+                              <p className="font-semibold text-lg">{contactPrefs.propertyType}</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Price Range</p>
-                        <p className="font-semibold">
-                          ${buyer.preferences.minPrice?.toLocaleString()} - ${buyer.preferences.maxPrice?.toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
+                    )}
 
-                    {/* Property Type & Square Feet (from contact) */}
-                    {(buyer as any).contactPropertyPreferences && (
-                      (buyer as any).contactPropertyPreferences.bedCount ||
-                      (buyer as any).contactPropertyPreferences.bathCount ||
-                      (buyer as any).contactPropertyPreferences.squareFeet ||
-                      (buyer as any).contactPropertyPreferences.propertyType
-                    ) && (
-                      <div className="space-y-3 pt-3 border-t border-primary/20">
-                        <p className="text-xs text-muted-foreground font-semibold uppercase">From Contact Profile</p>
-                        <div className="grid grid-cols-2 gap-4">
-                          {(buyer as any).contactPropertyPreferences.bedCount && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1">Beds</p>
-                              <p className="font-semibold">{(buyer as any).contactPropertyPreferences.bedCount} beds</p>
-                            </div>
-                          )}
-                          {(buyer as any).contactPropertyPreferences.bathCount && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1">Baths</p>
-                              <p className="font-semibold">{(buyer as any).contactPropertyPreferences.bathCount} baths</p>
-                            </div>
-                          )}
-                          {(buyer as any).contactPropertyPreferences.squareFeet && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1">Square Feet</p>
-                              <p className="font-semibold">{(buyer as any).contactPropertyPreferences.squareFeet.toLocaleString()} sqft</p>
-                            </div>
-                          )}
-                          {(buyer as any).contactPropertyPreferences.propertyType && (
-                            <div>
-                              <p className="text-xs text-muted-foreground mb-1">Property Type</p>
-                              <Badge variant="outline" className="text-sm">
-                                {(buyer as any).contactPropertyPreferences.propertyType}
-                              </Badge>
-                            </div>
-                          )}
+                    {/* Price Range */}
+                    {(buyer.preferences.minPrice || buyer.preferences.maxPrice) && (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <DollarSign className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Price Range</p>
+                          <p className="font-semibold">
+                            ${buyer.preferences.minPrice?.toLocaleString() || '0'} - ${buyer.preferences.maxPrice?.toLocaleString() || '0'}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -273,7 +261,7 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
 
               <Separator />
 
-              {/* Deal Type Selector - FROM GHL contact.deal_type */}
+              {/* Deal Type Selector */}
               <div className="space-y-2">
                 <Label>Deal Type</Label>
                 <Select defaultValue={buyer.dealType}>
@@ -336,7 +324,7 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
         </DialogContent>
       </Dialog>
 
-      {/* Send Inventory Modals */}
+      {/* Send Inventory Modal */}
       <SendInventoryModal
         buyer={buyer}
         open={sendInventoryOpen}
