@@ -149,78 +149,74 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                 
                 <Card className="bg-primary/5 border-primary/20">
                   <CardContent className="p-4 space-y-4">
-                    {/* Beds & Baths - SHOW FROM CONTACT FIRST */}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Bed className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Bedrooms</p>
-                          <p className="font-semibold text-lg">
-                            {hasBeds ? `${contactPrefs.bedCount}` : 
-                             (buyer.preferences.minBeds && buyer.preferences.maxBeds) ? 
-                             `${buyer.preferences.minBeds}-${buyer.preferences.maxBeds}` : '-'} beds
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <Bath className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Bathrooms</p>
-                          <p className="font-semibold text-lg">
-                            {hasBaths ? `${contactPrefs.bathCount}` : 
-                             (buyer.preferences.minBaths && buyer.preferences.maxBaths) ? 
-                             `${buyer.preferences.minBaths}-${buyer.preferences.maxBaths}` : '-'} baths
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    {/* Beds & Baths - SHOW FROM CONTACT ONLY */}
+<div className="grid grid-cols-2 gap-4">
+  <div className="flex items-center gap-3">
+    <div className="p-2 bg-primary/10 rounded-lg">
+      <Bed className="h-5 w-5 text-primary" />
+    </div>
+    <div>
+      <p className="text-xs text-muted-foreground">Bedrooms</p>
+      <p className="font-semibold text-lg">
+        {hasBeds ? `${contactPrefs.bedCount} beds` : '-'}
+      </p>
+    </div>
+  </div>
+  <div className="flex items-center gap-3">
+    <div className="p-2 bg-primary/10 rounded-lg">
+      <Bath className="h-5 w-5 text-primary" />
+    </div>
+    <div>
+      <p className="text-xs text-muted-foreground">Bathrooms</p>
+      <p className="font-semibold text-lg">
+        {hasBaths ? `${contactPrefs.bathCount} baths` : '-'}
+      </p>
+    </div>
+  </div>
+</div>
 
-                    {/* Square Feet & Property Type */}
-                    {(hasSqft || hasPropertyType) && (
-                      <div className="grid grid-cols-2 gap-4">
-                        {hasSqft && (
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 rounded-lg">
-                              <Maximize2 className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Square Feet</p>
-                              <p className="font-semibold text-lg">{contactPrefs.squareFeet.toLocaleString()} sqft</p>
-                            </div>
-                          </div>
-                        )}
-                        {hasPropertyType && (
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 rounded-lg">
-                              <Building2 className="h-5 w-5 text-primary" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-muted-foreground">Property Type</p>
-                              <p className="font-semibold text-lg">{contactPrefs.propertyType}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+{/* Square Feet & Property Type */}
+{(hasSqft || hasPropertyType) && (
+  <div className="grid grid-cols-2 gap-4">
+    {hasSqft && (
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-primary/10 rounded-lg">
+          <Maximize2 className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Square Feet</p>
+          <p className="font-semibold text-lg">{contactPrefs.squareFeet.toLocaleString()} sqft</p>
+        </div>
+      </div>
+    )}
+    {hasPropertyType && (
+      <div className="flex items-center gap-3">
+        <div className="p-2 bg-primary/10 rounded-lg">
+          <Building2 className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Property Type</p>
+          <p className="font-semibold text-lg">{contactPrefs.propertyType}</p>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
-                    {/* Price Range */}
-                    {(buyer.preferences.minPrice || buyer.preferences.maxPrice) && (
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <DollarSign className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Price Range</p>
-                          <p className="font-semibold">
-                            ${buyer.preferences.minPrice?.toLocaleString() || '0'} - ${buyer.preferences.maxPrice?.toLocaleString() || '0'}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+{/* Price Range - ONLY IF EXISTS */}
+{(buyer.preferences.minPrice || buyer.preferences.maxPrice) && (
+  <div className="flex items-center gap-3">
+    <div className="p-2 bg-primary/10 rounded-lg">
+      <DollarSign className="h-5 w-5 text-primary" />
+    </div>
+    <div>
+      <p className="text-xs text-muted-foreground">Price Range</p>
+      <p className="font-semibold">
+        ${buyer.preferences.minPrice?.toLocaleString() || '0'} - ${buyer.preferences.maxPrice?.toLocaleString() || '0'}
+      </p>
+    </div>
+  </div>
+)}
 
                     {/* Zip Codes */}
                     <div>
