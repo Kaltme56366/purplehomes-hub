@@ -335,101 +335,130 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ============ OPPORTUNITIES (Properties) ============
-    // Scopes: opportunities.readonly, opportunities.write
-    if (resource === 'opportunities') {
-      // Determine pipeline based on type parameter or use seller acquisition as default
-      let pipelineId = query.pipeline as string;
-      if (!pipelineId) {
-        const pipelineType = query.pipelineType as string;
-        switch (pipelineType) {
-          case 'buyer-acquisition':
-            pipelineId = BUYER_ACQUISITION_PIPELINE_ID;
-            break;
-          case 'deal-acquisition':
-            pipelineId = DEAL_ACQUISITION_PIPELINE_ID;
-            break;
-          case 'seller-acquisition':
-          default:
-            pipelineId = SELLER_ACQUISITION_PIPELINE_ID;
-            break;
-        }
+if (resource === 'opportunities') {
+  let pipelineId = query.pipeline as string;
+  if (!pipelineId) {
+    const pipelineType = query.pipelineType as string;
+    switch (pipelineType) {
+      case 'buyer-acquisition':
+        pipelineId = BUYER_ACQUISITION_PIPELINE_ID;
+        break;
+      case 'deal-acquisition':
+        pipelineId = DEAL_ACQUISITION_PIPELINE_ID;
+        break;
+      case 'seller-acquisition':
+      default:
+        pipelineId = SELLER_ACQUISITION_PIPELINE_ID;
+        break;
+    }
+  }
+  
+  if (method === 'GET') {
+    if (id) {
+      const response = await fetch(`${GHL_API_URL}/opportunities/${id}`, { headers });
+      return res.status(response.ok ? 200 : response.status).json(await response.json());
+    }
+    
+    const limit = parseInt((query.limit as string) || '100', 10);
+    let allOpportunities: any[] = [];
+    let page = 1;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const searchBody: Record<string, any> = {
+        locationId: GHL_LOCATION_ID,
+        limit,
+        page,
+      };
+      if (query.status) searchBody.status = query.status;
+      if (query.stageId) searchBody.stageId = query.stageId;
+      
+      const response = await fetch(`${GHL_API_URL}/opportunities/search`, { 
+        method: 'POST',
+        headers, 
+        body: JSON.stringify(searchBody)
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        return res.status(response.status).json(errorData);
       }
       
-      if (method === 'GET') {
-        if (id) {
-          const response = await fetch(`${GHL_API_URL}/opportunities/${id}`, { headers });
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
-        }
-        
-        // GHL opportunities/search requires POST with body
-        // We need to paginate to get ALL opportunities
-        const limit = parseInt((query.limit as string) || '100', 10);
-        let allOpportunities: any[] = [];
-        let page = 1;
-        let hasMore = true;
-        
-        while (hasMore) {
-          const searchBody: Record<string, any> = {
-            locationId: GHL_LOCATION_ID,
-            limit,
-            page,
-          };
-          if (query.status) searchBody.status = query.status;
-          if (query.stageId) searchBody.stageId = query.stageId;
-          
-          // Note: GHL API doesn't support pipelineId in search body
-          // We'll filter client-side after fetching
-          
-          const response = await fetch(`${GHL_API_URL}/opportunities/search`, { 
-            method: 'POST',
-            headers, 
-            body: JSON.stringify(searchBody)
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            return res.status(response.status).json(errorData);
-          }
-          
-          const data = await response.json();
-          const opportunities = data.opportunities || [];
-          allOpportunities = allOpportunities.concat(opportunities);
-          
-          // Check if there are more pages
-          // Keep fetching until we get no results or hit reasonable limit
-          if (opportunities.length < limit) {
-            hasMore = false;
-          } else if (page >= 50) {
-            // Safety limit: stop after 50 pages (5000 opportunities)
-            hasMore = false;
-          } else {
-            page++;
-          }
-        }
-        
-        // Filter by pipeline client-side after fetching all
-        console.log('[OPPORTUNITIES] Pre-filter:', {
-          totalOpportunities: allOpportunities.length,
-          requestedPipelineId: pipelineId,
-          samplePipelineIds: allOpportunities.slice(0, 5).map(o => ({ id: o.id, name: o.name, pipelineId: o.pipelineId }))
-        });
-        
-        if (pipelineId) {
-          allOpportunities = allOpportunities.filter(
-            (opp: any) => opp.pipelineId === pipelineId
-          );
-          console.log('[OPPORTUNITIES] Post-filter:', {
-            filteredCount: allOpportunities.length,
-            pipelineId
-          });
-        }
-        
-        return res.status(200).json({ 
-          opportunities: allOpportunities,
-          count: allOpportunities.length,
-          pipelineId
-        });
+      const data = await response.json();
+      const opportunities = data.opportunities || [];
+      allOpportunities = allOpportunities.concat(opportunities);
+      
+      if (opportunities.length < limit) {
+        hasMore = false;
+      } else if (page >= 50) {
+        hasMore = false;
+      } else {
+        page++;
       }
+    }
+    
+    console.log('[OPPORTUNITIES] Pre-filter:', {
+      totalOpportunities: allOpportunities.length,
+      requestedPipelineId: pipelineId,
+    });
+    
+    if (pipelineId) {
+      allOpportunities = allOpportunities.filter(
+        (opp: any) => opp.pipelineId === pipelineId
+      );
+      console.log('[OPPORTUNITIES] Post-filter:', {
+        filteredCount: allOpportunities.length,
+        pipelineId
+      });
+    }
+    
+    // ✅ FETCH FULL CONTACT DETAILS FOR EACH OPPORTUNITY
+    console.log('[OPPORTUNITIES] Fetching contact details for', allOpportunities.length, 'opportunities');
+    
+    const opportunitiesWithContacts = await Promise.all(
+      allOpportunities.map(async (opp) => {
+        if (!opp.contactId) return opp;
+        
+        try {
+          const contactResponse = await fetch(
+            `${GHL_API_URL}/contacts/${opp.contactId}`,
+            { headers }
+          );
+          
+          if (contactResponse.ok) {
+            const contactData = await contactResponse.json();
+            return {
+              ...opp,
+              contact: {
+                id: contactData.contact.id,
+                name: contactData.contact.name,
+                email: contactData.contact.email,
+                phone: contactData.contact.phone,
+                customFields: contactData.contact.customFields || [], // ← INCLUDE CUSTOM FIELDS!
+              }
+            };
+          }
+        } catch (err) {
+          console.error('[OPPORTUNITIES] Failed to fetch contact:', opp.contactId, err);
+        }
+        
+        return opp;
+      })
+    );
+    
+    console.log('[OPPORTUNITIES] ✅ Contacts fetched! Sample:', {
+      opportunityId: opportunitiesWithContacts[0]?.id,
+      contactId: opportunitiesWithContacts[0]?.contact?.id,
+      hasCustomFields: !!opportunitiesWithContacts[0]?.contact?.customFields,
+      customFieldsCount: opportunitiesWithContacts[0]?.contact?.customFields?.length
+    });
+    
+    return res.status(200).json({ 
+      opportunities: opportunitiesWithContacts,
+      count: opportunitiesWithContacts.length,
+      pipelineId
+    });
+  }
       
       if (method === 'POST') {
         const payload = { ...body, locationId: GHL_LOCATION_ID, pipelineId };
