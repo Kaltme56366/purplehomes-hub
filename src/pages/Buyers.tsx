@@ -35,7 +35,14 @@ const statusOptions = [
   { value: 'closed', label: 'Closed' },
 ];
 
-// Map GHL stage IDs to our stage types - CORRECT IDs FROM GHL
+// Map GHL stage IDs to our stage types - ONLY these 3 stages will be shown
+// All other stages will be filtered out
+const VALID_STAGE_IDS = [
+  '105d21a7-28f9-4a92-891a-e7c038ac6acd', // Under Contract
+  'a74f318d-3f91-4c85-8cbf-17b882251d0f', // Escrow Opened
+  'bd11404a-883a-450a-adc3-0c9ff911373e', // Closing Scheduled
+] as const;
+
 const stageIdMap: Record<string, BuyerStage> = {
   '105d21a7-28f9-4a92-891a-e7c038ac6acd': 'under-contract',
   'a74f318d-3f91-4c85-8cbf-17b882251d0f': 'escrow-opened',
@@ -100,8 +107,20 @@ interface ExtendedBuyer extends Buyer {
   };
 }
 
-// Transform GHL Opportunity to Buyer
-const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
+// Transform GHL Opportunity to Buyer - returns null if stage is not in our 3 mapped stages
+const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer | null => {
+  // FIRST: Check if this opportunity is in one of our 3 valid stages
+  const stage = stageIdMap[opp.pipelineStageId];
+  
+  if (!stage) {
+    // Skip opportunities not in Under Contract, Escrow Opened, or Closing Scheduled
+    console.log('⏭️ Skipping opportunity (unmapped stage):', {
+      name: opp.name,
+      pipelineStageId: opp.pipelineStageId,
+    });
+    return null;
+  }
+
   // Get CONTACT custom fields
   const getContactField = (fieldKey: string): string => {
     const field = opp.contact?.customFields?.find(
@@ -117,9 +136,6 @@ const transformToBuyer = (opp: GHLOpportunity): ExtendedBuyer => {
     );
     return typeof field?.fieldValue === 'string' ? field.fieldValue : '';
   };
-
-  // Map the GHL stage ID directly to our stage
-  const stage = stageIdMap[opp.pipelineStageId] || 'under-contract';
 
   // Parse status
   const statusField = getContactField('status')?.toLowerCase() || '';
@@ -225,13 +241,21 @@ export default function Buyers() {
   const updateCustomFieldsMutation = useUpdateOpportunityCustomFields();
 
   // Transform opportunities to buyers and merge with local state
+  // ONLY includes opportunities from the 3 mapped stages (Under Contract, Escrow Opened, Closing Scheduled)
   const buyers = useMemo(() => {
     if (!opportunities) return [];
-    return opportunities.map(opp => {
-      const baseBuyer = transformToBuyer(opp);
-      const localUpdates = localBuyers[baseBuyer.id];
-      return localUpdates ? { ...baseBuyer, ...localUpdates } as ExtendedBuyer : baseBuyer;
-    });
+    
+    return opportunities
+      .map(opp => {
+        const baseBuyer = transformToBuyer(opp);
+        
+        // Skip opportunities not in our 3 valid stages
+        if (!baseBuyer) return null;
+        
+        const localUpdates = localBuyers[baseBuyer.id];
+        return localUpdates ? { ...baseBuyer, ...localUpdates } as ExtendedBuyer : baseBuyer;
+      })
+      .filter((buyer): buyer is ExtendedBuyer => buyer !== null);
   }, [opportunities, localBuyers]);
 
   const filteredBuyers = useMemo(() => {
