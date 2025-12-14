@@ -29,6 +29,7 @@ export interface GHLContact {
 export interface GHLCustomField {
   id: string;
   fieldValue: string | string[] | Record<string, unknown>;
+  value?: string | number | boolean;
 }
 
 export interface GHLOpportunity {
