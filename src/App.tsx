@@ -11,6 +11,7 @@ import PropertyDetail from "@/pages/PropertyDetail";
 import Buyers from "@/pages/Buyers";
 import BuyerAcquisitions from "@/pages/BuyerAcquisitions";
 import SellerAcquisitions from "@/pages/SellerAcquisitions";
+import Matching from "@/pages/Matching";
 import Contacts from "@/pages/Contacts";
 import Documents from "@/pages/Documents";
 import SocialMedia from "@/pages/SocialMedia";
