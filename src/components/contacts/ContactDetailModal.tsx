@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Mail, Phone, MapPin, Building2, Bed, Bath, Maximize2, Tag, Calendar, DollarSign, X, Plus, Search, Loader2, Check } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Mail, Phone, MapPin, Building2, Bed, Bath, Maximize2, Tag, Calendar, X, Plus, Search, Loader2, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +32,7 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
   const [tagSearch, setTagSearch] = useState('');
   const [tagsOpen, setTagsOpen] = useState(false);
   const [savingTagId, setSavingTagId] = useState<string | null>(null);
+  const [localTags, setLocalTags] = useState<string[] | null>(null); // Local state for optimistic updates
   
   // Fetch all available tags
   const { data: tagsData } = useTags();
@@ -40,9 +41,21 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
   // Update contact tags mutation
   const updateTagsMutation = useUpdateContactTags();
 
-  if (!contact) return null;
+  // Get current tags - use local state if available, otherwise from contact
+  const currentTags = useMemo(() => {
+    if (localTags !== null) return localTags;
+    if (!contact) return [];
+    return contact.tags || [];
+  }, [localTags, contact]);
 
-  const currentTags = contact.tags || [];
+  // Reset local tags when contact changes
+  useMemo(() => {
+    if (contact?.id) {
+      setLocalTags(null); // Reset to use contact.tags
+    }
+  }, [contact?.id]);
+
+  if (!contact) return null;
 
   const filteredAvailableTags = availableTags.filter((tag) =>
     tag.name.toLowerCase().includes(tagSearch.toLowerCase())
@@ -60,6 +73,9 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
     
     setSavingTagId(tagName);
     
+    // Optimistic update - update local state immediately
+    setLocalTags(newTags);
+    
     try {
       await updateTagsMutation.mutateAsync({ contactId: contact.id, tags: newTags });
       toast.success(currentTags.includes(tagName) ? 'Tag removed' : 'Tag added');
@@ -68,6 +84,8 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
     } catch (error) {
       console.error('Failed to update tags:', error);
       toast.error('Failed to update tags');
+      // Rollback on error
+      setLocalTags(currentTags);
     } finally {
       setSavingTagId(null);
     }
@@ -80,6 +98,9 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
     
     setSavingTagId(tagName);
     
+    // Optimistic update
+    setLocalTags(newTags);
+    
     try {
       await updateTagsMutation.mutateAsync({ contactId: contact.id, tags: newTags });
       toast.success('Tag removed');
@@ -87,6 +108,8 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
     } catch (error) {
       console.error('Failed to remove tag:', error);
       toast.error('Failed to remove tag');
+      // Rollback
+      setLocalTags(currentTags);
     } finally {
       setSavingTagId(null);
     }
@@ -322,9 +345,9 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
                 </Button>
               </PopoverTrigger>
               <PopoverContent 
-              className="w-80 p-0" 
-              align="start"
-              onWheel={(e) => e.stopPropagation()}
+                className="w-80 p-0" 
+                align="start"
+                onWheel={(e) => e.stopPropagation()}
               >
                 <div className="p-2 border-b">
                   <div className="relative">

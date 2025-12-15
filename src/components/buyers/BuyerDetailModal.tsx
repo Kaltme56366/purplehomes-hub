@@ -1,4 +1,4 @@
-import { useState, useMemo} from 'react';
+import { useState, useMemo } from 'react';
 import { Mail, Phone, MapPin, Eye, EyeOff, Bed, Bath, DollarSign, Send, Building2, Maximize2, Tag, X, Plus, Search, Loader2, Check } from 'lucide-react';
 import {
   Dialog,
@@ -56,17 +56,19 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist,
   // Update contact tags mutation
   const updateTagsMutation = useUpdateContactTags();
 
-  if (!buyer) return null;
-
-  // Get current tags from buyer's contact
+  // Get current tags from buyer's contact - MUST be before early return
   const currentTags: string[] = useMemo(() => {
-  // Try different possible locations for tags
-  const tags = (buyer as any).contact?.tags 
-    || (buyer as any).contactTags 
-    || (buyer as any).tags 
-    || [];
-  return Array.isArray(tags) ? tags : [];
-}, [buyer]);
+    if (!buyer) return [];
+    // Try different possible locations for tags
+    const tags = (buyer as any).contact?.tags 
+      || (buyer as any).contactTags 
+      || (buyer as any).tags 
+      || [];
+    return Array.isArray(tags) ? tags : [];
+  }, [buyer]);
+
+  // Early return AFTER all hooks
+  if (!buyer) return null;
 
   const filteredAvailableTags = availableTags.filter((tag: any) =>
     tag.name.toLowerCase().includes(tagSearch.toLowerCase())
@@ -263,9 +265,9 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist,
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent 
-                  className="w-80 p-0" 
-                  align="start"
-                  onWheel={(e) => e.stopPropagation()}
+                    className="w-80 p-0" 
+                    align="start"
+                    onWheel={(e) => e.stopPropagation()}
                   >
                     <div className="p-2 border-b">
                       <div className="relative">
