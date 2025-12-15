@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mail, Phone, MapPin, Eye, EyeOff, Bed, Bath, DollarSign, Send, Building2, Maximize2 } from 'lucide-react';
+import { Mail, Phone, MapPin, Eye, EyeOff, Bed, Bath, DollarSign, Send, Building2, Maximize2, Tag, X, Plus, Search, Loader2, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -18,11 +19,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { SendInventoryModal } from './SendInventoryModal';
+import { useTags, useUpdateContactTags } from '@/services/ghlApi';
+import { toast } from 'sonner';
 import type { Buyer, ChecklistItem } from '@/types';
 
 interface BuyerDetailModalProps {
@@ -30,13 +38,77 @@ interface BuyerDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdateChecklist: (buyerId: string, section: 'bcClosing' | 'postClose' | 'activeBuyer', itemId: string, completed: boolean) => void;
+  onUpdate?: () => void;
 }
 
-export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist }: BuyerDetailModalProps) {
+export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist, onUpdate }: BuyerDetailModalProps) {
   const [hideEmpty, setHideEmpty] = useState(false);
   const [sendInventoryOpen, setSendInventoryOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState('');
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [savingTagId, setSavingTagId] = useState<string | null>(null);
+
+  // Fetch all available tags
+  const { data: tagsData } = useTags();
+  const availableTags = tagsData?.tags || [];
+
+  // Update contact tags mutation
+  const updateTagsMutation = useUpdateContactTags();
 
   if (!buyer) return null;
+
+  // Get current tags from buyer's contact
+  const currentTags = (buyer as any).contactTags || (buyer as any).tags || [];
+
+  const filteredAvailableTags = availableTags.filter((tag: any) =>
+    tag.name.toLowerCase().includes(tagSearch.toLowerCase())
+  );
+
+  const handleToggleTag = async (tagName: string) => {
+    const contactId = (buyer as any).contactId || buyer.id;
+    if (!contactId) {
+      toast.error('Contact ID not available');
+      return;
+    }
+
+    const newTags = currentTags.includes(tagName)
+      ? currentTags.filter((tag: string) => tag !== tagName)
+      : [...currentTags, tagName];
+    
+    setSavingTagId(tagName);
+    
+    try {
+      await updateTagsMutation.mutateAsync({ contactId, tags: newTags });
+      toast.success(currentTags.includes(tagName) ? 'Tag removed' : 'Tag added');
+      setTagsOpen(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Failed to update tags:', error);
+      toast.error('Failed to update tags');
+    } finally {
+      setSavingTagId(null);
+    }
+  };
+
+  const handleRemoveTag = async (tagName: string) => {
+    const contactId = (buyer as any).contactId || buyer.id;
+    if (!contactId) return;
+    
+    const newTags = currentTags.filter((tag: string) => tag !== tagName);
+    
+    setSavingTagId(tagName);
+    
+    try {
+      await updateTagsMutation.mutateAsync({ contactId, tags: newTags });
+      toast.success('Tag removed');
+      onUpdate?.();
+    } catch (error) {
+      console.error('Failed to remove tag:', error);
+      toast.error('Failed to remove tag');
+    } finally {
+      setSavingTagId(null);
+    }
+  };
 
   const contactPrefs = (buyer as any).contactPropertyPreferences || {};
   const hasBeds = contactPrefs.bedCount !== undefined;
@@ -143,6 +215,94 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
 
               <Separator />
 
+              {/* Tags Section */}
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Tag className="h-5 w-5" />
+                  Tags
+                </h3>
+                
+                {/* Current Tags */}
+                <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border border-border rounded-lg bg-muted/30">
+                  {currentTags.length > 0 ? (
+                    currentTags.map((tag: string) => (
+                      <Badge key={tag} variant="secondary" className="flex items-center gap-1 pr-1">
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          disabled={savingTagId === tag}
+                          className="ml-1 hover:text-destructive rounded-full p-0.5 hover:bg-destructive/10"
+                        >
+                          {savingTagId === tag ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
+                        </button>
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No tags assigned</span>
+                  )}
+                </div>
+
+                {/* Add Tags Popover */}
+                <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Tags
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="start">
+                    <div className="p-2 border-b">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search tags..."
+                          value={tagSearch}
+                          onChange={(e) => setTagSearch(e.target.value)}
+                          className="pl-8"
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto p-2">
+                      {filteredAvailableTags.length > 0 ? (
+                        <div className="space-y-1">
+                          {filteredAvailableTags.map((tag: any) => {
+                            const isSelected = currentTags.includes(tag.name);
+                            const isSaving = savingTagId === tag.name;
+                            
+                            return (
+                              <div
+                                key={tag.id}
+                                className={`flex items-center justify-between p-2 hover:bg-muted rounded-md cursor-pointer ${
+                                  isSelected ? 'bg-primary/10' : ''
+                                }`}
+                                onClick={() => !isSaving && handleToggleTag(tag.name)}
+                              >
+                                <span className="text-sm">{tag.name}</span>
+                                {isSaving ? (
+                                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                ) : isSelected ? (
+                                  <Check className="h-4 w-4 text-primary" />
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-4 text-center text-sm text-muted-foreground">
+                          No tags found
+                        </div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <Separator />
+
               {/* Buyer Preferences Section */}
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Buyer Preferences</h3>
@@ -150,73 +310,73 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist 
                 <Card className="bg-primary/5 border-primary/20">
                   <CardContent className="p-4 space-y-4">
                     {/* Beds & Baths - SHOW FROM CONTACT ONLY */}
-<div className="grid grid-cols-2 gap-4">
-  <div className="flex items-center gap-3">
-    <div className="p-2 bg-primary/10 rounded-lg">
-      <Bed className="h-5 w-5 text-primary" />
-    </div>
-    <div>
-      <p className="text-xs text-muted-foreground">Bedrooms</p>
-      <p className="font-semibold text-lg">
-        {hasBeds ? `${contactPrefs.bedCount} beds` : '-'}
-      </p>
-    </div>
-  </div>
-  <div className="flex items-center gap-3">
-    <div className="p-2 bg-primary/10 rounded-lg">
-      <Bath className="h-5 w-5 text-primary" />
-    </div>
-    <div>
-      <p className="text-xs text-muted-foreground">Bathrooms</p>
-      <p className="font-semibold text-lg">
-        {hasBaths ? `${contactPrefs.bathCount} baths` : '-'}
-      </p>
-    </div>
-  </div>
-</div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <Bed className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Bedrooms</p>
+                          <p className="font-semibold text-lg">
+                            {hasBeds ? `${contactPrefs.bedCount} beds` : '-'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <Bath className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Bathrooms</p>
+                          <p className="font-semibold text-lg">
+                            {hasBaths ? `${contactPrefs.bathCount} baths` : '-'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
 
-{/* Square Feet & Property Type */}
-{(hasSqft || hasPropertyType) && (
-  <div className="grid grid-cols-2 gap-4">
-    {hasSqft && (
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Maximize2 className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Square Feet</p>
-          <p className="font-semibold text-lg">{contactPrefs.squareFeet.toLocaleString()} sqft</p>
-        </div>
-      </div>
-    )}
-    {hasPropertyType && (
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <Building2 className="h-5 w-5 text-primary" />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Property Type</p>
-          <p className="font-semibold text-lg">{contactPrefs.propertyType}</p>
-        </div>
-      </div>
-    )}
-  </div>
-)}
+                    {/* Square Feet & Property Type */}
+                    {(hasSqft || hasPropertyType) && (
+                      <div className="grid grid-cols-2 gap-4">
+                        {hasSqft && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                              <Maximize2 className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Square Feet</p>
+                              <p className="font-semibold text-lg">{contactPrefs.squareFeet.toLocaleString()} sqft</p>
+                            </div>
+                          </div>
+                        )}
+                        {hasPropertyType && (
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                              <Building2 className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Property Type</p>
+                              <p className="font-semibold text-lg">{contactPrefs.propertyType}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-{/* Price Range - ONLY IF EXISTS */}
-{(buyer.preferences.minPrice || buyer.preferences.maxPrice) && (
-  <div className="flex items-center gap-3">
-    <div className="p-2 bg-primary/10 rounded-lg">
-      <DollarSign className="h-5 w-5 text-primary" />
-    </div>
-    <div>
-      <p className="text-xs text-muted-foreground">Price Range</p>
-      <p className="font-semibold">
-        ${buyer.preferences.minPrice?.toLocaleString() || '0'} - ${buyer.preferences.maxPrice?.toLocaleString() || '0'}
-      </p>
-    </div>
-  </div>
-)}
+                    {/* Price Range - ONLY IF EXISTS */}
+                    {(buyer.preferences.minPrice || buyer.preferences.maxPrice) && (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <DollarSign className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Price Range</p>
+                          <p className="font-semibold">
+                            ${buyer.preferences.minPrice?.toLocaleString() || '0'} - ${buyer.preferences.maxPrice?.toLocaleString() || '0'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Zip Codes */}
                     <div>

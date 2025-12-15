@@ -753,22 +753,102 @@ if (resource === 'opportunities') {
 
     // ============ FORMS ============
     // Scopes: forms.readonly, forms.write
+    // Note: GHL doesn't have a public API for form submissions
+    // Instead, we create a contact with the form data which achieves the same result
     if (resource === 'forms') {
-      // Submit form (create contact + trigger workflow)
+      // Submit form - Creates a contact with the form data
       if (method === 'POST' && action === 'submit' && id) {
-        console.log('[FORMS] Submitting form:', id);
-        const response = await fetch(
-          `${GHL_API_URL}/forms/submit/${id}`,
-          { 
+        console.log('[FORMS] Submitting form:', id, 'Body:', JSON.stringify(body));
+        
+        // Map form fields to contact fields
+        const contactData: any = {
+          locationId: GHL_LOCATION_ID,
+          source: `Form: ${id}`, // Track which form it came from
+        };
+        
+        // Standard field mappings
+        if (body.first_name) contactData.firstName = body.first_name;
+        if (body.last_name) contactData.lastName = body.last_name;
+        if (body.email) contactData.email = body.email;
+        if (body.phone) contactData.phone = body.phone;
+        if (body.address) contactData.address1 = body.address;
+        if (body.city) contactData.city = body.city;
+        if (body.state) contactData.state = body.state;
+        if (body.postal_code || body.zip) contactData.postalCode = body.postal_code || body.zip;
+        
+        // Store additional form data in customFields or tags
+        const customFields: Array<{ key: string; field_value: string }> = [];
+        const tags: string[] = [];
+        
+        // Add "offer made" tag when offer is submitted (exact GHL tag name)
+        if (body.offer_amount) {
+          tags.push('offer made'); // GHL Tag ID: AvpDImBY9o6NZam9VCrq
+        }
+        
+        // Add property info as custom fields
+        if (body.property_address) {
+          customFields.push({ key: 'property_address', field_value: body.property_address });
+        }
+        if (body.property_city) {
+          customFields.push({ key: 'property_city', field_value: body.property_city });
+        }
+        if (body.property_price) {
+          customFields.push({ key: 'property_price', field_value: body.property_price });
+        }
+        if (body.offer_amount) {
+          customFields.push({ key: 'offer_amount', field_value: body.offer_amount });
+        }
+        if (body.listing_message || body.message) {
+          customFields.push({ key: 'notes', field_value: body.listing_message || body.message });
+        }
+        
+        if (tags.length > 0) contactData.tags = tags;
+        if (customFields.length > 0) contactData.customFields = customFields;
+        
+        console.log('[FORMS] Creating contact with data:', JSON.stringify(contactData));
+        
+        try {
+          // Create the contact
+          const response = await fetch(`${GHL_API_URL}/contacts/`, {
             method: 'POST',
             headers,
-            body: JSON.stringify(body)
+            body: JSON.stringify(contactData)
+          });
+          
+          const responseText = await response.text();
+          console.log('[FORMS] Contact creation response:', response.status, responseText.substring(0, 500));
+          
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            data = { message: responseText };
           }
-        );
-        
-        const data = await response.json();
-        console.log('[FORMS] Submit response:', response.status, data);
-        return res.status(response.ok ? 200 : response.status).json(data);
+          
+          if (!response.ok) {
+            console.error('[FORMS] ❌ Contact creation failed:', data);
+            return res.status(response.status).json({
+              success: false,
+              error: 'Failed to submit form',
+              details: data
+            });
+          }
+          
+          console.log('[FORMS] ✅ Contact created successfully:', data.contact?.id || data.id);
+          return res.status(200).json({
+            success: true,
+            message: 'Form submitted successfully',
+            contactId: data.contact?.id || data.id,
+            contact: data.contact || data
+          });
+        } catch (error) {
+          console.error('[FORMS] ❌ Exception:', error);
+          return res.status(500).json({
+            success: false,
+            error: 'Failed to submit form',
+            details: error instanceof Error ? error.message : String(error)
+          });
+        }
       }
       
       if (method === 'GET') {
@@ -934,6 +1014,7 @@ if (resource === 'opportunities') {
           if (query.limit) params.append('limit', query.limit as string);
           if (query.skip) params.append('skip', query.skip as string);
           
+          // GHL API path: /proposals/templates
           const url = `${GHL_API_URL}/proposals/templates?${params}`;
           console.log('[DOCUMENTS] Templates URL:', url);
           
@@ -947,10 +1028,11 @@ if (resource === 'opportunities') {
           try {
             if (text) {
               const parsed = JSON.parse(text);
-              // GHL returns { data: [...], total: X } but we need { templates: [...] }
+              console.log('[DOCUMENTS] Raw templates response:', JSON.stringify(parsed).substring(0, 500));
+              // GHL returns { data: [...], total: X } or { templates: [...] }
               data = {
-                templates: parsed.data || [],
-                total: parsed.total || 0,
+                templates: parsed.data || parsed.templates || [],
+                total: parsed.total || parsed.data?.length || parsed.templates?.length || 0,
                 traceId: parsed.traceId
               };
             } else {
@@ -993,8 +1075,11 @@ if (resource === 'opportunities') {
           const params = new URLSearchParams({ locationId: GHL_LOCATION_ID });
           if (query.contactId) params.append('contactId', query.contactId as string);
           if (query.limit) params.append('limit', query.limit as string);
+          if (query.skip) params.append('skip', query.skip as string);
+          if (query.status) params.append('status', query.status as string);
+          if (query.query) params.append('query', query.query as string);
           
-          const url = `${GHL_API_URL}/proposals/documents?${params}`;
+          const url = `${GHL_API_URL}/proposals/document?${params}`;
           console.log('[DOCUMENTS] Contracts URL:', url);
           
           const response = await fetch(url, { headers });
@@ -1007,10 +1092,11 @@ if (resource === 'opportunities') {
           try {
             if (text) {
               const parsed = JSON.parse(text);
-              // GHL returns { data: [...], total: X } but we need { documents: [...] }
+              console.log('[DOCUMENTS] Raw GHL response:', JSON.stringify(parsed).substring(0, 500));
+              // GHL returns { data: [...], total: X } or { documents: [...] }
               data = {
-                documents: parsed.data || [],
-                total: parsed.total || 0,
+                documents: parsed.data || parsed.documents || [],
+                total: parsed.total || parsed.data?.length || parsed.documents?.length || 0,
                 traceId: parsed.traceId
               };
             } else {

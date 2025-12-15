@@ -357,8 +357,13 @@ export default function Documents() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoadingDocuments ? '...' : allDocuments.length}
+              {isLoadingDocuments ? '...' : (documentsData?.total ?? allDocuments.length)}
             </div>
+            {documentsData?.total !== undefined && documentsData.total > allDocuments.length && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Showing {allDocuments.length} of {documentsData.total}
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -387,8 +392,13 @@ export default function Documents() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {isLoadingTemplates ? '...' : templates.length}
+              {isLoadingTemplates ? '...' : (templatesData?.total ?? templates.length)}
             </div>
+            {templatesData?.total !== undefined && templatesData.total > templates.length && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Showing {templates.length} of {templatesData.total}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

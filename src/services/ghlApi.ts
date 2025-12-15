@@ -622,6 +622,38 @@ export const useCustomFields = (model: 'contact' | 'opportunity' | 'all' = 'oppo
   });
 };
 
+// ============ TAGS ============
+
+export interface GHLTag {
+  id: string;
+  name: string;
+  locationId: string;
+}
+
+export const useTags = () => {
+  return useQuery({
+    queryKey: ['ghl-tags'],
+    queryFn: () => fetchGHL<{ tags: GHLTag[] }>('tags'),
+    staleTime: 10 * 60 * 1000, // Tags don't change often
+  });
+};
+
+export const useUpdateContactTags = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: ({ contactId, tags }: { contactId: string; tags: string[] }) =>
+      fetchGHL<{ contact: GHLContact }>(`contacts/${contactId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ tags }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ghl-contacts'] });
+      queryClient.invalidateQueries({ queryKey: ['ghl-opportunities'] });
+    },
+  });
+};
+
 // ============ DOCUMENTS ============
 
 export interface GHLDocumentTemplate {
@@ -649,7 +681,7 @@ export interface GHLDocumentContract {
 export const useDocumentTemplates = () => {
   return useQuery({
     queryKey: ['ghl-document-templates'],
-    queryFn: () => fetchGHL<{ templates: GHLDocumentTemplate[] }>('documents?action=templates'),
+    queryFn: () => fetchGHL<{ templates: GHLDocumentTemplate[]; total: number }>('documents?action=templates'),
     staleTime: 10 * 60 * 1000, // Templates don't change often
     retry: 2,
   });
@@ -661,7 +693,7 @@ export const useDocuments = (contactId?: string) => {
     queryFn: () => {
       const params = new URLSearchParams({ action: 'contracts' });
       if (contactId) params.set('contactId', contactId);
-      return fetchGHL<{ documents: GHLDocumentContract[] }>(`documents?${params.toString()}`);
+      return fetchGHL<{ documents: GHLDocumentContract[]; total: number }>(`documents?${params.toString()}`);
     },
     staleTime: 2 * 60 * 1000,
     retry: 2,
