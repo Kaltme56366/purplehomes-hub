@@ -30,6 +30,7 @@ const navigation = [
   { name: 'Seller Acquisitions', href: '/seller-acquisitions', icon: Home },
   { name: 'Buyer Acquisitions', href: '/acquisitions', icon: UserPlus },
   { name: 'Buyers Pipeline', href: '/buyers', icon: Users },
+  { name: 'Matching', href: '/matching', icon: Target },  // Add this line
   { name: 'Contacts', href: '/contacts', icon: UsersRound },
   { name: 'Documents', href: '/documents', icon: FileText },
   { name: 'Social Hub', href: '/social', icon: Share2 },
