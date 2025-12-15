@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo} from 'react';
 import { Mail, Phone, MapPin, Eye, EyeOff, Bed, Bath, DollarSign, Send, Building2, Maximize2, Tag, X, Plus, Search, Loader2, Check } from 'lucide-react';
 import {
   Dialog,
@@ -33,6 +33,7 @@ import { useTags, useUpdateContactTags } from '@/services/ghlApi';
 import { toast } from 'sonner';
 import type { Buyer, ChecklistItem } from '@/types';
 
+
 interface BuyerDetailModalProps {
   buyer: Buyer | null;
   open: boolean;
@@ -58,7 +59,14 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist,
   if (!buyer) return null;
 
   // Get current tags from buyer's contact
-  const currentTags = (buyer as any).contactTags || (buyer as any).tags || [];
+  const currentTags: string[] = useMemo(() => {
+  // Try different possible locations for tags
+  const tags = (buyer as any).contact?.tags 
+    || (buyer as any).contactTags 
+    || (buyer as any).tags 
+    || [];
+  return Array.isArray(tags) ? tags : [];
+}, [buyer]);
 
   const filteredAvailableTags = availableTags.filter((tag: any) =>
     tag.name.toLowerCase().includes(tagSearch.toLowerCase())
@@ -254,7 +262,11 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist,
                       Add Tags
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-80 p-0" align="start">
+                  <PopoverContent 
+                  className="w-80 p-0" 
+                  align="start"
+                  onWheel={(e) => e.stopPropagation()}
+                  >
                     <div className="p-2 border-b">
                       <div className="relative">
                         <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />

@@ -53,6 +53,7 @@ export interface GHLOpportunity {
     name: string;
     email?: string;
     phone?: string;
+    tags?: string[];
     customFields?: GHLCustomField[];
   };
 }
@@ -318,8 +319,6 @@ export const useOpportunities = (pipelineType: PipelineType = 'seller-acquisitio
       );
       return data.opportunities;
     },
-    // Removed enabled check - API key should be in environment variables
-    // If API key is missing, the fetch will fail and retry logic will handle it
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
@@ -647,7 +646,43 @@ export const useUpdateContactTags = () => {
         method: 'PUT',
         body: JSON.stringify({ tags }),
       }),
-    onSuccess: () => {
+    // Optimistic update for faster UI
+    onMutate: async ({ contactId, tags }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['ghl-contacts'] });
+      await queryClient.cancelQueries({ queryKey: ['ghl-opportunities'] });
+      
+      // Snapshot for rollback
+      const previousContacts = queryClient.getQueryData(['ghl-contacts']);
+      const previousOpportunities = queryClient.getQueryData(['ghl-opportunities', 'buyer-acquisition']);
+      
+      // Optimistically update contacts cache
+      queryClient.setQueryData<{ contacts: GHLContact[] } | undefined>(
+        ['ghl-contacts'],
+        (old) => {
+          if (!old?.contacts) return old;
+          return {
+            ...old,
+            contacts: old.contacts.map(contact =>
+              contact.id === contactId ? { ...contact, tags } : contact
+            )
+          };
+        }
+      );
+      
+      return { previousContacts, previousOpportunities, contactId, tags };
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousContacts) {
+        queryClient.setQueryData(['ghl-contacts'], context.previousContacts);
+      }
+      if (context?.previousOpportunities) {
+        queryClient.setQueryData(['ghl-opportunities', 'buyer-acquisition'], context.previousOpportunities);
+      }
+    },
+    onSettled: () => {
+      // Refetch to ensure consistency (but UI already updated)
       queryClient.invalidateQueries({ queryKey: ['ghl-contacts'] });
       queryClient.invalidateQueries({ queryKey: ['ghl-opportunities'] });
     },

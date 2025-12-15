@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Search, Filter, User, Mail, Phone, DollarSign, Building2, Calendar, ArrowRight, LayoutGrid, List, RefreshCw, Loader2, Eye, EyeOff, Bed, Bath, Maximize2 } from 'lucide-react';
+import { Search, Filter, User, Mail, Phone, DollarSign, Building2, Calendar, ArrowRight, LayoutGrid, List, RefreshCw, Loader2, Eye, EyeOff, Bed, Bath, Maximize2, Tag, X, Plus, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
   Table,
   TableBody,
   TableCell,
@@ -24,7 +29,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
 import { KanbanBoard, type KanbanColumn } from '@/components/kanban/KanbanBoard';
 import { OpportunityCard } from '@/components/kanban/OpportunityCard';
-import { useOpportunities, useUpdateOpportunityStage, useUpdateOpportunityCustomFields, GHLOpportunity } from '@/services/ghlApi';
+import { useOpportunities, useUpdateOpportunityStage, useUpdateOpportunityCustomFields, useTags, useUpdateContactTags, GHLOpportunity } from '@/services/ghlApi';
 import type { BuyerAcquisition, AcquisitionStage, ChecklistItem, BuyerChecklist } from '@/types';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -94,6 +99,8 @@ const defaultChecklist: BuyerChecklist = {
 interface ExtendedBuyerAcquisition extends BuyerAcquisition {
   ghlStageId: string;
   checklist: BuyerChecklist;
+  contactId?: string;
+  contactTags?: string[];
   contactPropertyPreferences?: {
     bedCount?: number;
     bathCount?: number;
@@ -131,7 +138,7 @@ const transformToBuyerAcquisition = (opp: GHLOpportunity): ExtendedBuyerAcquisit
   return {
     id: opp.id,
     ghlStageId: opp.pipelineStageId,
-    name: opp.name || opp.contact?.name || 'Unknown', // Opportunity name first
+    name: opp.name || opp.contact?.name || 'Unknown',
     email: opp.contact?.email || getCustomField('email') || '',
     phone: opp.contact?.phone || getCustomField('phone') || '',
     propertyId: getCustomField('property_id'),
@@ -142,6 +149,9 @@ const transformToBuyerAcquisition = (opp: GHLOpportunity): ExtendedBuyerAcquisit
     checklist: defaultChecklist,
     createdAt: opp.createdAt,
     updatedAt: opp.updatedAt,
+    // Add contact ID and tags
+    contactId: opp.contactId,
+    contactTags: (opp.contact as any)?.tags || [],
     // Add contact property preferences
     contactPropertyPreferences: {
       bedCount: contactBedCount,
@@ -159,11 +169,22 @@ export default function BuyerAcquisitions() {
   const [draggedItem, setDraggedItem] = useState<ExtendedBuyerAcquisition | null>(null);
   const [localAcquisitions, setLocalAcquisitions] = useState<Record<string, Partial<ExtendedBuyerAcquisition>>>({});
   const [hideEmpty, setHideEmpty] = useState(false);
+  
+  // Tags state
+  const [tagSearch, setTagSearch] = useState('');
+  const [tagsOpen, setTagsOpen] = useState(false);
+  const [savingTagId, setSavingTagId] = useState<string | null>(null);
+  const [localTags, setLocalTags] = useState<Record<string, string[]>>({});
 
   // Fetch real data from GHL
   const { data: opportunities, isLoading, isError, refetch } = useOpportunities('buyer-acquisition');
   const updateStageMutation = useUpdateOpportunityStage();
   const updateCustomFieldsMutation = useUpdateOpportunityCustomFields();
+  
+  // Tags
+  const { data: tagsData } = useTags();
+  const availableTags = tagsData?.tags || [];
+  const updateTagsMutation = useUpdateContactTags();
 
   // Transform opportunities to acquisitions and merge with local state
   const acquisitions = useMemo(() => {
@@ -171,9 +192,95 @@ export default function BuyerAcquisitions() {
     return opportunities.map(opp => {
       const baseAcquisition = transformToBuyerAcquisition(opp);
       const localUpdates = localAcquisitions[baseAcquisition.id];
-      return localUpdates ? { ...baseAcquisition, ...localUpdates } as ExtendedBuyerAcquisition : baseAcquisition;
+      // Merge local tags if exists
+      const mergedTags = localTags[baseAcquisition.contactId || ''] || baseAcquisition.contactTags;
+      return localUpdates 
+        ? { ...baseAcquisition, ...localUpdates, contactTags: mergedTags } as ExtendedBuyerAcquisition 
+        : { ...baseAcquisition, contactTags: mergedTags };
     });
-  }, [opportunities, localAcquisitions]);
+  }, [opportunities, localAcquisitions, localTags]);
+
+  // Get current tags for selected acquisition
+  const currentTags = useMemo(() => {
+    if (!selectedAcquisition) return [];
+    return localTags[selectedAcquisition.contactId || ''] || selectedAcquisition.contactTags || [];
+  }, [selectedAcquisition, localTags]);
+
+  const filteredAvailableTags = availableTags.filter((tag: any) =>
+    tag.name.toLowerCase().includes(tagSearch.toLowerCase())
+  );
+
+  const handleToggleTag = async (tagName: string) => {
+    if (!selectedAcquisition?.contactId) {
+      toast.error('Contact ID not available');
+      return;
+    }
+
+    const contactId = selectedAcquisition.contactId;
+    const newTags = currentTags.includes(tagName)
+      ? currentTags.filter((tag) => tag !== tagName)
+      : [...currentTags, tagName];
+    
+    setSavingTagId(tagName);
+    
+    // Optimistic update
+    setLocalTags(prev => ({
+      ...prev,
+      [contactId]: newTags
+    }));
+    
+    // Update selected acquisition immediately
+    setSelectedAcquisition(prev => prev ? { ...prev, contactTags: newTags } : null);
+    
+    try {
+      await updateTagsMutation.mutateAsync({ contactId, tags: newTags });
+      toast.success(currentTags.includes(tagName) ? 'Tag removed' : 'Tag added');
+      setTagsOpen(false);
+    } catch (error) {
+      console.error('Failed to update tags:', error);
+      toast.error('Failed to update tags');
+      // Rollback on error
+      setLocalTags(prev => ({
+        ...prev,
+        [contactId]: currentTags
+      }));
+      setSelectedAcquisition(prev => prev ? { ...prev, contactTags: currentTags } : null);
+    } finally {
+      setSavingTagId(null);
+    }
+  };
+
+  const handleRemoveTag = async (tagName: string) => {
+    if (!selectedAcquisition?.contactId) return;
+    
+    const contactId = selectedAcquisition.contactId;
+    const newTags = currentTags.filter((tag) => tag !== tagName);
+    
+    setSavingTagId(tagName);
+    
+    // Optimistic update
+    setLocalTags(prev => ({
+      ...prev,
+      [contactId]: newTags
+    }));
+    setSelectedAcquisition(prev => prev ? { ...prev, contactTags: newTags } : null);
+    
+    try {
+      await updateTagsMutation.mutateAsync({ contactId, tags: newTags });
+      toast.success('Tag removed');
+    } catch (error) {
+      console.error('Failed to remove tag:', error);
+      toast.error('Failed to remove tag');
+      // Rollback
+      setLocalTags(prev => ({
+        ...prev,
+        [contactId]: currentTags
+      }));
+      setSelectedAcquisition(prev => prev ? { ...prev, contactTags: currentTags } : null);
+    } finally {
+      setSavingTagId(null);
+    }
+  };
 
   const filteredAcquisitions = useMemo(() => {
     if (!search) return acquisitions;
@@ -626,9 +733,101 @@ export default function BuyerAcquisitions() {
                 </div>
               )}
 
+              {/* Tags Section */}
+              <Separator />
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <Tag className="h-4 w-4" />
+                  Tags
+                </h4>
+                
+                {/* Current Tags */}
+                <div className="flex flex-wrap gap-2 min-h-[40px] p-3 border border-border rounded-lg bg-muted/30">
+                  {currentTags.length > 0 ? (
+                    currentTags.map((tag: string) => (
+                      <Badge key={tag} variant="secondary" className="flex items-center gap-1 pr-1">
+                        {tag}
+                        <button
+                          onClick={() => handleRemoveTag(tag)}
+                          disabled={savingTagId === tag}
+                          className="ml-1 hover:text-destructive rounded-full p-0.5 hover:bg-destructive/10"
+                        >
+                          {savingTagId === tag ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
+                        </button>
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-sm text-muted-foreground">No tags assigned</span>
+                  )}
+                </div>
+
+                {/* Add Tags Popover */}
+                <Popover open={tagsOpen} onOpenChange={setTagsOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="w-full">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Tags
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent 
+                    className="w-80 p-0" 
+                    align="start"
+                    onWheel={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-2 border-b">
+                      <div className="relative">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Search tags..."
+                          value={tagSearch}
+                          onChange={(e) => setTagSearch(e.target.value)}
+                          className="pl-8"
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto p-2">
+                      {filteredAvailableTags.length > 0 ? (
+                        <div className="space-y-1">
+                          {filteredAvailableTags.map((tag: any) => {
+                            const isSelected = currentTags.includes(tag.name);
+                            const isSaving = savingTagId === tag.name;
+                            
+                            return (
+                              <div
+                                key={tag.id}
+                                className={`flex items-center justify-between p-2 hover:bg-muted rounded-md cursor-pointer ${
+                                  isSelected ? 'bg-primary/10' : ''
+                                }`}
+                                onClick={() => !isSaving && handleToggleTag(tag.name)}
+                              >
+                                <span className="text-sm">{tag.name}</span>
+                                {isSaving ? (
+                                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                ) : isSelected ? (
+                                  <Check className="h-4 w-4 text-primary" />
+                                ) : null}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="p-4 text-center text-sm text-muted-foreground">
+                          No tags found
+                        </div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
               {/* Property Preferences */}
               {selectedAcquisition.contactPropertyPreferences && (selectedAcquisition.contactPropertyPreferences.bedCount || selectedAcquisition.contactPropertyPreferences.bathCount || selectedAcquisition.contactPropertyPreferences.squareFeet || selectedAcquisition.contactPropertyPreferences.propertyType) && (
                 <>
+                  <Separator />
                   <div className="space-y-3">
                     <h4 className="font-semibold text-sm">Property Preferences</h4>
                     <div className="grid grid-cols-2 gap-3">
