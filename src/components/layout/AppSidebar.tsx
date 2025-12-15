@@ -12,7 +12,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Globe,
-  LogOut
+  LogOut,
+  Target  // Add this icon for Matching
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
