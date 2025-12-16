@@ -1,32 +1,82 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Play, Loader2, Users, Home, Send } from 'lucide-react';
-import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching } from '@/services/matchingApi';
+import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign } from 'lucide-react';
+import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { useProperties } from '@/services/ghlApi';
 import { sendPropertyEmail } from '@/services/emailService';
 import { SELLER_ACQUISITION_PIPELINE_ID } from '@/services/ghlApi';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+type SortOption = 'matches-high' | 'matches-low' | 'name-az' | 'name-za';
 
 export default function Matching() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'buyers' | 'properties'>('buyers');
   const [sendingEmails, setSendingEmails] = useState<Set<string>>(new Set());
+  const [sortBy, setSortBy] = useState<SortOption>('matches-high');
 
   const { data: buyers, isLoading: loadingBuyers } = useBuyersWithMatches();
   const { data: properties, isLoading: loadingProperties } = usePropertiesWithMatches();
   const { data: ghlProperties } = useProperties(SELLER_ACQUISITION_PIPELINE_ID);
   const runMatchingMutation = useRunMatching();
+  const runBuyerMatchingMutation = useRunBuyerMatching();
+  const runPropertyMatchingMutation = useRunPropertyMatching();
 
-  const handleRunMatching = async () => {
+  const handleRunMatchingAll = async () => {
     try {
       const result = await runMatchingMutation.mutateAsync({ minScore: 60 });
       toast.success(result.message);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to run matching');
+    }
+  };
+
+  const handleRunMatchingBuyers = async () => {
+    if (!buyers || buyers.length === 0) {
+      toast.error('No buyers found');
+      return;
+    }
+    try {
+      toast.info(`Matching ${buyers.length} buyers...`);
+      for (const buyer of buyers) {
+        await runBuyerMatchingMutation.mutateAsync({ contactId: buyer.contactId, minScore: 60 });
+      }
+      toast.success(`Matched ${buyers.length} buyers successfully`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to match buyers');
+    }
+  };
+
+  const handleRunMatchingProperties = async () => {
+    if (!properties || properties.length === 0) {
+      toast.error('No properties found');
+      return;
+    }
+    try {
+      toast.info(`Matching ${properties.length} properties...`);
+      for (const property of properties) {
+        await runPropertyMatchingMutation.mutateAsync({ propertyCode: property.propertyCode, minScore: 60 });
+      }
+      toast.success(`Matched ${properties.length} properties successfully`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to match properties');
     }
   };
 
@@ -91,22 +141,56 @@ export default function Matching() {
     }
   };
 
-  // Filter buyers based on search
-  const filteredBuyers = buyers?.filter(buyer => {
-    const fullName = `${buyer.firstName} ${buyer.lastName}`.toLowerCase();
-    const query = searchQuery.toLowerCase();
-    return fullName.includes(query) || buyer.email.toLowerCase().includes(query);
-  });
+  // Filter and sort buyers
+  const filteredBuyers = useMemo(() => {
+    let filtered = buyers?.filter(buyer => {
+      const fullName = `${buyer.firstName} ${buyer.lastName}`.toLowerCase();
+      const query = searchQuery.toLowerCase();
+      return fullName.includes(query) || buyer.email.toLowerCase().includes(query);
+    }) || [];
 
-  // Filter properties based on search
-  const filteredProperties = properties?.filter(property => {
-    const query = searchQuery.toLowerCase();
-    return (
-      property.propertyCode.toLowerCase().includes(query) ||
-      property.address.toLowerCase().includes(query) ||
-      property.city.toLowerCase().includes(query)
-    );
-  });
+    // Sort
+    switch (sortBy) {
+      case 'matches-high':
+        return filtered.sort((a, b) => b.totalMatches - a.totalMatches);
+      case 'matches-low':
+        return filtered.sort((a, b) => a.totalMatches - b.totalMatches);
+      case 'name-az':
+        return filtered.sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`));
+      case 'name-za':
+        return filtered.sort((a, b) => `${b.firstName} ${b.lastName}`.localeCompare(`${a.firstName} ${a.lastName}`));
+      default:
+        return filtered;
+    }
+  }, [buyers, searchQuery, sortBy]);
+
+  // Filter and sort properties
+  const filteredProperties = useMemo(() => {
+    let filtered = properties?.filter(property => {
+      const query = searchQuery.toLowerCase();
+      return (
+        property.propertyCode.toLowerCase().includes(query) ||
+        property.address.toLowerCase().includes(query) ||
+        property.city.toLowerCase().includes(query)
+      );
+    }) || [];
+
+    // Sort
+    switch (sortBy) {
+      case 'matches-high':
+        return filtered.sort((a, b) => b.totalMatches - a.totalMatches);
+      case 'matches-low':
+        return filtered.sort((a, b) => a.totalMatches - b.totalMatches);
+      case 'name-az':
+        return filtered.sort((a, b) => a.address.localeCompare(b.address));
+      case 'name-za':
+        return filtered.sort((a, b) => b.address.localeCompare(a.address));
+      default:
+        return filtered;
+    }
+  }, [properties, searchQuery, sortBy]);
+
+  const isMatching = runMatchingMutation.isPending || runBuyerMatchingMutation.isPending || runPropertyMatchingMutation.isPending;
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -118,29 +202,43 @@ export default function Matching() {
             Intelligent matching between buyers and properties
           </p>
         </div>
-        <Button
-          onClick={handleRunMatching}
-          disabled={runMatchingMutation.isPending}
-          size="lg"
-          className="bg-purple-600 hover:bg-purple-700"
-        >
-          {runMatchingMutation.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Matching...
-            </>
-          ) : (
-            <>
-              <Play className="h-4 w-4 mr-2" />
-              Run Matching for All
-            </>
-          )}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={isMatching}
+              size="lg"
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {isMatching ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Matching...
+                </>
+              ) : (
+                <>
+                  Run Matching
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={handleRunMatchingAll}>
+              Match All (Buyers + Properties)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleRunMatchingBuyers}>
+              Match All Buyers
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleRunMatchingProperties}>
+              Match All Properties
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
-      {/* Search Bar */}
-      <div className="mb-6">
-        <div className="relative">
+      {/* Search and Sort */}
+      <div className="mb-6 flex gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={activeTab === 'buyers' ? 'Search buyers by name or email...' : 'Search properties by code, address, or city...'}
@@ -149,6 +247,17 @@ export default function Matching() {
             className="pl-10"
           />
         </div>
+        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="matches-high">Most Matches</SelectItem>
+            <SelectItem value="matches-low">Least Matches</SelectItem>
+            <SelectItem value="name-az">Name (A-Z)</SelectItem>
+            <SelectItem value="name-za">Name (Z-A)</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Tabs */}
@@ -188,6 +297,12 @@ export default function Matching() {
                       {(buyer.desiredBeds || buyer.desiredBaths) && (
                         <p className="text-sm text-muted-foreground">
                           Looking for: {buyer.desiredBeds && `${buyer.desiredBeds} bed`}{buyer.desiredBeds && buyer.desiredBaths && ' • '}{buyer.desiredBaths && `${buyer.desiredBaths} bath`}
+                        </p>
+                      )}
+                      {buyer.downPayment && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <DollarSign className="h-3 w-3" />
+                          Down payment: ${buyer.downPayment.toLocaleString()}
                         </p>
                       )}
                     </div>
@@ -274,16 +389,9 @@ export default function Matching() {
                 <Card key={property.recordId} className="p-6">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold">{property.propertyCode}</h3>
-                        {property.stage && (
-                          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                            {property.stage}
-                          </span>
-                        )}
-                      </div>
+                      <h3 className="text-lg font-semibold">{property.address}</h3>
                       <p className="text-sm text-muted-foreground mt-1">
-                        📍 {property.address}, {property.city}
+                        📍 {property.city}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {property.beds} bed • {property.baths} bath
