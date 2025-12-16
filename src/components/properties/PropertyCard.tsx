@@ -126,9 +126,16 @@ export function PropertyCard({
         <p className="text-sm text-muted-foreground mb-3">{property.city}</p>
 
         {/* Price */}
-        <p className="text-2xl font-bold text-foreground mb-3">
-          {formatPrice(property.price)}
-        </p>
+        <div className="mb-3">
+          <p className="text-2xl font-bold text-foreground">
+            {formatPrice(property.price)}
+          </p>
+          {property.downPayment !== undefined && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Down: {formatPrice(property.downPayment)}
+            </p>
+          )}
+        </div>
 
         {/* Property details row */}
         <div className="flex items-center gap-4 text-sm text-muted-foreground">

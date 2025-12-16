@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon } from 'lucide-react';
+import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign } from 'lucide-react';
 import type { PropertyCondition, PropertyType, Property } from '@/types';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -56,6 +56,7 @@ export default function PublicListings() {
   const [search, setSearch] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
+  const [downPaymentRange, setDownPaymentRange] = useState<[number, number]>([0, 1000000]);
   const [beds, setBeds] = useState('any');
   const [baths, setBaths] = useState('any');
   const [condition, setCondition] = useState('any');
@@ -85,7 +86,7 @@ export default function PublicListings() {
     let results = allProperties.filter((property) => {
       if (search) {
         const searchLower = search.toLowerCase();
-        if (!property.address.toLowerCase().includes(searchLower) && 
+        if (!property.address.toLowerCase().includes(searchLower) &&
             !property.city.toLowerCase().includes(searchLower)) {
           return false;
         }
@@ -95,6 +96,8 @@ export default function PublicListings() {
         if (!zip.includes(zipCode)) return false;
       }
       if (property.price < priceRange[0] || property.price > priceRange[1]) return false;
+      if (property.downPayment !== undefined &&
+          (property.downPayment < downPaymentRange[0] || property.downPayment > downPaymentRange[1])) return false;
       if (beds !== 'any' && property.beds < parseInt(beds)) return false;
       if (baths !== 'any' && property.baths < parseInt(baths)) return false;
       if (condition !== 'any' && property.condition !== condition) return false;
@@ -177,6 +180,7 @@ export default function PublicListings() {
     setCondition('any');
     setPropertyType('any');
     setPriceRange([0, 1000000]);
+    setDownPaymentRange([0, 1000000]);
   };
 
   const activeFilterCount = [
@@ -185,6 +189,7 @@ export default function PublicListings() {
     condition !== 'any',
     propertyType !== 'any',
     priceRange[0] > 0 || priceRange[1] < 1000000,
+    downPaymentRange[0] > 0 || downPaymentRange[1] < 1000000,
   ].filter(Boolean).length;
 
   const formatPrice = (value: number | '') => {
@@ -232,17 +237,22 @@ export default function PublicListings() {
                 onClick={(e) => toggleSaved(property.id, e)}
                 className={cn(
                   "absolute top-3 right-3 p-2 rounded-full transition-all duration-200",
-                  isSaved 
-                    ? "bg-purple-500 text-white" 
+                  isSaved
+                    ? "bg-purple-500 text-white"
                     : "bg-black/30 backdrop-blur-sm text-white hover:bg-black/50"
                 )}
               >
                 <Heart className={cn("h-4 w-4", isSaved && "fill-current")} />
               </button>
-              <div className="absolute bottom-3 left-3">
-                <span className="text-2xl font-bold text-white drop-shadow-lg">
+              <div className="absolute bottom-3 left-3 space-y-1">
+                <span className="block text-2xl font-bold text-white drop-shadow-lg">
                   ${property.price.toLocaleString()}
                 </span>
+                {property.downPayment !== undefined && (
+                  <span className="block text-sm font-medium text-purple-200 drop-shadow-md bg-black/30 backdrop-blur-sm px-2 py-1 rounded">
+                    Down: ${property.downPayment.toLocaleString()}
+                  </span>
+                )}
               </div>
             </>
           )}
@@ -472,6 +482,22 @@ export default function PublicListings() {
                     />
                   </div>
 
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Down Payment Range</Label>
+                    <Slider
+                      value={downPaymentRange}
+                      min={0}
+                      max={1000000}
+                      step={5000}
+                      onValueChange={(value) => setDownPaymentRange(value as [number, number])}
+                      className="mt-3"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                      <span>${downPaymentRange[0].toLocaleString()}</span>
+                      <span>{downPaymentRange[1] >= 1000000 ? '$1M+' : `$${downPaymentRange[1].toLocaleString()}`}</span>
+                    </div>
+                  </div>
+
                   {/* Mobile-only filters */}
                   <div className="lg:hidden space-y-3">
                     <div>
@@ -605,9 +631,16 @@ export default function PublicListings() {
                   <Heart className={cn("h-5 w-5", savedProperties.has(selectedProperty.id) && "fill-current")} />
                 </button>
                 <div className="absolute bottom-0 left-0 right-0 p-6">
-                  <p className="text-3xl sm:text-4xl font-bold text-white mb-2">
-                    ${selectedProperty.price.toLocaleString()}
-                  </p>
+                  <div className="flex items-baseline gap-3 mb-2">
+                    <p className="text-3xl sm:text-4xl font-bold text-white">
+                      ${selectedProperty.price.toLocaleString()}
+                    </p>
+                    {selectedProperty.monthlyPayment !== undefined && (
+                      <p className="text-lg sm:text-xl font-semibold text-purple-200">
+                        ${selectedProperty.monthlyPayment.toLocaleString()}/mo
+                      </p>
+                    )}
+                  </div>
                   <h2 className="text-xl sm:text-2xl font-semibold text-white">{selectedProperty.address}</h2>
                   <p className="text-purple-200 flex items-center gap-1 mt-1">
                     <MapPin className="h-4 w-4" />
@@ -655,6 +688,28 @@ export default function PublicListings() {
                       <div>
                         <p className="text-lg font-bold">{selectedProperty.condition}</p>
                         <p className="text-sm text-muted-foreground">Condition</p>
+                      </div>
+                    </div>
+                  )}
+                  {selectedProperty.propertyType && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                        <Home className="h-6 w-6 text-purple-500" />
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold">{selectedProperty.propertyType}</p>
+                        <p className="text-sm text-muted-foreground">Type</p>
+                      </div>
+                    </div>
+                  )}
+                  {selectedProperty.downPayment !== undefined && (
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                        <DollarSign className="h-6 w-6 text-purple-500" />
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold">${selectedProperty.downPayment.toLocaleString()}</p>
+                        <p className="text-sm text-muted-foreground">Down Payment</p>
                       </div>
                     </div>
                   )}

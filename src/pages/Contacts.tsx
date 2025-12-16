@@ -82,7 +82,7 @@ const SMART_LISTS: { value: ContactType | 'all'; label: string }[] = [
 
 const STATUS_OPTIONS: ContactStatus[] = ['active', 'inactive', 'pending', 'closed'];
 
-type SortField = 'name' | 'createdAt' | 'lastActivityAt' | 'dealsClosed';
+type SortField = 'name' | 'createdAt' | 'lastActivityAt';
 type SortOrder = 'asc' | 'desc';
 
 export default function Contacts() {
@@ -220,8 +220,6 @@ export default function Contacts() {
           status: (getCustomField('status') as ContactStatus) || 'active',
           tags: c.tags || [],
           zipCodes: getCustomField('zip')?.split(',').map((z: string) => z.trim()) || [],
-          dealsClosed: parseInt(getCustomField('deals') || '0') || 0,
-          transactionValue: parseFloat(getCustomField('transaction') || '0') || 0,
           createdAt: c.dateAdded,
           lastActivityAt: c.lastActivity,
           company: getCustomField('company'),
@@ -293,9 +291,6 @@ export default function Contacts() {
           const aTime = a.lastActivityAt ? new Date(a.lastActivityAt).getTime() : 0;
           const bTime = b.lastActivityAt ? new Date(b.lastActivityAt).getTime() : 0;
           comparison = aTime - bTime;
-          break;
-        case 'dealsClosed':
-          comparison = a.dealsClosed - b.dealsClosed;
           break;
       }
       return sortOrder === 'asc' ? comparison : -comparison;
@@ -400,15 +395,13 @@ export default function Contacts() {
       case 'export':
         const contacts = filteredContacts.filter(c => selectedIds.has(c.id));
         const csv = [
-          ['Name', 'Email', 'Phone', 'Type', 'Status', 'Deals', 'Transactions'].join(','),
+          ['Name', 'Email', 'Phone', 'Type', 'Status'].join(','),
           ...contacts.map(c => [
             c.name,
             c.email || '',
             c.phone || '',
             c.type,
-            c.status,
-            c.dealsClosed,
-            c.transactionValue || 0
+            c.status
           ].join(','))
         ].join('\n');
         
@@ -598,7 +591,6 @@ export default function Contacts() {
               <DropdownMenuItem onClick={() => handleSort('name')}>Name</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleSort('createdAt')}>Created Date</DropdownMenuItem>
               <DropdownMenuItem onClick={() => handleSort('lastActivityAt')}>Last Activity</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSort('dealsClosed')}>Deals Closed</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -642,23 +634,7 @@ export default function Contacts() {
       {showAdvancedFilters && (
         <Card className="border-primary/20 animate-slide-in">
           <CardContent className="pt-6">
-            <div className="grid gap-4 md:grid-cols-3">
-              <div>
-                <Label>Deals Range</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input type="number" placeholder="Min" className="w-20" />
-                  <span className="flex items-center">to</span>
-                  <Input type="number" placeholder="Max" className="w-20" />
-                </div>
-              </div>
-              <div>
-                <Label>Transaction Value</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input type="number" placeholder="Min $" />
-                  <span className="flex items-center">to</span>
-                  <Input type="number" placeholder="Max $" />
-                </div>
-              </div>
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <Label>Created Date Range</Label>
                 <div className="flex gap-2 mt-1">
@@ -667,10 +643,18 @@ export default function Contacts() {
                   <Input type="date" />
                 </div>
               </div>
+              <div>
+                <Label>Last Activity Range</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input type="date" />
+                  <span className="flex items-center">to</span>
+                  <Input type="date" />
+                </div>
+              </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => {
                   setShowAdvancedFilters(false);
                   toast.info('Filters cleared');
@@ -777,14 +761,6 @@ export default function Contacts() {
                       <Badge className={`capitalize text-xs ${getStatusColor(contact.status)}`}>
                         {contact.status}
                       </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {contact.dealsClosed} deals
-                      </span>
-                      {contact.transactionValue > 0 && (
-                        <span className="text-xs text-emerald-500">
-                          ${contact.transactionValue.toLocaleString()}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -811,13 +787,6 @@ export default function Contacts() {
                   <TableHead>Phone</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead className="cursor-pointer" onClick={() => handleSort('dealsClosed')}>
-                    <div className="flex items-center gap-1">
-                      Deals
-                      <SortIcon field="dealsClosed" />
-                    </div>
-                  </TableHead>
-                  <TableHead>Transactions</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="cursor-pointer" onClick={() => handleSort('createdAt')}>
                     <div className="flex items-center gap-1">
@@ -885,18 +854,6 @@ export default function Contacts() {
                       <Badge variant="outline" className={`capitalize ${getTypeColor(contact.type)}`}>
                         {contact.type}
                       </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{contact.dealsClosed}</span>
-                    </TableCell>
-                    <TableCell>
-                      {contact.transactionValue ? (
-                        <span className="font-medium text-emerald-500">
-                          ${contact.transactionValue.toLocaleString()}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
                     </TableCell>
                     <TableCell>
                       <Badge className={`capitalize ${getStatusColor(contact.status)}`}>

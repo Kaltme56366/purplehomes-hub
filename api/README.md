@@ -10,6 +10,10 @@ GHL_API_KEY=your_ghl_api_key
 GHL_LOCATION_ID=your_location_id
 GHL_ACQUISITION_PIPELINE_ID=zL3H2M1BdEKlVDa2YWao
 
+# Airtable API (for property matching system)
+AIRTABLE_API_KEY=your_airtable_api_key
+AIRTABLE_BASE_ID=your_airtable_base_id
+
 # OpenAI (for caption generation)
 OPENAI_API_KEY=your_openai_key
 
@@ -29,6 +33,36 @@ VITE_MAPBOX_TOKEN=your_mapbox_token (for maps)
 4. Enable Google Sheets API
 5. Share the sheet with the service account email
 6. Download the JSON credentials and paste as GOOGLE_SHEET_CREDENTIALS (minified)
+
+### Airtable Setup for Property Matching
+
+Your Airtable base should have these tables:
+
+**1. Buyers Table**
+- `Contact ID` (Single line text) - GHL Contact ID
+- `First Name` (Single line text)
+- `Last Name` (Single line text)
+- `Email` (Single line text)
+- `Property-Buyer Matches` (Link to another record → Property-Buyer Matches)
+
+**2. Properties Table**
+- `Property Code` (Single line text)
+- `Opportunity ID` (Single line text) - GHL Opportunity ID
+- `Address`, `City`, `Beds`, `Baths`, `Sqft`, etc.
+- `Property-Buyer Matches` (Link to another record → Property-Buyer Matches)
+
+**3. Property-Buyer Matches Table** (Junction table)
+- `Property Code` (Link to another record → Properties)
+- `Contact ID` (Link to another record → Buyers)
+- `Match Status` (Single select: Active, Closed, etc.)
+- `Match Score` (Number)
+- `Match Notes` (Long text)
+
+**Setup Steps:**
+1. Get your API key from [Airtable Token Management](https://airtable.com/create/tokens)
+   - Required scopes: `data.records:read`, `data.records:write`, `schema.bases:read`
+2. Get your Base ID from the URL when viewing your base (starts with "app")
+3. Add both to your environment variables in Vercel
 
 ## Base URL
 
@@ -181,13 +215,22 @@ Make sure your GHL app has these scopes enabled:
 ### Messages
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `?resource=messages&type=email` | Send email |
+| POST | `?resource=messages&action=send-email` | Send email with PDF attachments |
 | POST | `?resource=messages&type=sms` | Send SMS |
 
 ### Location
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `?resource=location` | Get location info |
+
+### Airtable Property Matching
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/airtable?action=test` | Test Airtable connection |
+| GET | `/api/airtable?action=list-tables` | List all tables in base |
+| GET | `/api/airtable?action=list-records&table=X` | List records from table |
+| GET | `/api/airtable?action=get-buyer-matches&contactId=X` | Get matched properties for buyer |
+| POST | `/api/airtable?action=bulk-matches` | Get matches for multiple buyers |
 
 ### AI Caption Generation
 | Method | Endpoint | Description |

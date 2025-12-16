@@ -69,6 +69,8 @@ const PROPERTY_CUSTOM_FIELDS = {
   brandedImage: 'branded_image',
   postedDate: 'posted_date',
   scheduledDate: 'scheduled_date',
+  downPayment: '0Wq2qVjwE3Qc5kCvtcAj',
+  monthlyPayment: 'U3Ago0WNHeF0jv1lGmi4',
 };
 
 export function PropertyDetailModal({
@@ -140,6 +142,8 @@ export function PropertyDetailModal({
       if (formData.description) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.description] = formData.description;
       if (formData.heroImage) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.heroImage] = formData.heroImage;
       if (formData.caption) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.caption] = formData.caption;
+      if (formData.downPayment !== undefined) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.downPayment] = String(formData.downPayment);
+      if (formData.monthlyPayment !== undefined) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.monthlyPayment] = String(formData.monthlyPayment);
       
       // Status mapping
       if (formData.status) {
@@ -273,7 +277,7 @@ export function PropertyDetailModal({
                     <div>
                       <Label htmlFor="price" className="flex items-center gap-2 mb-2">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
-                        Price
+                        Total Price
                       </Label>
                       <Input
                         id="price"
@@ -281,6 +285,34 @@ export function PropertyDetailModal({
                         value={property.price || ''}
                         onChange={(e) => handleFieldChange('price', parseInt(e.target.value) || 0)}
                         placeholder="250000"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="downPayment" className="flex items-center gap-2 mb-2">
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        Down Payment
+                      </Label>
+                      <Input
+                        id="downPayment"
+                        type="number"
+                        value={property.downPayment || ''}
+                        onChange={(e) => handleFieldChange('downPayment', parseInt(e.target.value) || 0)}
+                        placeholder="15000"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="monthlyPayment" className="flex items-center gap-2 mb-2">
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                        Monthly Payment
+                      </Label>
+                      <Input
+                        id="monthlyPayment"
+                        type="number"
+                        value={property.monthlyPayment || ''}
+                        onChange={(e) => handleFieldChange('monthlyPayment', parseInt(e.target.value) || 0)}
+                        placeholder="1850"
                       />
                     </div>
 

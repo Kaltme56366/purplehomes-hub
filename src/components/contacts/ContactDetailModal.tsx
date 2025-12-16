@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Mail, Phone, MapPin, Building2, Bed, Bath, Maximize2, Tag, Calendar, X, Plus, Search, Loader2, Check } from 'lucide-react';
+import { Mail, Phone, MapPin, Building2, Bed, Bath, Maximize2, Tag, Calendar, X, Plus, Search, Loader2, Check, Sparkles } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useTags, useUpdateContactTags } from '@/services/ghlApi';
+import { useRunBuyerMatching } from '@/services/matchingApi';
 import { toast } from 'sonner';
 import type { Contact } from '@/types';
 import { format } from 'date-fns';
@@ -33,13 +34,17 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
   const [tagsOpen, setTagsOpen] = useState(false);
   const [savingTagId, setSavingTagId] = useState<string | null>(null);
   const [localTags, setLocalTags] = useState<string[] | null>(null); // Local state for optimistic updates
-  
+  const [runningMatching, setRunningMatching] = useState(false);
+
   // Fetch all available tags
   const { data: tagsData } = useTags();
   const availableTags = tagsData?.tags || [];
-  
+
   // Update contact tags mutation
   const updateTagsMutation = useUpdateContactTags();
+
+  // Run buyer matching mutation
+  const runBuyerMatchingMutation = useRunBuyerMatching();
 
   // Get current tags - use local state if available, otherwise from contact
   const currentTags = useMemo(() => {
@@ -115,6 +120,25 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
     }
   };
 
+  const handleFindMatches = async () => {
+    if (!contact?.id) {
+      toast.error('Contact ID is required');
+      return;
+    }
+
+    try {
+      const result = await runBuyerMatchingMutation.mutateAsync({
+        contactId: contact.id,
+        minScore: 60,
+      });
+      toast.success(result.message);
+    } catch (error) {
+      console.error('Failed to find matches:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to find matches');
+    }
+  };
+
+
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
@@ -145,6 +169,7 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
     contact.propertyPreferences.squareFeet ||
     contact.propertyPreferences.propertyType
   );
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -275,16 +300,6 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
           <div className="space-y-3">
             <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Activity & Stats</h3>
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-4 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-center">
-                <p className="text-2xl font-bold text-emerald-500">{contact.dealsClosed}</p>
-                <p className="text-xs text-muted-foreground mt-1">Deals Closed</p>
-              </div>
-              {contact.transactionValue && contact.transactionValue > 0 && (
-                <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20 text-center">
-                  <p className="text-2xl font-bold text-blue-500">${(contact.transactionValue / 1000).toFixed(0)}K</p>
-                  <p className="text-xs text-muted-foreground mt-1">Transaction Value</p>
-                </div>
-              )}
               <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                 <Calendar className="h-5 w-5 text-muted-foreground" />
                 <div>
@@ -409,13 +424,36 @@ export function ContactDetailModal({ contact, open, onOpenChange, onUpdate }: Co
           )}
         </div>
 
-        <div className="flex justify-end gap-2 mt-6 pt-6 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-          <Button>
-            Edit Contact
-          </Button>
+        <div className="flex justify-between items-center gap-2 mt-6 pt-6 border-t">
+          <div className="flex items-center gap-2">
+            {contact.type === 'buyer' && (
+              <Button
+                variant="outline"
+                onClick={handleFindMatches}
+                disabled={runBuyerMatchingMutation.isPending}
+              >
+                {runBuyerMatchingMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Finding Matches...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Find Matches
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            <Button>
+              Edit Contact
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -38,6 +38,8 @@ export interface Property {
   createdAt: string;
   ghlOpportunityId?: string;
   isDemo?: boolean;
+  downPayment?: number;
+  monthlyPayment?: number;
 }
 
 // Buyer Home Acquisition Pipeline (interested buyers who submit offers)
@@ -262,8 +264,6 @@ export interface Contact {
   status: ContactStatus;
   zipCodes: string[];
   tags: string[];
-  dealsClosed: number;
-  transactionValue?: number;
   company?: string;
   brokerage?: string;
   licenseNumber?: string;

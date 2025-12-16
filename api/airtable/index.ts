@@ -1,0 +1,246 @@
+/**
+ * Airtable API Handler - Property Matching System
+ *
+ * This function interfaces with Airtable to:
+ * 1. Store buyer criteria and property data
+ * 2. Retrieve matched properties for buyers
+ * 3. Support bulk operations for sending property PDFs
+ *
+ * Route: /api/airtable?action=<action>&table=<table>
+ */
+
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+const AIRTABLE_API_URL = 'https://api.airtable.com/v0';
+
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  console.log('[Airtable API] Request:', {
+    method: req.method,
+    action: req.query.action,
+    table: req.query.table,
+  });
+
+  // CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
+    return res.status(500).json({
+      error: 'Airtable credentials not configured',
+      message: 'Please add AIRTABLE_API_KEY and AIRTABLE_BASE_ID to environment variables',
+    });
+  }
+
+  const headers = {
+    'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+    'Content-Type': 'application/json',
+  };
+
+  const { action, table } = req.query;
+
+  try {
+    switch (action) {
+      case 'list-tables':
+        // List all tables in the base (for debugging)
+        return handleListTables(req, res, headers);
+
+      case 'list-records':
+        // List records from a specific table
+        return handleListRecords(req, res, headers, table as string);
+
+      case 'get-buyer-matches':
+        // Get property matches for a buyer
+        return handleGetBuyerMatches(req, res, headers);
+
+      case 'bulk-matches':
+        // Get matches for multiple buyers (for bulk send)
+        return handleBulkMatches(req, res, headers);
+
+      case 'test':
+        // Test connection
+        return res.status(200).json({ success: true, message: 'Airtable connection OK' });
+
+      default:
+        return res.status(400).json({ error: 'Unknown action', action });
+    }
+  } catch (error: any) {
+    console.error('[Airtable API] Error:', error);
+    return res.status(500).json({
+      error: error.message || 'Internal server error',
+      details: error.response?.data || null,
+    });
+  }
+}
+
+async function handleListTables(req: VercelRequest, res: VercelResponse, headers: any) {
+  // Airtable doesn't have an endpoint to list tables directly
+  // We'll return the base info instead
+  const response = await fetch(`${AIRTABLE_API_URL}/meta/bases/${AIRTABLE_BASE_ID}/tables`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    throw new Error(`Airtable API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return res.status(200).json(data);
+}
+
+async function handleListRecords(
+  req: VercelRequest,
+  res: VercelResponse,
+  headers: any,
+  tableName: string
+) {
+  if (!tableName) {
+    return res.status(400).json({ error: 'table parameter is required' });
+  }
+
+  const response = await fetch(
+    `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`,
+    { headers }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Airtable API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return res.status(200).json(data);
+}
+
+async function handleGetBuyerMatches(req: VercelRequest, res: VercelResponse, headers: any) {
+  const { contactId } = req.query;
+
+  if (!contactId) {
+    return res.status(400).json({ error: 'contactId is required' });
+  }
+
+  try {
+    // Step 1: Get the buyer record from Buyers table to get contact info
+    const buyerFormula = encodeURIComponent(`{Contact ID} = "${contactId}"`);
+    const buyerResponse = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?filterByFormula=${buyerFormula}`,
+      { headers }
+    );
+
+    if (!buyerResponse.ok) {
+      throw new Error(`Failed to fetch buyer: ${buyerResponse.status}`);
+    }
+
+    const buyerData = await buyerResponse.json();
+
+    if (!buyerData.records || buyerData.records.length === 0) {
+      // No buyer found with this contact ID
+      return res.status(200).json({ matches: null });
+    }
+
+    const buyer = buyerData.records[0];
+    const buyerRecordId = buyer.id;
+
+    // Step 2: Get property matches for this buyer from Property-Buyer Matches table
+    // The table uses record links, so we need to search by the buyer record ID
+    const matchesFormula = encodeURIComponent(`SEARCH("${buyerRecordId}", ARRAYJOIN({Contact ID}))`);
+    const matchesResponse = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${matchesFormula}`,
+      { headers }
+    );
+
+    if (!matchesResponse.ok) {
+      throw new Error(`Failed to fetch matches: ${matchesResponse.status}`);
+    }
+
+    const matchesData = await matchesResponse.json();
+
+    // Step 3: Get property codes for all matched properties
+    const propertyRecordIds = matchesData.records
+      .flatMap((record: any) => record.fields['Property Code'] || []);
+
+    if (propertyRecordIds.length === 0) {
+      // Buyer exists but has no property matches
+      return res.status(200).json({
+        matches: {
+          id: buyerRecordId,
+          contactId: buyer.fields['Contact ID'],
+          contactName: `${buyer.fields['First Name'] || ''} ${buyer.fields['Last Name'] || ''}`.trim(),
+          contactEmail: buyer.fields['Email'],
+          matchedPropertyIds: [],
+        }
+      });
+    }
+
+    // Fetch property details for matched properties
+    const propertyPromises = propertyRecordIds.map((propRecId: string) =>
+      fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties/${propRecId}`, { headers })
+        .then(res => res.json())
+        .catch(() => null)
+    );
+
+    const properties = await Promise.all(propertyPromises);
+    const propertyCodes = properties
+      .filter(p => p && p.fields)
+      .map(p => p.fields['Property Code'] || p.fields['Opportunity ID'])
+      .filter(Boolean);
+
+    // Return match data
+    return res.status(200).json({
+      matches: {
+        id: buyerRecordId,
+        contactId: buyer.fields['Contact ID'],
+        contactName: `${buyer.fields['First Name'] || ''} ${buyer.fields['Last Name'] || ''}`.trim(),
+        contactEmail: buyer.fields['Email'],
+        matchedPropertyIds: propertyCodes,
+      }
+    });
+  } catch (error: any) {
+    console.error('[Airtable] Error in handleGetBuyerMatches:', error);
+    throw error;
+  }
+}
+
+async function handleBulkMatches(req: VercelRequest, res: VercelResponse, headers: any) {
+  const { contactIds } = req.body;
+
+  if (!Array.isArray(contactIds) || contactIds.length === 0) {
+    return res.status(400).json({ error: 'contactIds array is required' });
+  }
+
+  // Build formula to match multiple contact IDs
+  const formulas = contactIds.map(id => `{Contact ID} = "${id}"`).join(', ');
+  const formula = encodeURIComponent(`OR(${formulas})`);
+
+  const response = await fetch(
+    `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyer%20Property%20Matches?filterByFormula=${formula}`,
+    { headers }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Airtable API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = await response.json();
+
+  // Transform to map of contactId -> match data
+  const matches: Record<string, any> = {};
+  data.records.forEach((record: any) => {
+    const contactId = record.fields['Contact ID'];
+    matches[contactId] = {
+      id: record.id,
+      contactId,
+      contactName: record.fields['Contact Name'],
+      contactEmail: record.fields['Contact Email'],
+      matchedPropertyIds: record.fields['Matched Property IDs'] || [],
+      lastMatchedDate: record.fields['Last Matched'],
+    };
+  });
+
+  return res.status(200).json({ matches });
+}

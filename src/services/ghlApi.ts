@@ -259,6 +259,8 @@ const PROPERTY_CUSTOM_FIELDS = {
   brandedImage: 'branded_image',
   postedDate: 'posted_date',
   scheduledDate: 'scheduled_date',
+  downPayment: '0Wq2qVjwE3Qc5kCvtcAj', // Proposed Down Payment custom field ID
+  monthlyPayment: 'U3Ago0WNHeF0jv1lGmi4', // Property Total Price (Monthly Payment) custom field ID
 };
 
 // Transform GHL Opportunity to Property
@@ -283,6 +285,12 @@ export const transformOpportunityToProperty = (opp: GHLOpportunity): Property =>
   else if (socialStatus.includes('Deleted')) status = 'deleted';
   else if (socialStatus.includes('Processing')) status = 'processing';
 
+  // Parse down payment and monthly payment as numbers
+  const downPaymentStr = getCustomField(PROPERTY_CUSTOM_FIELDS.downPayment);
+  const monthlyPaymentStr = getCustomField(PROPERTY_CUSTOM_FIELDS.monthlyPayment);
+  const downPayment = downPaymentStr ? parseFloat(downPaymentStr.replace(/[^0-9.]/g, '')) : undefined;
+  const monthlyPayment = monthlyPaymentStr ? parseFloat(monthlyPaymentStr.replace(/[^0-9.]/g, '')) : undefined;
+
   return {
     id: opp.id,
     ghlOpportunityId: opp.id,
@@ -303,6 +311,8 @@ export const transformOpportunityToProperty = (opp: GHLOpportunity): Property =>
     brandedImage: getCustomField(PROPERTY_CUSTOM_FIELDS.brandedImage),
     postedDate: getCustomField(PROPERTY_CUSTOM_FIELDS.postedDate),
     scheduledDate: getCustomField(PROPERTY_CUSTOM_FIELDS.scheduledDate),
+    downPayment: !isNaN(downPayment as number) ? downPayment : undefined,
+    monthlyPayment: !isNaN(monthlyPayment as number) ? monthlyPayment : undefined,
     createdAt: opp.createdAt,
     isDemo: false,
   };
