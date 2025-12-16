@@ -15,6 +15,50 @@ const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_URL = 'https://api.airtable.com/v0';
 
+/**
+ * Fetch with automatic retry on rate limit errors (429)
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries = 3
+): Promise<Response> {
+  let lastError: any = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // Add exponential backoff delay before retry
+      if (attempt > 0) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // 1s, 2s, 4s (max 5s)
+        console.log(`[Airtable] Retry ${attempt}/${maxRetries} after ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+
+      const response = await fetch(url, options);
+
+      // If rate limited and we have retries left, continue to next attempt
+      if (response.status === 429 && attempt < maxRetries) {
+        console.warn(`[Airtable] Rate limited (429) on attempt ${attempt + 1}/${maxRetries + 1}, will retry...`);
+        lastError = new Error(`Rate limited: ${response.statusText}`);
+        continue;
+      }
+
+      // Return response (whether success or error)
+      return response;
+    } catch (error: any) {
+      console.error(`[Airtable] Fetch error on attempt ${attempt + 1}:`, error.message);
+      lastError = error;
+
+      // If it's the last attempt, throw
+      if (attempt === maxRetries) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error('Failed after retries');
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Airtable API] Request:', {
     method: req.method,
@@ -121,10 +165,9 @@ async function handleListRecords(
   }
 
   console.log(`[Airtable] Fetching records from table: ${tableName}`);
-  console.log(`[Airtable] URL: ${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`);
 
   try {
-    const response = await fetch(
+    const response = await fetchWithRetry(
       `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`,
       { headers }
     );
@@ -174,7 +217,7 @@ async function handleGetBuyerMatches(req: VercelRequest, res: VercelResponse, he
   try {
     // Step 1: Get the buyer record from Buyers table to get contact info
     const buyerFormula = encodeURIComponent(`{Contact ID} = "${contactId}"`);
-    const buyerResponse = await fetch(
+    const buyerResponse = await fetchWithRetry(
       `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?filterByFormula=${buyerFormula}`,
       { headers }
     );
@@ -196,7 +239,7 @@ async function handleGetBuyerMatches(req: VercelRequest, res: VercelResponse, he
     // Step 2: Get property matches for this buyer from Property-Buyer Matches table
     // The table uses record links, so we need to search by the buyer record ID
     const matchesFormula = encodeURIComponent(`SEARCH("${buyerRecordId}", ARRAYJOIN({Contact ID}))`);
-    const matchesResponse = await fetch(
+    const matchesResponse = await fetchWithRetry(
       `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${matchesFormula}`,
       { headers }
     );
@@ -224,14 +267,37 @@ async function handleGetBuyerMatches(req: VercelRequest, res: VercelResponse, he
       });
     }
 
-    // Fetch property details for matched properties
-    const propertyPromises = propertyRecordIds.map((propRecId: string) =>
-      fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties/${propRecId}`, { headers })
-        .then(res => res.json())
-        .catch(() => null)
-    );
+    // Fetch property details for matched properties (with batching to avoid rate limits)
+    const BATCH_SIZE = 3; // Fetch 3 properties at a time
+    const properties: any[] = [];
 
-    const properties = await Promise.all(propertyPromises);
+    for (let i = 0; i < propertyRecordIds.length; i += BATCH_SIZE) {
+      const batch = propertyRecordIds.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(
+        batch.map(async (propRecId: string) => {
+          try {
+            const response = await fetchWithRetry(
+              `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties/${propRecId}`,
+              { headers }
+            );
+            if (response.ok) {
+              return await response.json();
+            }
+            return null;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      properties.push(...batchResults);
+
+      // Add small delay between batches
+      if (i + BATCH_SIZE < propertyRecordIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
     const propertyCodes = properties
       .filter(p => p && p.fields)
       .map(p => p.fields['Property Code'] || p.fields['Opportunity ID'])
