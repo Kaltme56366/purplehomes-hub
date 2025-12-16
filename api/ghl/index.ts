@@ -412,45 +412,68 @@ if (resource === 'opportunities') {
       });
     }
     
-    // ✅ FETCH FULL CONTACT DETAILS FOR EACH OPPORTUNITY
+    // ✅ FETCH FULL CONTACT DETAILS FOR EACH OPPORTUNITY (with rate limiting)
     console.log('[OPPORTUNITIES] Fetching contact details for', allOpportunities.length, 'opportunities');
-    
-    const opportunitiesWithContacts = await Promise.all(
-      allOpportunities.map(async (opp) => {
-        if (!opp.contactId) return opp;
-        
-        try {
-          const contactResponse = await fetch(
-            `${GHL_API_URL}/contacts/${opp.contactId}`,
-            { headers }
-          );
-          
-          if (contactResponse.ok) {
-            const contactData = await contactResponse.json();
-            return {
-              ...opp,
-              contact: {
-                id: contactData.contact.id,
-                name: contactData.contact.name,
-                email: contactData.contact.email,
-                phone: contactData.contact.phone,
-                customFields: contactData.contact.customFields || [], // ← INCLUDE CUSTOM FIELDS!
-              }
-            };
+
+    // Process in batches to avoid rate limiting
+    const BATCH_SIZE = 5; // Process 5 contacts at a time
+    const DELAY_BETWEEN_BATCHES = 200; // 200ms delay between batches
+
+    const opportunitiesWithContacts: any[] = [];
+
+    for (let i = 0; i < allOpportunities.length; i += BATCH_SIZE) {
+      const batch = allOpportunities.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(
+        batch.map(async (opp) => {
+          if (!opp.contactId) return opp;
+
+          try {
+            const contactResponse = await fetch(
+              `${GHL_API_URL}/contacts/${opp.contactId}`,
+              { headers }
+            );
+
+            if (contactResponse.ok) {
+              const contactData = await contactResponse.json();
+              return {
+                ...opp,
+                contact: {
+                  id: contactData.contact.id,
+                  name: contactData.contact.name,
+                  email: contactData.contact.email,
+                  phone: contactData.contact.phone,
+                  customFields: contactData.contact.customFields || [], // ← INCLUDE CUSTOM FIELDS!
+                }
+              };
+            } else if (contactResponse.status === 429) {
+              console.warn('[OPPORTUNITIES] Rate limited on contact fetch, skipping for now...');
+              // If rate limited, return without contact details
+              return opp;
+            }
+          } catch (err) {
+            console.error('[OPPORTUNITIES] Failed to fetch contact:', opp.contactId, err);
           }
-        } catch (err) {
-          console.error('[OPPORTUNITIES] Failed to fetch contact:', opp.contactId, err);
-        }
-        
-        return opp;
-      })
-    );
-    
+
+          return opp;
+        })
+      );
+
+      opportunitiesWithContacts.push(...batchResults);
+
+      // Add delay between batches to avoid rate limiting
+      if (i + BATCH_SIZE < allOpportunities.length) {
+        console.log(`[OPPORTUNITIES] Processed batch ${Math.floor(i/BATCH_SIZE) + 1}, waiting ${DELAY_BETWEEN_BATCHES}ms...`);
+        await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+      }
+    }
+
     console.log('[OPPORTUNITIES] ✅ Contacts fetched! Sample:', {
       opportunityId: opportunitiesWithContacts[0]?.id,
       contactId: opportunitiesWithContacts[0]?.contact?.id,
       hasCustomFields: !!opportunitiesWithContacts[0]?.contact?.customFields,
-      customFieldsCount: opportunitiesWithContacts[0]?.contact?.customFields?.length
+      customFieldsCount: opportunitiesWithContacts[0]?.contact?.customFields?.length,
+      totalProcessed: opportunitiesWithContacts.length
     });
     
     return res.status(200).json({ 
