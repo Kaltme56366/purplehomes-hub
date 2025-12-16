@@ -20,6 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     method: req.method,
     action: req.query.action,
     table: req.query.table,
+    timestamp: new Date().toISOString(),
   });
 
   // CORS
@@ -31,10 +32,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
+  console.log('[Airtable API] Environment check:', {
+    hasApiKey: !!AIRTABLE_API_KEY,
+    apiKeyPrefix: AIRTABLE_API_KEY?.substring(0, 8) + '...',
+    hasBaseId: !!AIRTABLE_BASE_ID,
+    baseId: AIRTABLE_BASE_ID,
+  });
+
   if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
+    console.error('[Airtable API] Missing credentials!', {
+      AIRTABLE_API_KEY: !!AIRTABLE_API_KEY,
+      AIRTABLE_BASE_ID: !!AIRTABLE_BASE_ID,
+    });
     return res.status(500).json({
       error: 'Airtable credentials not configured',
       message: 'Please add AIRTABLE_API_KEY and AIRTABLE_BASE_ID to environment variables',
+      missing: {
+        apiKey: !AIRTABLE_API_KEY,
+        baseId: !AIRTABLE_BASE_ID,
+      }
     });
   }
 
@@ -104,17 +120,48 @@ async function handleListRecords(
     return res.status(400).json({ error: 'table parameter is required' });
   }
 
-  const response = await fetch(
-    `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`,
-    { headers }
-  );
+  console.log(`[Airtable] Fetching records from table: ${tableName}`);
+  console.log(`[Airtable] URL: ${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`);
 
-  if (!response.ok) {
-    throw new Error(`Airtable API error: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`,
+      { headers }
+    );
+
+    console.log(`[Airtable] Response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Airtable] Error response:`, errorText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+
+      return res.status(response.status).json({
+        error: 'Airtable API error',
+        status: response.status,
+        statusText: response.statusText,
+        details: errorData,
+        table: tableName,
+      });
+    }
+
+    const data = await response.json();
+    console.log(`[Airtable] Successfully fetched ${data.records?.length || 0} records from ${tableName}`);
+    return res.status(200).json(data);
+  } catch (error: any) {
+    console.error(`[Airtable] Exception in handleListRecords:`, error);
+    return res.status(500).json({
+      error: 'Failed to fetch records',
+      message: error.message,
+      table: tableName,
+    });
   }
-
-  const data = await response.json();
-  return res.status(200).json(data);
 }
 
 async function handleGetBuyerMatches(req: VercelRequest, res: VercelResponse, headers: any) {
