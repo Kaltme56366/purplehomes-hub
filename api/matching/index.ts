@@ -68,21 +68,51 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 /**
  * Ensures all buyers have geocoded coordinates
  * Geocodes buyers that don't have Latitude/Longitude and updates Airtable
+ *
+ * @param buyers - Array of buyer records
+ * @param headers - Airtable API headers
+ * @param options - Configuration options
  */
-async function ensureBuyerGeocoding(buyers: any[], headers: any): Promise<void> {
+async function ensureBuyerGeocoding(
+  buyers: any[],
+  headers: any,
+  options: { enabled?: boolean; maxBuyers?: number } = {}
+): Promise<void> {
+  const { enabled = false, maxBuyers = 10 } = options;
+
+  // Skip geocoding if not enabled
+  if (!enabled) {
+    const missingCoords = buyers.filter(b => !b.fields.Latitude || !b.fields.Longitude).length;
+    if (missingCoords > 0) {
+      console.warn(`[Geocoding] Skipped geocoding for ${missingCoords} buyers (geocoding disabled for performance). Run with geocoding enabled to update coordinates.`);
+    }
+    return;
+  }
+
   if (!GEOCODING_API_KEY) {
     console.warn('[Matching] OpenAI API key not configured, skipping geocoding');
     return;
   }
 
+  // Filter buyers that need geocoding
+  const buyersNeedingGeocode = buyers.filter(b => !b.fields.Latitude || !b.fields.Longitude);
+
+  if (buyersNeedingGeocode.length === 0) {
+    console.log('[Geocoding] All buyers already have coordinates');
+    return;
+  }
+
+  // Limit the number of buyers to geocode per run to prevent timeout
+  const buyersToGeocode = buyersNeedingGeocode.slice(0, maxBuyers);
+  const remaining = buyersNeedingGeocode.length - buyersToGeocode.length;
+
+  if (remaining > 0) {
+    console.warn(`[Geocoding] Limiting geocoding to ${maxBuyers} buyers (${remaining} remaining). Run again to continue.`);
+  }
+
   let geocoded = 0;
 
-  for (const buyer of buyers) {
-    // Skip if already has coordinates
-    if (buyer.fields.Latitude && buyer.fields.Longitude) {
-      continue;
-    }
-
+  for (const buyer of buyersToGeocode) {
     // Get location string from buyer
     const location = buyer.fields['Preferred Location'] || buyer.fields['Location'] || buyer.fields['City'];
 
@@ -178,76 +208,136 @@ async function fetchExistingMatchesSkipSet(headers: any, refreshAll: boolean): P
  * Run matching for all buyers against all properties
  */
 async function handleRunMatching(req: VercelRequest, res: VercelResponse, headers: any) {
-  const { minScore = 30, refreshAll = false } = req.body || {};
+  const startTime = Date.now();
+  const { minScore = 30, refreshAll = false, enableGeocoding = false } = req.body || {};
 
-  console.log('[Matching] Running full matching with minScore:', minScore, 'refreshAll:', refreshAll);
+  console.log('[Matching] Starting full matching', { minScore, refreshAll, enableGeocoding, timestamp: new Date().toISOString() });
 
-  // Fetch all buyers
-  const buyersRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers`, { headers });
-  if (!buyersRes.ok) throw new Error('Failed to fetch buyers');
-  const buyersData = await buyersRes.json();
-  const buyers = buyersData.records;
+  try {
+    // Fetch all buyers
+    console.log('[Matching] Fetching buyers from Airtable...');
+    const buyersRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers`, { headers });
+    if (!buyersRes.ok) {
+      const errorText = await buyersRes.text();
+      console.error('[Matching] Failed to fetch buyers:', buyersRes.status, errorText);
+      throw new Error(`Failed to fetch buyers: ${buyersRes.status} ${buyersRes.statusText}`);
+    }
+    const buyersData = await buyersRes.json();
+    const buyers = buyersData.records || [];
+    console.log(`[Matching] Fetched ${buyers.length} buyers in ${Date.now() - startTime}ms`);
 
-  // Fetch all properties
-  const propertiesRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties`, { headers });
-  if (!propertiesRes.ok) throw new Error('Failed to fetch properties');
-  const propertiesData = await propertiesRes.json();
-  const properties = propertiesData.records;
+    // Fetch all properties
+    console.log('[Matching] Fetching properties from Airtable...');
+    const propertiesRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties`, { headers });
+    if (!propertiesRes.ok) {
+      const errorText = await propertiesRes.text();
+      console.error('[Matching] Failed to fetch properties:', propertiesRes.status, errorText);
+      throw new Error(`Failed to fetch properties: ${propertiesRes.status} ${propertiesRes.statusText}`);
+    }
+    const propertiesData = await propertiesRes.json();
+    const properties = propertiesData.records || [];
+    console.log(`[Matching] Fetched ${properties.length} properties in ${Date.now() - startTime}ms`);
 
-  console.log(`[Matching] Found ${buyers.length} buyers and ${properties.length} properties`);
+    if (buyers.length === 0 || properties.length === 0) {
+      console.warn('[Matching] No buyers or properties found, skipping matching');
+      return res.status(200).json({
+        success: true,
+        message: 'No buyers or properties found to match',
+        stats: { buyersProcessed: 0, propertiesProcessed: 0, matchesCreated: 0, matchesUpdated: 0, duplicatesSkipped: 0, withinRadius: 0 },
+      });
+    }
 
-  // Geocode buyers (if needed)
-  await ensureBuyerGeocoding(buyers, headers);
+    console.log(`[Matching] Processing ${buyers.length} buyers × ${properties.length} properties = ${buyers.length * properties.length} combinations`);
 
-  // Build skip set for duplicate prevention
-  const skipSet = await fetchExistingMatchesSkipSet(headers, refreshAll);
+    // Geocode buyers (disabled by default for performance)
+    await ensureBuyerGeocoding(buyers, headers, { enabled: enableGeocoding, maxBuyers: 10 });
 
-  let matchesCreated = 0;
-  let matchesUpdated = 0;
-  let duplicatesSkipped = 0;
-  let withinRadius = 0;
+    // Build skip set for duplicate prevention
+    const skipSet = await fetchExistingMatchesSkipSet(headers, refreshAll);
 
-  // Process each buyer
-  for (const buyer of buyers) {
-    for (const property of properties) {
-      // Check skip set
-      const pairKey = `${buyer.id}:${property.id}`;
-      if (skipSet.has(pairKey)) {
-        duplicatesSkipped++;
-        continue;
-      }
+    let matchesCreated = 0;
+    let matchesUpdated = 0;
+    let duplicatesSkipped = 0;
+    let withinRadius = 0;
+    let errors = 0;
 
-      // Generate match score using new distance-based scoring
-      const score = generateMatchScore(buyer, property);
+    // Process each buyer
+    console.log('[Matching] Starting matching loop...');
+    const totalCombinations = buyers.length * properties.length;
+    let processed = 0;
+    const progressInterval = Math.max(1, Math.floor(totalCombinations / 10)); // Log every 10%
 
-      if (score.score >= minScore) {
-        // Create or update match
-        const matchResult = await createOrUpdateMatch(buyer, property, score, headers);
-        if (matchResult.created) {
-          matchesCreated++;
-        } else {
-          matchesUpdated++;
+    for (const buyer of buyers) {
+      for (const property of properties) {
+        processed++;
+
+        // Log progress periodically
+        if (processed % progressInterval === 0 || processed === totalCombinations) {
+          const elapsed = Date.now() - startTime;
+          const progress = (processed / totalCombinations * 100).toFixed(1);
+          console.log(`[Matching] Progress: ${progress}% (${processed}/${totalCombinations}) - ${elapsed}ms elapsed`);
         }
 
-        if (score.isPriority) {
-          withinRadius++;
+        // Check skip set
+        const pairKey = `${buyer.id}:${property.id}`;
+        if (skipSet.has(pairKey)) {
+          duplicatesSkipped++;
+          continue;
+        }
+
+        try {
+          // Generate match score using distance-based scoring
+          const score = generateMatchScore(buyer, property);
+
+          if (score.score >= minScore) {
+            // Create or update match
+            const matchResult = await createOrUpdateMatch(buyer, property, score, headers);
+            if (matchResult.created) {
+              matchesCreated++;
+            } else {
+              matchesUpdated++;
+            }
+
+            if (score.isPriority) {
+              withinRadius++;
+            }
+          }
+        } catch (error) {
+          errors++;
+          console.error(`[Matching] Error processing buyer ${buyer.id} × property ${property.id}:`, error);
+          // Continue processing other matches even if one fails
         }
       }
     }
-  }
 
-  return res.status(200).json({
-    success: true,
-    message: `Matching complete! Created ${matchesCreated} new matches, skipped ${duplicatesSkipped} duplicates.`,
-    stats: {
-      buyersProcessed: buyers.length,
-      propertiesProcessed: properties.length,
+    const totalTime = Date.now() - startTime;
+    console.log(`[Matching] Completed in ${totalTime}ms`, {
       matchesCreated,
       matchesUpdated,
       duplicatesSkipped,
       withinRadius,
-    },
-  });
+      errors,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Matching complete! Created ${matchesCreated} new matches, updated ${matchesUpdated}, skipped ${duplicatesSkipped} duplicates.`,
+      stats: {
+        buyersProcessed: buyers.length,
+        propertiesProcessed: properties.length,
+        matchesCreated,
+        matchesUpdated,
+        duplicatesSkipped,
+        withinRadius,
+        errors,
+        timeMs: totalTime,
+      },
+    });
+  } catch (error) {
+    const elapsed = Date.now() - startTime;
+    console.error(`[Matching] Fatal error after ${elapsed}ms:`, error);
+    throw error; // Re-throw to be caught by top-level handler
+  }
 }
 
 /**
@@ -278,8 +368,8 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
 
   const buyer = buyerData.records[0];
 
-  // Geocode buyer if needed
-  await ensureBuyerGeocoding([buyer], headers);
+  // Geocode buyer if needed (disabled by default for performance)
+  await ensureBuyerGeocoding([buyer], headers, { enabled: false });
 
   // Fetch all properties
   const propertiesRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties`, { headers });
@@ -356,8 +446,8 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
   const buyersData = await buyersRes.json();
   const buyers = buyersData.records;
 
-  // Geocode buyers if needed
-  await ensureBuyerGeocoding(buyers, headers);
+  // Geocode buyers if needed (disabled by default for performance)
+  await ensureBuyerGeocoding(buyers, headers, { enabled: false });
 
   let matchesCreated = 0;
   let matchesUpdated = 0;
@@ -398,59 +488,78 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
  * Create or update match in Airtable
  */
 async function createOrUpdateMatch(buyer: any, property: any, score: MatchScore, headers: any): Promise<{created: boolean}> {
-  // Check if match already exists
-  const formula = encodeURIComponent(
-    `AND(SEARCH("${buyer.id}", ARRAYJOIN({Contact ID})), SEARCH("${property.id}", ARRAYJOIN({Property Code})))`
-  );
+  try {
+    // Check if match already exists
+    const formula = encodeURIComponent(
+      `AND(SEARCH("${buyer.id}", ARRAYJOIN({Contact ID})), SEARCH("${property.id}", ARRAYJOIN({Property Code})))`
+    );
 
-  const existingRes = await fetch(
-    `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${formula}`,
-    { headers }
-  );
+    const existingRes = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${formula}`,
+      { headers }
+    );
 
-  // Build match notes
-  let matchNotes = score.reasoning;
-  matchNotes += `\n\nHighlights: ${score.highlights.join(', ')}`;
-  if (score.concerns && score.concerns.length > 0) {
-    matchNotes += `\n\nConcerns: ${score.concerns.join(', ')}`;
-  }
-
-  // Build fields object
-  const matchFields: any = {
-    'Match Score': score.score,
-    'Match Notes': matchNotes,
-    'Match Status': 'Active',
-  };
-
-  // Add distance if available
-  if (score.distance !== undefined) {
-    matchFields['Distance'] = score.distance;
-  }
-
-  if (existingRes.ok) {
-    const existingData = await existingRes.json();
-
-    if (existingData.records && existingData.records.length > 0) {
-      // Update existing
-      const matchId = existingData.records[0].id;
-      await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches/${matchId}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ fields: matchFields }),
-      });
-      return { created: false };
+    // Build match notes
+    let matchNotes = score.reasoning;
+    matchNotes += `\n\nHighlights: ${score.highlights.join(', ')}`;
+    if (score.concerns && score.concerns.length > 0) {
+      matchNotes += `\n\nConcerns: ${score.concerns.join(', ')}`;
     }
+
+    // Build fields object
+    const matchFields: any = {
+      'Match Score': score.score,
+      'Match Notes': matchNotes,
+      'Match Status': 'Active',
+      'Priority': score.isPriority,
+    };
+
+    // Add distance if available
+    if (score.distance !== undefined) {
+      matchFields['Distance'] = score.distance;
+    }
+
+    if (existingRes.ok) {
+      const existingData = await existingRes.json();
+
+      if (existingData.records && existingData.records.length > 0) {
+        // Update existing
+        const matchId = existingData.records[0].id;
+        const updateRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches/${matchId}`, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ fields: matchFields }),
+        });
+
+        if (!updateRes.ok) {
+          const errorText = await updateRes.text();
+          console.error(`[Matching] Failed to update match ${matchId}:`, updateRes.status, errorText);
+          throw new Error(`Failed to update match: ${updateRes.status}`);
+        }
+
+        return { created: false };
+      }
+    }
+
+    // Create new match
+    matchFields['Property Code'] = [property.id];
+    matchFields['Contact ID'] = [buyer.id];
+
+    const createRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ fields: matchFields }),
+    });
+
+    if (!createRes.ok) {
+      const errorText = await createRes.text();
+      console.error('[Matching] Failed to create match:', createRes.status, errorText);
+      throw new Error(`Failed to create match: ${createRes.status}`);
+    }
+
+    return { created: true };
+  } catch (error) {
+    console.error('[Matching] Error in createOrUpdateMatch:', error);
+    throw error;
   }
-
-  // Create new match
-  matchFields['Property Code'] = [property.id];
-  matchFields['Contact ID'] = [buyer.id];
-
-  await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ fields: matchFields }),
-  });
-
-  return { created: true };
 }
