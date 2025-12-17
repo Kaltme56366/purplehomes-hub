@@ -11,9 +11,9 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const AIRTABLE_API_BASE = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}/api/airtable`
-  : '/api/airtable';
+const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
+const AIRTABLE_API_URL = 'https://api.airtable.com/v0';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Aggregated API] Request:', {
@@ -36,13 +36,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  if (!AIRTABLE_API_KEY || !AIRTABLE_BASE_ID) {
+    return res.status(500).json({
+      error: 'Airtable credentials not configured',
+    });
+  }
+
+  const headers = {
+    'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+    'Content-Type': 'application/json',
+  };
+
   const { type, limit = '50', offset = '' } = req.query;
 
   try {
     if (type === 'buyers') {
-      return await handleBuyersAggregated(req, res, parseInt(limit as string), offset as string);
+      return await handleBuyersAggregated(req, res, headers, parseInt(limit as string), offset as string);
     } else if (type === 'properties') {
-      return await handlePropertiesAggregated(req, res, parseInt(limit as string), offset as string);
+      return await handlePropertiesAggregated(req, res, headers, parseInt(limit as string), offset as string);
     } else {
       return res.status(400).json({ error: 'type parameter must be "buyers" or "properties"' });
     }
@@ -61,6 +72,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 async function handleBuyersAggregated(
   req: VercelRequest,
   res: VercelResponse,
+  headers: any,
   limit: number,
   offset: string
 ) {
@@ -69,11 +81,9 @@ async function handleBuyersAggregated(
   // Step 1: Fetch buyers (paginated)
   console.log(`[Aggregated] Fetching buyers with limit=${limit}, offset=${offset}`);
 
-  const buyersUrl = new URL(`${AIRTABLE_API_BASE}?action=list-records&table=Buyers`);
-  buyersUrl.searchParams.set('limit', limit.toString());
-  if (offset) buyersUrl.searchParams.set('offset', offset);
+  const buyersUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?maxRecords=${limit}${offset ? `&offset=${offset}` : ''}`;
 
-  const buyersRes = await fetch(buyersUrl.toString());
+  const buyersRes = await fetch(buyersUrl, { headers });
   if (!buyersRes.ok) {
     throw new Error(`Failed to fetch buyers: ${buyersRes.status} ${buyersRes.statusText}`);
   }
@@ -97,10 +107,9 @@ async function handleBuyersAggregated(
 
   console.log(`[Aggregated] Fetching matches for ${buyerIds.length} buyers with formula`);
 
-  const matchesUrl = new URL(`${AIRTABLE_API_BASE}?action=list-records&table=Property-Buyer%20Matches`);
-  matchesUrl.searchParams.set('filterByFormula', matchesFormula);
+  const matchesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${encodeURIComponent(matchesFormula)}`;
 
-  const matchesRes = await fetch(matchesUrl.toString());
+  const matchesRes = await fetch(matchesUrl, { headers });
   if (!matchesRes.ok) {
     console.warn(`[Aggregated] Failed to fetch matches: ${matchesRes.status}`);
   }
@@ -122,10 +131,11 @@ async function handleBuyersAggregated(
   if (propertyIds.length > 0) {
     console.log(`[Aggregated] Batch fetching ${propertyIds.length} properties`);
 
-    const propertiesUrl = new URL(`${AIRTABLE_API_BASE}?action=batch-get&table=Properties`);
-    propertiesUrl.searchParams.set('ids', propertyIds.join(','));
+    // Use filterByFormula with RECORD_ID() to fetch multiple properties at once
+    const propertiesFormula = `OR(${propertyIds.map(id => `RECORD_ID()="${id}"`).join(',')})`;
+    const propertiesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties?filterByFormula=${encodeURIComponent(propertiesFormula)}`;
 
-    const propertiesRes = await fetch(propertiesUrl.toString());
+    const propertiesRes = await fetch(propertiesUrl, { headers });
     if (propertiesRes.ok) {
       const propertiesData = await propertiesRes.json();
       propertiesMap = Object.fromEntries(
@@ -214,6 +224,7 @@ async function handleBuyersAggregated(
 async function handlePropertiesAggregated(
   req: VercelRequest,
   res: VercelResponse,
+  headers: any,
   limit: number,
   offset: string
 ) {
@@ -222,11 +233,9 @@ async function handlePropertiesAggregated(
   // Step 1: Fetch properties (paginated)
   console.log(`[Aggregated] Fetching properties with limit=${limit}, offset=${offset}`);
 
-  const propertiesUrl = new URL(`${AIRTABLE_API_BASE}?action=list-records&table=Properties`);
-  propertiesUrl.searchParams.set('limit', limit.toString());
-  if (offset) propertiesUrl.searchParams.set('offset', offset);
+  const propertiesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties?maxRecords=${limit}${offset ? `&offset=${offset}` : ''}`;
 
-  const propertiesRes = await fetch(propertiesUrl.toString());
+  const propertiesRes = await fetch(propertiesUrl, { headers });
   if (!propertiesRes.ok) {
     throw new Error(`Failed to fetch properties: ${propertiesRes.status} ${propertiesRes.statusText}`);
   }
@@ -250,10 +259,9 @@ async function handlePropertiesAggregated(
 
   console.log(`[Aggregated] Fetching matches for ${propertyIds.length} properties`);
 
-  const matchesUrl = new URL(`${AIRTABLE_API_BASE}?action=list-records&table=Property-Buyer%20Matches`);
-  matchesUrl.searchParams.set('filterByFormula', matchesFormula);
+  const matchesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${encodeURIComponent(matchesFormula)}`;
 
-  const matchesRes = await fetch(matchesUrl.toString());
+  const matchesRes = await fetch(matchesUrl, { headers });
   if (!matchesRes.ok) {
     console.warn(`[Aggregated] Failed to fetch matches: ${matchesRes.status}`);
   }
@@ -275,10 +283,11 @@ async function handlePropertiesAggregated(
   if (buyerIds.length > 0) {
     console.log(`[Aggregated] Batch fetching ${buyerIds.length} buyers`);
 
-    const buyersUrl = new URL(`${AIRTABLE_API_BASE}?action=batch-get&table=Buyers`);
-    buyersUrl.searchParams.set('ids', buyerIds.join(','));
+    // Use filterByFormula with RECORD_ID() to fetch multiple buyers at once
+    const buyersFormula = `OR(${buyerIds.map(id => `RECORD_ID()="${id}"`).join(',')})`;
+    const buyersUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?filterByFormula=${encodeURIComponent(buyersFormula)}`;
 
-    const buyersRes = await fetch(buyersUrl.toString());
+    const buyersRes = await fetch(buyersUrl, { headers });
     if (buyersRes.ok) {
       const buyersData = await buyersRes.json();
       buyersMap = Object.fromEntries(
