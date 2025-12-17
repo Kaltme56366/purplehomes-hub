@@ -119,6 +119,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Get a single record by ID from a specific table
         return handleGetRecord(req, res, headers, table as string);
 
+      case 'batch-get':
+        // Get multiple records by IDs from a specific table in one call
+        return handleBatchGetRecords(req, res, headers, table as string);
+
       case 'get-buyer-matches':
         // Get property matches for a buyer
         return handleGetBuyerMatches(req, res, headers);
@@ -168,13 +172,21 @@ async function handleListRecords(
     return res.status(400).json({ error: 'table parameter is required' });
   }
 
-  console.log(`[Airtable] Fetching records from table: ${tableName}`);
+  const { filterByFormula, limit, offset } = req.query;
+
+  // Build query params
+  const params = new URLSearchParams();
+  if (filterByFormula) params.append('filterByFormula', filterByFormula as string);
+  if (limit) params.append('maxRecords', limit as string);
+  if (offset) params.append('offset', offset as string);
+
+  const queryString = params.toString();
+  const url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}${queryString ? `?${queryString}` : ''}`;
+
+  console.log(`[Airtable] Fetching records from table: ${tableName}`, { filterByFormula, limit, offset });
 
   try {
-    const response = await fetchWithRetry(
-      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`,
-      { headers }
-    );
+    const response = await fetchWithRetry(url, { headers });
 
     console.log(`[Airtable] Response status: ${response.status} ${response.statusText}`);
 
@@ -268,6 +280,77 @@ async function handleGetRecord(
       message: error.message,
       table: tableName,
       recordId,
+    });
+  }
+}
+
+async function handleBatchGetRecords(
+  req: VercelRequest,
+  res: VercelResponse,
+  headers: any,
+  tableName: string
+) {
+  const { ids } = req.query;
+
+  if (!tableName) {
+    return res.status(400).json({ error: 'table parameter is required' });
+  }
+
+  if (!ids) {
+    return res.status(400).json({ error: 'ids parameter is required' });
+  }
+
+  const recordIds = (ids as string).split(',').filter(Boolean);
+
+  if (recordIds.length === 0) {
+    return res.status(200).json({ records: [] });
+  }
+
+  console.log(`[Airtable] Batch fetching ${recordIds.length} records from table: ${tableName}`);
+
+  try {
+    // Use filterByFormula to fetch multiple records by ID in one call
+    // RECORD_ID() returns the record ID, so we OR them together
+    const formula = `OR(${recordIds.map(id => `RECORD_ID()="${id}"`).join(',')})`;
+
+    const response = await fetchWithRetry(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}`,
+      { headers }
+    );
+
+    console.log(`[Airtable] Batch response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Airtable] Batch error response:`, errorText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+
+      return res.status(response.status).json({
+        error: 'Airtable API error',
+        status: response.status,
+        statusText: response.statusText,
+        details: errorData,
+        table: tableName,
+        requestedIds: recordIds,
+      });
+    }
+
+    const data = await response.json();
+    console.log(`[Airtable] Successfully batch fetched ${data.records?.length || 0} records from ${tableName}`);
+    return res.status(200).json(data);
+  } catch (error: any) {
+    console.error(`[Airtable] Exception in handleBatchGetRecords:`, error);
+    return res.status(500).json({
+      error: 'Failed to batch fetch records',
+      message: error.message,
+      table: tableName,
+      requestedIds: recordIds,
     });
   }
 }

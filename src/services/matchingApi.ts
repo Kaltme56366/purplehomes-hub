@@ -9,225 +9,68 @@ const MATCHING_API_BASE = '/api/matching';
 const AIRTABLE_API_BASE = '/api/airtable';
 
 /**
- * Fetch all buyers with their matches
+ * Fetch all buyers with their matches using optimized aggregated endpoint
+ * This solves the N+1 query problem by doing server-side aggregation
  */
 export const useBuyersWithMatches = () => {
   return useQuery({
     queryKey: ['buyers-with-matches'],
     queryFn: async (): Promise<BuyerWithMatches[]> => {
-      // Fetch buyers from Airtable
-      const buyersRes = await fetch(`${AIRTABLE_API_BASE}?action=list-records&table=Buyers`);
-      if (!buyersRes.ok) throw new Error('Failed to fetch buyers');
-      const buyersData = await buyersRes.json();
+      console.log('[Matching API] Fetching buyers with matches (aggregated)');
 
-      // For each buyer, fetch their matches
-      const buyersWithMatches: BuyerWithMatches[] = await Promise.all(
-        (buyersData.records || []).map(async (buyer: any) => {
-          const buyerRecordId = buyer.id;
+      const response = await fetch(`${MATCHING_API_BASE}/aggregated?type=buyers&limit=100`);
 
-          // Get matches for this buyer
-          const matchesFormula = encodeURIComponent(`SEARCH("${buyerRecordId}", ARRAYJOIN({Contact ID}))`);
-          const matchesRes = await fetch(
-            `${AIRTABLE_API_BASE}?action=list-records&table=Property-Buyer%20Matches`
-          );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to fetch buyers' }));
+        throw new Error(error.error || 'Failed to fetch buyers with matches');
+      }
 
-          let matches: any[] = [];
-          if (matchesRes.ok) {
-            const matchesData = await matchesRes.json();
-            // Filter matches for this buyer
-            matches = (matchesData.records || []).filter((match: any) => {
-              const contactIds = match.fields['Contact ID'] || [];
-              return contactIds.includes(buyerRecordId);
-            });
-          }
+      const result = await response.json();
 
-          // Fetch property details for each match
-          const matchesWithProperties = await Promise.all(
-            matches.map(async (match: any) => {
-              const propertyRecordId = match.fields['Property Code']?.[0] || '';
-              let propertyDetails = null;
-
-              if (propertyRecordId) {
-                try {
-                  const propertyRes = await fetch(
-                    `${AIRTABLE_API_BASE}?action=get-record&table=Properties&recordId=${propertyRecordId}`
-                  );
-                  if (propertyRes.ok) {
-                    const propertyData = await propertyRes.json();
-                    const property = propertyData.record;
-                    if (property) {
-                      propertyDetails = {
-                        recordId: property.id,
-                        propertyCode: property.fields['Property Code'] || '',
-                        opportunityId: property.fields['Opportunity ID'],
-                        address: property.fields['Address'] || '',
-                        city: property.fields['City'] || '',
-                        state: property.fields['State'],
-                        price: property.fields['Price'],
-                        beds: property.fields['Beds'] || 0,
-                        baths: property.fields['Baths'] || 0,
-                        sqft: property.fields['Sqft'],
-                        stage: property.fields['Stage'],
-                      };
-                    }
-                  }
-                } catch (error) {
-                  console.error('Failed to fetch property details:', error);
-                }
-              }
-
-              return {
-                id: match.id,
-                buyerRecordId: buyerRecordId,
-                propertyRecordId: propertyRecordId,
-                contactId: buyer.fields['Contact ID'] || '',
-                propertyCode: propertyDetails?.propertyCode || '',
-                score: match.fields['Match Score'] || 0,
-                distance: match.fields['Distance (miles)'],
-                reasoning: match.fields['Match Notes'] || '',
-                highlights: [],
-                isPriority: match.fields['Is Priority'],
-                status: match.fields['Match Status'] || 'Active',
-                property: propertyDetails,
-              };
-            })
-          );
-
-          return {
-            contactId: buyer.fields['Contact ID'] || '',
-            recordId: buyerRecordId,
-            firstName: buyer.fields['First Name'] || '',
-            lastName: buyer.fields['Last Name'] || '',
-            email: buyer.fields['Email'] || '',
-            monthlyIncome: buyer.fields['Monthly Income'],
-            monthlyLiabilities: buyer.fields['Monthly Liabilities'],
-            downPayment: buyer.fields['Downpayment'],
-            desiredBeds: buyer.fields['No. of Bedrooms'],
-            desiredBaths: buyer.fields['No. of Bath'],
-            city: buyer.fields['City'],
-            location: buyer.fields['Location'],
-            buyerType: buyer.fields['Buyer Type'],
-            matches: matchesWithProperties,
-            totalMatches: matches.length,
-          };
-        })
-      );
+      console.log('[Matching API] Buyers fetched:', {
+        count: result.data?.length || 0,
+        stats: result.stats,
+      });
 
       // Sort by match count (highest first)
-      return buyersWithMatches.sort((a, b) => b.totalMatches - a.totalMatches);
+      return (result.data || []).sort((a: BuyerWithMatches, b: BuyerWithMatches) =>
+        b.totalMatches - a.totalMatches
+      );
     },
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes (increased from 2 minutes due to server-side caching)
   });
 };
 
 /**
- * Fetch all properties with their matches
+ * Fetch all properties with their matches using optimized aggregated endpoint
+ * This solves the N+1 query problem by doing server-side aggregation
  */
 export const usePropertiesWithMatches = () => {
   return useQuery({
     queryKey: ['properties-with-matches'],
     queryFn: async (): Promise<PropertyWithMatches[]> => {
-      // Fetch properties from Airtable
-      const propertiesRes = await fetch(`${AIRTABLE_API_BASE}?action=list-records&table=Properties`);
-      if (!propertiesRes.ok) throw new Error('Failed to fetch properties');
-      const propertiesData = await propertiesRes.json();
+      console.log('[Matching API] Fetching properties with matches (aggregated)');
 
-      // For each property, fetch its matches
-      const propertiesWithMatches: PropertyWithMatches[] = await Promise.all(
-        (propertiesData.records || []).map(async (property: any) => {
-          const propertyRecordId = property.id;
+      const response = await fetch(`${MATCHING_API_BASE}/aggregated?type=properties&limit=100`);
 
-          // Get matches for this property
-          const matchesRes = await fetch(
-            `${AIRTABLE_API_BASE}?action=list-records&table=Property-Buyer%20Matches`
-          );
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to fetch properties' }));
+        throw new Error(error.error || 'Failed to fetch properties with matches');
+      }
 
-          let matches: any[] = [];
-          if (matchesRes.ok) {
-            const matchesData = await matchesRes.json();
-            // Filter matches for this property
-            matches = (matchesData.records || []).filter((match: any) => {
-              const propertyIds = match.fields['Property Code'] || [];
-              return propertyIds.includes(propertyRecordId);
-            });
-          }
+      const result = await response.json();
 
-          // Fetch buyer details for each match
-          const matchesWithBuyers = await Promise.all(
-            matches.map(async (match: any) => {
-              const buyerRecordId = match.fields['Contact ID']?.[0] || '';
-              let buyerDetails = null;
-
-              if (buyerRecordId) {
-                try {
-                  const buyerRes = await fetch(
-                    `${AIRTABLE_API_BASE}?action=get-record&table=Buyers&recordId=${buyerRecordId}`
-                  );
-                  if (buyerRes.ok) {
-                    const buyerData = await buyerRes.json();
-                    const buyer = buyerData.record;
-                    if (buyer) {
-                      buyerDetails = {
-                        contactId: buyer.fields['Contact ID'] || '',
-                        recordId: buyer.id,
-                        firstName: buyer.fields['First Name'] || '',
-                        lastName: buyer.fields['Last Name'] || '',
-                        email: buyer.fields['Email'] || '',
-                        monthlyIncome: buyer.fields['Monthly Income'],
-                        monthlyLiabilities: buyer.fields['Monthly Liabilities'],
-                        downPayment: buyer.fields['Downpayment'],
-                        desiredBeds: buyer.fields['No. of Bedrooms'],
-                        desiredBaths: buyer.fields['No. of Bath'],
-                        city: buyer.fields['City'],
-                        location: buyer.fields['Location'],
-                        buyerType: buyer.fields['Buyer Type'],
-                      };
-                    }
-                  }
-                } catch (error) {
-                  console.error('Failed to fetch buyer details:', error);
-                }
-              }
-
-              return {
-                id: match.id,
-                buyerRecordId: buyerRecordId,
-                propertyRecordId: propertyRecordId,
-                contactId: buyerDetails?.contactId || '',
-                propertyCode: property.fields['Property Code'] || '',
-                score: match.fields['Match Score'] || 0,
-                distance: match.fields['Distance (miles)'],
-                reasoning: match.fields['Match Notes'] || '',
-                highlights: [],
-                isPriority: match.fields['Is Priority'],
-                status: match.fields['Match Status'] || 'Active',
-                buyer: buyerDetails,
-              };
-            })
-          );
-
-          return {
-            recordId: propertyRecordId,
-            propertyCode: property.fields['Property Code'] || '',
-            opportunityId: property.fields['Opportunity ID'],
-            address: property.fields['Address'] || '',
-            city: property.fields['City'] || '',
-            state: property.fields['State'],
-            price: property.fields['Price'],
-            beds: property.fields['Beds'] || 0,
-            baths: property.fields['Baths'] || 0,
-            sqft: property.fields['Sqft'],
-            stage: property.fields['Stage'],
-            matches: matchesWithBuyers,
-            totalMatches: matches.length,
-          };
-        })
-      );
+      console.log('[Matching API] Properties fetched:', {
+        count: result.data?.length || 0,
+        stats: result.stats,
+      });
 
       // Sort by match count (highest first)
-      return propertiesWithMatches.sort((a, b) => b.totalMatches - a.totalMatches);
+      return (result.data || []).sort((a: PropertyWithMatches, b: PropertyWithMatches) =>
+        b.totalMatches - a.totalMatches
+      );
     },
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 5 * 60 * 1000, // 5 minutes (increased from 2 minutes due to server-side caching)
   });
 };
 
