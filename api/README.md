@@ -14,7 +14,7 @@ GHL_ACQUISITION_PIPELINE_ID=zL3H2M1BdEKlVDa2YWao
 AIRTABLE_API_KEY=your_airtable_api_key
 AIRTABLE_BASE_ID=your_airtable_base_id
 
-# OpenAI (for caption generation)
+# OpenAI (for caption generation and geocoding)
 OPENAI_API_KEY=your_openai_key
 
 # Google Sheets (for staff authentication)
@@ -22,7 +22,7 @@ GOOGLE_SHEET_ID=your_google_sheet_id
 GOOGLE_SHEET_CREDENTIALS={"type":"service_account",...}
 
 # Optional
-VITE_MAPBOX_TOKEN=your_mapbox_token (for maps)
+VITE_MAPBOX_TOKEN=your_mapbox_token (for map display only - geocoding uses OpenAI)
 ```
 
 ### Google Sheets Setup for Authentication
@@ -63,6 +63,22 @@ Your Airtable base should have these tables:
    - Required scopes: `data.records:read`, `data.records:write`, `schema.bases:read`
 2. Get your Base ID from the URL when viewing your base (starts with "app")
 3. Add both to your environment variables in Vercel
+
+## Geocoding Cost Comparison
+
+The property matching system uses geocoding to convert location strings (e.g., "Phoenix, AZ") to coordinates for distance-based matching.
+
+**Current Implementation (OpenAI)**:
+- Provider: OpenAI GPT-4o-mini
+- Cost: ~$0.03 per 1,000 geocodes
+- Accuracy: City/region-level (sufficient for 50-mile radius matching)
+
+**Previous Implementation (Mapbox)**:
+- Provider: Mapbox Geocoding API
+- Cost: ~$5.00 per 1,000 geocodes
+- Accuracy: Street-level (more precise than needed)
+
+**Savings**: 99%+ cost reduction with OpenAI-based geocoding
 
 ## Base URL
 

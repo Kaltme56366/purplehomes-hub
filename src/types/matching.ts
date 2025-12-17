@@ -17,6 +17,10 @@ export interface BuyerCriteria {
   city?: string;
   state?: string;
   buyerType?: string;
+  lat?: number;
+  lng?: number;
+  preferredLocation?: string;
+  preferredZipCodes?: string[];
 }
 
 export interface PropertyDetails {
@@ -35,9 +39,15 @@ export interface PropertyDetails {
 
 export interface MatchScore {
   score: number; // 0-100
+  distance?: number; // Distance in miles
+  locationScore: number; // 0-40 points
+  bedsScore: number; // 0-25 points
+  bathsScore: number; // 0-15 points
+  budgetScore: number; // 0-20 points
   reasoning: string;
   highlights: string[];
-  concerns?: string[];
+  concerns: string[];
+  isPriority: boolean; // Within 50 miles OR in preferred ZIP
 }
 
 export interface PropertyMatch {
@@ -47,9 +57,11 @@ export interface PropertyMatch {
   contactId: string;
   propertyCode: string;
   score: number;
+  distance?: number; // Distance in miles
   reasoning: string;
   highlights: string[];
   concerns?: string[];
+  isPriority?: boolean; // Within 50 miles OR in preferred ZIP
   status: 'Active' | 'Sent' | 'Viewed' | 'Closed';
   createdAt?: string;
   updatedAt?: string;
@@ -90,5 +102,7 @@ export interface RunMatchingResponse {
     propertiesProcessed: number;
     matchesCreated: number;
     matchesUpdated: number;
+    duplicatesSkipped?: number;
+    withinRadius?: number; // Priority matches count
   };
 }

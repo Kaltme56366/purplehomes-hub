@@ -2,7 +2,10 @@ import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { toast } from 'sonner';
@@ -31,6 +34,7 @@ export default function Matching() {
   const [activeTab, setActiveTab] = useState<'buyers' | 'properties'>('buyers');
   const [sendingEmails, setSendingEmails] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<SortOption>('matches-high');
+  const [forceRematch, setForceRematch] = useState(false);
 
   const { data: buyers, isLoading: loadingBuyers } = useBuyersWithMatches();
   const { data: properties, isLoading: loadingProperties } = usePropertiesWithMatches();
@@ -41,7 +45,7 @@ export default function Matching() {
 
   const handleRunMatchingAll = async () => {
     try {
-      const result = await runMatchingMutation.mutateAsync({ minScore: 60 });
+      const result = await runMatchingMutation.mutateAsync({ minScore: 30, refreshAll: forceRematch });
       toast.success(result.message);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to run matching');
@@ -56,7 +60,7 @@ export default function Matching() {
     try {
       toast.info(`Matching ${buyers.length} buyers...`);
       for (const buyer of buyers) {
-        await runBuyerMatchingMutation.mutateAsync({ contactId: buyer.contactId, minScore: 60 });
+        await runBuyerMatchingMutation.mutateAsync({ contactId: buyer.contactId, minScore: 30 });
       }
       toast.success(`Matched ${buyers.length} buyers successfully`);
     } catch (error) {
@@ -72,7 +76,7 @@ export default function Matching() {
     try {
       toast.info(`Matching ${properties.length} properties...`);
       for (const property of properties) {
-        await runPropertyMatchingMutation.mutateAsync({ propertyCode: property.propertyCode, minScore: 60 });
+        await runPropertyMatchingMutation.mutateAsync({ propertyCode: property.propertyCode, minScore: 30 });
       }
       toast.success(`Matched ${properties.length} properties successfully`);
     } catch (error) {
@@ -199,41 +203,53 @@ export default function Matching() {
         <div>
           <h1 className="text-3xl font-bold">AI Property Matching</h1>
           <p className="text-muted-foreground mt-1">
-            Intelligent matching between buyers and properties
+            Distance-based matching with 50-mile radius priority
           </p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              disabled={isMatching}
-              size="lg"
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {isMatching ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Matching...
-                </>
-              ) : (
-                <>
-                  Run Matching
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleRunMatchingAll}>
-              Match All (Buyers + Properties)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleRunMatchingBuyers}>
-              Match All Buyers
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleRunMatchingProperties}>
-              Match All Properties
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="force-rematch"
+              checked={forceRematch}
+              onCheckedChange={(checked) => setForceRematch(checked as boolean)}
+            />
+            <Label htmlFor="force-rematch" className="text-sm cursor-pointer">
+              Force re-match all
+            </Label>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                disabled={isMatching}
+                size="lg"
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                {isMatching ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Matching...
+                  </>
+                ) : (
+                  <>
+                    Run Matching
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleRunMatchingAll}>
+                Match All (Buyers + Properties)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleRunMatchingBuyers}>
+                Match All Buyers
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleRunMatchingProperties}>
+                Match All Properties
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Search and Sort */}
@@ -349,7 +365,20 @@ export default function Matching() {
                           className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
                         >
                           <div className="flex-1">
-                            <div className="font-medium">Property {match.propertyRecordId.slice(-6)}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="font-medium">Property {match.propertyRecordId.slice(-6)}</div>
+                              {match.isPriority && (
+                                <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
+                                  Priority
+                                </Badge>
+                              )}
+                            </div>
+                            {match.distance && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                <MapPin className="h-3 w-3" />
+                                {match.distance.toFixed(1)} miles away
+                              </div>
+                            )}
                             <div className="text-sm text-muted-foreground line-clamp-1">
                               {match.reasoning}
                             </div>
@@ -419,7 +448,20 @@ export default function Matching() {
                           className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
                         >
                           <div className="flex-1">
-                            <div className="font-medium">Buyer {match.buyerRecordId.slice(-6)}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="font-medium">Buyer {match.buyerRecordId.slice(-6)}</div>
+                              {match.isPriority && (
+                                <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
+                                  Priority
+                                </Badge>
+                              )}
+                            </div>
+                            {match.distance && (
+                              <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                                <MapPin className="h-3 w-3" />
+                                {match.distance.toFixed(1)} miles from buyer
+                              </div>
+                            )}
                             <div className="text-sm text-muted-foreground line-clamp-1">
                               {match.reasoning}
                             </div>
