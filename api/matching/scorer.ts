@@ -3,7 +3,7 @@
  * Implements field-based and ZIP code matching (no geocoding)
  */
 
-import { isInPreferredZip } from './zipMatcher';
+import { matchPropertyZip } from './zipMatcher';
 
 export interface MatchScore {
   score: number;
@@ -31,7 +31,16 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
 
   // Extract buyer data
   const buyerFields = buyer.fields;
-  const preferredZipCodes = buyerFields['Preferred Zip Codes'] || [];
+
+  // Handle both string and array formats from Airtable
+  let preferredZipCodes = buyerFields['Preferred Zip Codes'] || [];
+  if (typeof preferredZipCodes === 'string') {
+    // Split by comma and trim, or wrap single value in array
+    preferredZipCodes = preferredZipCodes.includes(',')
+      ? preferredZipCodes.split(',').map(z => z.trim())
+      : [preferredZipCodes.trim()];
+  }
+
   const desiredBeds = buyerFields['No. of Bedrooms'];
   const desiredBaths = buyerFields['No. of Bath'];
   const downPayment = buyerFields['Downpayment'];
@@ -39,9 +48,10 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
   // Extract property data
   const propertyFields = property.fields;
   const propertyAddress = propertyFields['Address'] || '';
-  const propertyPrice = propertyFields['Price'];
+  const propertyPrice = propertyFields['Property Total Price'] || propertyFields['Price'];
   const propertyBeds = propertyFields['Beds'];
   const propertyBaths = propertyFields['Baths'];
+  const propertyZipCode = propertyFields['Zip Code'] || propertyFields['ZIP Code'];
 
   // ====================
   // ZIP CODE PRIORITY SCORE (0-40 points)
@@ -52,8 +62,8 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
 
   const hasZipCodes = Array.isArray(preferredZipCodes) && preferredZipCodes.length > 0;
 
-  // Check ZIP match
-  const inPreferredZip = hasZipCodes && isInPreferredZip(propertyAddress, preferredZipCodes);
+  // Check ZIP match - Use dedicated Zip Code field first, fallback to extracting from Address
+  const inPreferredZip = hasZipCodes && matchPropertyZip(propertyZipCode, propertyAddress, preferredZipCodes);
 
   if (inPreferredZip) {
     // PRIORITY MATCH - in preferred ZIP code

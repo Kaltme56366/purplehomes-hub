@@ -78,13 +78,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 // Geocoding removed - using ZIP code matching only
 
 /**
- * Fetches existing matches and builds a skip set for duplicate prevention
- * Returns Set of "contactId:propertyCode" keys
+ * Fetches existing matches and builds both a skip set and a match ID map
+ * Returns { skipSet, matchMap } where matchMap is "contactId:propertyCode" -> matchRecordId
  */
-async function fetchExistingMatchesSkipSet(headers: any, refreshAll: boolean): Promise<Set<string>> {
+async function fetchExistingMatches(headers: any, refreshAll: boolean): Promise<{
+  skipSet: Set<string>;
+  matchMap: Map<string, string>;
+}> {
   if (refreshAll) {
-    console.log('[Matching] refreshAll=true, skipping duplicate check');
-    return new Set();
+    console.log('[Matching] refreshAll=true, will re-create all matches');
+    return { skipSet: new Set(), matchMap: new Map() };
   }
 
   try {
@@ -95,31 +98,106 @@ async function fetchExistingMatchesSkipSet(headers: any, refreshAll: boolean): P
 
     if (!res.ok) {
       console.warn('[Matching] Failed to fetch existing matches, proceeding without skip set');
-      return new Set();
+      return { skipSet: new Set(), matchMap: new Map() };
     }
 
     const data = await res.json();
     const skipSet = new Set<string>();
+    const matchMap = new Map<string, string>();
 
     for (const match of data.records || []) {
       const contactIds = match.fields['Contact ID'] || [];
       const propertyCodes = match.fields['Property Code'] || [];
 
-      // Build skip keys for all combinations (handles linked records)
+      // Build skip keys and match ID map for all combinations (handles linked records)
       for (const cid of contactIds) {
         for (const pid of propertyCodes) {
-          skipSet.add(`${cid}:${pid}`);
+          const key = `${cid}:${pid}`;
+          skipSet.add(key);
+          matchMap.set(key, match.id); // Store Airtable record ID for updates
         }
       }
     }
 
-    console.log(`[Matching] Built skip set with ${skipSet.size} existing matches`);
-    return skipSet;
+    console.log(`[Matching] Loaded ${skipSet.size} existing matches into memory`);
+    return { skipSet, matchMap };
 
   } catch (error) {
-    console.error('[Matching] Error building skip set:', error);
-    return new Set();
+    console.error('[Matching] Error loading existing matches:', error);
+    return { skipSet: new Set(), matchMap: new Map() };
   }
+}
+
+/**
+ * Batch create new matches in Airtable (up to 10 per request)
+ */
+async function batchCreateMatches(matches: any[], headers: any): Promise<number> {
+  if (matches.length === 0) return 0;
+
+  const BATCH_SIZE = 10;
+  let created = 0;
+
+  for (let i = 0; i < matches.length; i += BATCH_SIZE) {
+    const batch = matches.slice(i, i + BATCH_SIZE);
+
+    try {
+      const createRes = await fetch(
+        `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ records: batch }),
+        }
+      );
+
+      if (!createRes.ok) {
+        const errorText = await createRes.text();
+        console.error(`[Matching] Batch create failed:`, createRes.status, errorText);
+      } else {
+        created += batch.length;
+      }
+    } catch (error) {
+      console.error(`[Matching] Error in batch create:`, error);
+    }
+  }
+
+  return created;
+}
+
+/**
+ * Batch update existing matches in Airtable (up to 10 per request)
+ */
+async function batchUpdateMatches(updates: any[], headers: any): Promise<number> {
+  if (updates.length === 0) return 0;
+
+  const BATCH_SIZE = 10;
+  let updated = 0;
+
+  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+    const batch = updates.slice(i, i + BATCH_SIZE);
+
+    try {
+      const updateRes = await fetch(
+        `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`,
+        {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ records: batch }),
+        }
+      );
+
+      if (!updateRes.ok) {
+        const errorText = await updateRes.text();
+        console.error(`[Matching] Batch update failed:`, updateRes.status, errorText);
+      } else {
+        updated += batch.length;
+      }
+    } catch (error) {
+      console.error(`[Matching] Error in batch update:`, error);
+    }
+  }
+
+  return updated;
 }
 
 /**
@@ -167,14 +245,15 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
 
     console.log(`[Matching] Processing ${buyers.length} buyers × ${properties.length} properties = ${buyers.length * properties.length} combinations`);
 
-    // Build skip set for duplicate prevention
-    const skipSet = await fetchExistingMatchesSkipSet(headers, refreshAll);
+    // Load existing matches into memory
+    const { skipSet, matchMap } = await fetchExistingMatches(headers, refreshAll);
 
-    let matchesCreated = 0;
-    let matchesUpdated = 0;
     let duplicatesSkipped = 0;
     let withinRadius = 0;
-    let errors = 0;
+
+    // Collect matches to create/update in memory
+    const matchesToCreate: any[] = [];
+    const matchesToUpdate: any[] = [];
 
     // Process each buyer
     console.log('[Matching] Starting matching loop...');
@@ -195,35 +274,58 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
 
         // Check skip set
         const pairKey = `${buyer.id}:${property.id}`;
-        if (skipSet.has(pairKey)) {
+        if (skipSet.has(pairKey) && !refreshAll) {
           duplicatesSkipped++;
           continue;
         }
 
-        try {
-          // Generate match score using distance-based scoring
-          const score = generateMatchScore(buyer, property);
+        // Generate match score
+        const score = generateMatchScore(buyer, property);
 
-          if (score.score >= minScore) {
-            // Create or update match
-            const matchResult = await createOrUpdateMatch(buyer, property, score, headers);
-            if (matchResult.created) {
-              matchesCreated++;
-            } else {
-              matchesUpdated++;
-            }
-
-            if (score.isPriority) {
-              withinRadius++;
-            }
+        if (score.score >= minScore) {
+          // Build match notes
+          let matchNotes = score.reasoning;
+          matchNotes += `\n\nHighlights: ${score.highlights.join(', ')}`;
+          if (score.concerns && score.concerns.length > 0) {
+            matchNotes += `\n\nConcerns: ${score.concerns.join(', ')}`;
           }
-        } catch (error) {
-          errors++;
-          console.error(`[Matching] Error processing buyer ${buyer.id} × property ${property.id}:`, error);
-          // Continue processing other matches even if one fails
+
+          // Build fields object
+          const matchFields: any = {
+            'Match Score': score.score,
+            'Match Notes': matchNotes,
+            'Match Status': 'Active',
+            'Priority': score.isPriority,
+          };
+
+          // Check if this is an update or create
+          const existingMatchId = matchMap.get(pairKey);
+          if (existingMatchId) {
+            // Queue for batch update
+            matchesToUpdate.push({
+              id: existingMatchId,
+              fields: matchFields,
+            });
+          } else {
+            // Queue for batch create
+            matchFields['Property Code'] = [property.id];
+            matchFields['Contact ID'] = [buyer.id];
+            matchesToCreate.push({
+              fields: matchFields,
+            });
+          }
+
+          if (score.isPriority) {
+            withinRadius++;
+          }
         }
       }
     }
+
+    // Execute batch operations
+    console.log(`[Matching] Executing batch operations: ${matchesToCreate.length} creates, ${matchesToUpdate.length} updates`);
+    const matchesCreated = await batchCreateMatches(matchesToCreate, headers);
+    const matchesUpdated = await batchUpdateMatches(matchesToUpdate, headers);
 
     const totalTime = Date.now() - startTime;
     console.log(`[Matching] Completed in ${totalTime}ms`, {
@@ -231,7 +333,6 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
       matchesUpdated,
       duplicatesSkipped,
       withinRadius,
-      errors,
     });
 
     return res.status(200).json({
@@ -244,7 +345,6 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
         matchesUpdated,
         duplicatesSkipped,
         withinRadius,
-        errors,
         timeMs: totalTime,
       },
     });
@@ -289,8 +389,11 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
   const propertiesData = await propertiesRes.json();
   const properties = propertiesData.records;
 
-  let matchesCreated = 0;
-  let matchesUpdated = 0;
+  // Load existing matches for this buyer
+  const { matchMap } = await fetchExistingMatches(headers, false);
+
+  const matchesToCreate: any[] = [];
+  const matchesToUpdate: any[] = [];
   let withinRadius = 0;
 
   // Match against all properties
@@ -298,11 +401,29 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
     const score = generateMatchScore(buyer, property);
 
     if (score.score >= minScore) {
-      const matchResult = await createOrUpdateMatch(buyer, property, score, headers);
-      if (matchResult.created) {
-        matchesCreated++;
+      // Build match notes
+      let matchNotes = score.reasoning;
+      matchNotes += `\n\nHighlights: ${score.highlights.join(', ')}`;
+      if (score.concerns && score.concerns.length > 0) {
+        matchNotes += `\n\nConcerns: ${score.concerns.join(', ')}`;
+      }
+
+      const matchFields: any = {
+        'Match Score': score.score,
+        'Match Notes': matchNotes,
+        'Match Status': 'Active',
+        'Priority': score.isPriority,
+      };
+
+      const pairKey = `${buyer.id}:${property.id}`;
+      const existingMatchId = matchMap.get(pairKey);
+
+      if (existingMatchId) {
+        matchesToUpdate.push({ id: existingMatchId, fields: matchFields });
       } else {
-        matchesUpdated++;
+        matchFields['Property Code'] = [property.id];
+        matchFields['Contact ID'] = [buyer.id];
+        matchesToCreate.push({ fields: matchFields });
       }
 
       if (score.isPriority) {
@@ -310,6 +431,10 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
       }
     }
   }
+
+  // Execute batch operations
+  const matchesCreated = await batchCreateMatches(matchesToCreate, headers);
+  const matchesUpdated = await batchUpdateMatches(matchesToUpdate, headers);
 
   return res.status(200).json({
     success: true,
@@ -358,8 +483,11 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
   const buyersData = await buyersRes.json();
   const buyers = buyersData.records;
 
-  let matchesCreated = 0;
-  let matchesUpdated = 0;
+  // Load existing matches for this property
+  const { matchMap } = await fetchExistingMatches(headers, false);
+
+  const matchesToCreate: any[] = [];
+  const matchesToUpdate: any[] = [];
   let withinRadius = 0;
 
   // Match against all buyers
@@ -367,11 +495,29 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
     const score = generateMatchScore(buyer, property);
 
     if (score.score >= minScore) {
-      const matchResult = await createOrUpdateMatch(buyer, property, score, headers);
-      if (matchResult.created) {
-        matchesCreated++;
+      // Build match notes
+      let matchNotes = score.reasoning;
+      matchNotes += `\n\nHighlights: ${score.highlights.join(', ')}`;
+      if (score.concerns && score.concerns.length > 0) {
+        matchNotes += `\n\nConcerns: ${score.concerns.join(', ')}`;
+      }
+
+      const matchFields: any = {
+        'Match Score': score.score,
+        'Match Notes': matchNotes,
+        'Match Status': 'Active',
+        'Priority': score.isPriority,
+      };
+
+      const pairKey = `${buyer.id}:${property.id}`;
+      const existingMatchId = matchMap.get(pairKey);
+
+      if (existingMatchId) {
+        matchesToUpdate.push({ id: existingMatchId, fields: matchFields });
       } else {
-        matchesUpdated++;
+        matchFields['Property Code'] = [property.id];
+        matchFields['Contact ID'] = [buyer.id];
+        matchesToCreate.push({ fields: matchFields });
       }
 
       if (score.isPriority) {
@@ -379,6 +525,10 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
       }
     }
   }
+
+  // Execute batch operations
+  const matchesCreated = await batchCreateMatches(matchesToCreate, headers);
+  const matchesUpdated = await batchUpdateMatches(matchesToUpdate, headers);
 
   return res.status(200).json({
     success: true,
@@ -393,77 +543,3 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
   });
 }
 
-/**
- * Create or update match in Airtable
- */
-async function createOrUpdateMatch(buyer: any, property: any, score: MatchScore, headers: any): Promise<{created: boolean}> {
-  try {
-    // Check if match already exists
-    const formula = encodeURIComponent(
-      `AND(SEARCH("${buyer.id}", ARRAYJOIN({Contact ID})), SEARCH("${property.id}", ARRAYJOIN({Property Code})))`
-    );
-
-    const existingRes = await fetch(
-      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${formula}`,
-      { headers }
-    );
-
-    // Build match notes
-    let matchNotes = score.reasoning;
-    matchNotes += `\n\nHighlights: ${score.highlights.join(', ')}`;
-    if (score.concerns && score.concerns.length > 0) {
-      matchNotes += `\n\nConcerns: ${score.concerns.join(', ')}`;
-    }
-
-    // Build fields object
-    const matchFields: any = {
-      'Match Score': score.score,
-      'Match Notes': matchNotes,
-      'Match Status': 'Active',
-      'Priority': score.isPriority,
-    };
-
-    if (existingRes.ok) {
-      const existingData = await existingRes.json();
-
-      if (existingData.records && existingData.records.length > 0) {
-        // Update existing
-        const matchId = existingData.records[0].id;
-        const updateRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches/${matchId}`, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ fields: matchFields }),
-        });
-
-        if (!updateRes.ok) {
-          const errorText = await updateRes.text();
-          console.error(`[Matching] Failed to update match ${matchId}:`, updateRes.status, errorText);
-          throw new Error(`Failed to update match: ${updateRes.status}`);
-        }
-
-        return { created: false };
-      }
-    }
-
-    // Create new match
-    matchFields['Property Code'] = [property.id];
-    matchFields['Contact ID'] = [buyer.id];
-
-    const createRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ fields: matchFields }),
-    });
-
-    if (!createRes.ok) {
-      const errorText = await createRes.text();
-      console.error('[Matching] Failed to create match:', createRes.status, errorText);
-      throw new Error(`Failed to create match: ${createRes.status}`);
-    }
-
-    return { created: true };
-  } catch (error) {
-    console.error('[Matching] Error in createOrUpdateMatch:', error);
-    throw error;
-  }
-}

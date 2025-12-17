@@ -48,6 +48,36 @@ export function isInPreferredZip(
 }
 
 /**
+ * Checks if a property ZIP matches buyer's preferred ZIPs
+ * Handles both dedicated ZIP field and address extraction
+ * @param propertyZip - Property's dedicated ZIP code field value
+ * @param propertyAddress - Property address for fallback extraction
+ * @param preferredZipCodes - Array of buyer's preferred ZIP codes
+ * @returns True if property ZIP matches any preferred ZIP
+ *
+ * @example
+ * matchPropertyZip("85001", "123 Main St", ["85001", "85003"]);
+ * // Returns: true
+ */
+export function matchPropertyZip(
+  propertyZip: string | undefined,
+  propertyAddress: string,
+  preferredZipCodes: string[]
+): boolean {
+  if (!preferredZipCodes || preferredZipCodes.length === 0) {
+    return false;
+  }
+
+  // Try dedicated ZIP field first
+  if (propertyZip && preferredZipCodes.includes(propertyZip)) {
+    return true;
+  }
+
+  // Fallback to extracting from address
+  return isInPreferredZip(propertyAddress, preferredZipCodes);
+}
+
+/**
  * Filters properties by preferred ZIP codes
  * @param properties - Array of properties with address field
  * @param preferredZipCodes - Array of preferred ZIP codes
