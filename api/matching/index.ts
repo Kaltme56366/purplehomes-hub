@@ -1,18 +1,15 @@
 /**
- * AI Property Matching API
- * Handles running AI matching between buyers and properties
- * Uses distance-based scoring with Mapbox geocoding
+ * Property Matching API
+ * Handles running matching between buyers and properties
+ * Uses field-based scoring with ZIP code matching
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { geocodeLocation } from './geocoder';
 import { generateMatchScore } from './scorer';
 import type { MatchScore } from './scorer';
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const GEOCODING_API_KEY = process.env.OPENAI_API_KEY; // Use OpenAI for geocoding
 const AIRTABLE_API_URL = 'https://api.airtable.com/v0';
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -53,7 +50,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           env: {
             hasAirtableKey: !!AIRTABLE_API_KEY,
             hasAirtableBase: !!AIRTABLE_BASE_ID,
-            hasOpenAIKey: !!OPENAI_API_KEY,
           },
           node: process.version,
         });
@@ -79,99 +75,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-/**
- * Ensures all buyers have geocoded coordinates
- * Geocodes buyers that don't have Latitude/Longitude and updates Airtable
- *
- * @param buyers - Array of buyer records
- * @param headers - Airtable API headers
- * @param options - Configuration options
- */
-async function ensureBuyerGeocoding(
-  buyers: any[],
-  headers: any,
-  options: { enabled?: boolean; maxBuyers?: number } = {}
-): Promise<void> {
-  const { enabled = false, maxBuyers = 10 } = options;
-
-  // Skip geocoding if not enabled
-  if (!enabled) {
-    const missingCoords = buyers.filter(b => !b.fields.Latitude || !b.fields.Longitude).length;
-    if (missingCoords > 0) {
-      console.warn(`[Geocoding] Skipped geocoding for ${missingCoords} buyers (geocoding disabled for performance). Run with geocoding enabled to update coordinates.`);
-    }
-    return;
-  }
-
-  if (!GEOCODING_API_KEY) {
-    console.warn('[Matching] OpenAI API key not configured, skipping geocoding');
-    return;
-  }
-
-  // Filter buyers that need geocoding
-  const buyersNeedingGeocode = buyers.filter(b => !b.fields.Latitude || !b.fields.Longitude);
-
-  if (buyersNeedingGeocode.length === 0) {
-    console.log('[Geocoding] All buyers already have coordinates');
-    return;
-  }
-
-  // Limit the number of buyers to geocode per run to prevent timeout
-  const buyersToGeocode = buyersNeedingGeocode.slice(0, maxBuyers);
-  const remaining = buyersNeedingGeocode.length - buyersToGeocode.length;
-
-  if (remaining > 0) {
-    console.warn(`[Geocoding] Limiting geocoding to ${maxBuyers} buyers (${remaining} remaining). Run again to continue.`);
-  }
-
-  let geocoded = 0;
-
-  for (const buyer of buyersToGeocode) {
-    // Get location string from buyer
-    const location = buyer.fields['Preferred Location'] || buyer.fields['Location'] || buyer.fields['City'];
-
-    if (!location) {
-      console.log(`[Geocoding] Buyer ${buyer.id} has no location data, skipping`);
-      continue;
-    }
-
-    // Geocode location
-    console.log(`[Geocoding] Geocoding buyer ${buyer.id}: "${location}"`);
-    const result = await geocodeLocation(location, GEOCODING_API_KEY);
-
-    if (!result) {
-      console.warn(`[Geocoding] Failed to geocode "${location}" for buyer ${buyer.id}`);
-      continue;
-    }
-
-    // Update buyer in Airtable with coordinates
-    try {
-      await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers/${buyer.id}`, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({
-          fields: {
-            Latitude: result.lat,
-            Longitude: result.lng,
-          },
-        }),
-      });
-
-      // Update local copy for this matching run
-      buyer.fields.Latitude = result.lat;
-      buyer.fields.Longitude = result.lng;
-
-      geocoded++;
-      console.log(`[Geocoding] Updated buyer ${buyer.id} with coordinates: ${result.lat}, ${result.lng}`);
-    } catch (error) {
-      console.error(`[Geocoding] Failed to update buyer ${buyer.id}:`, error);
-    }
-  }
-
-  if (geocoded > 0) {
-    console.log(`[Geocoding] Successfully geocoded ${geocoded} buyers`);
-  }
-}
+// Geocoding removed - using ZIP code matching only
 
 /**
  * Fetches existing matches and builds a skip set for duplicate prevention
@@ -223,9 +127,9 @@ async function fetchExistingMatchesSkipSet(headers: any, refreshAll: boolean): P
  */
 async function handleRunMatching(req: VercelRequest, res: VercelResponse, headers: any) {
   const startTime = Date.now();
-  const { minScore = 30, refreshAll = false, enableGeocoding = false } = req.body || {};
+  const { minScore = 30, refreshAll = false } = req.body || {};
 
-  console.log('[Matching] Starting full matching', { minScore, refreshAll, enableGeocoding, timestamp: new Date().toISOString() });
+  console.log('[Matching] Starting full matching', { minScore, refreshAll, timestamp: new Date().toISOString() });
 
   try {
     // Fetch all buyers
@@ -262,9 +166,6 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
     }
 
     console.log(`[Matching] Processing ${buyers.length} buyers × ${properties.length} properties = ${buyers.length * properties.length} combinations`);
-
-    // Geocode buyers (disabled by default for performance)
-    await ensureBuyerGeocoding(buyers, headers, { enabled: enableGeocoding, maxBuyers: 10 });
 
     // Build skip set for duplicate prevention
     const skipSet = await fetchExistingMatchesSkipSet(headers, refreshAll);
@@ -382,9 +283,6 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
 
   const buyer = buyerData.records[0];
 
-  // Geocode buyer if needed (disabled by default for performance)
-  await ensureBuyerGeocoding([buyer], headers, { enabled: false });
-
   // Fetch all properties
   const propertiesRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties`, { headers });
   if (!propertiesRes.ok) throw new Error('Failed to fetch properties');
@@ -460,9 +358,6 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
   const buyersData = await buyersRes.json();
   const buyers = buyersData.records;
 
-  // Geocode buyers if needed (disabled by default for performance)
-  await ensureBuyerGeocoding(buyers, headers, { enabled: false });
-
   let matchesCreated = 0;
   let matchesUpdated = 0;
   let withinRadius = 0;
@@ -527,11 +422,6 @@ async function createOrUpdateMatch(buyer: any, property: any, score: MatchScore,
       'Match Status': 'Active',
       'Priority': score.isPriority,
     };
-
-    // Add distance if available
-    if (score.distance !== undefined) {
-      matchFields['Distance'] = score.distance;
-    }
 
     if (existingRes.ok) {
       const existingData = await existingRes.json();
