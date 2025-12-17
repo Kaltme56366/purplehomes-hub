@@ -45,6 +45,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     switch (action) {
+      case 'health':
+        // Health check endpoint to verify function is working
+        return res.status(200).json({
+          status: 'ok',
+          timestamp: new Date().toISOString(),
+          env: {
+            hasAirtableKey: !!AIRTABLE_API_KEY,
+            hasAirtableBase: !!AIRTABLE_BASE_ID,
+            hasOpenAIKey: !!OPENAI_API_KEY,
+          },
+          node: process.version,
+        });
+
       case 'run':
         return await handleRunMatching(req, res, headers);
 
@@ -61,6 +74,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     console.error('[Matching API] Error:', error);
     return res.status(500).json({
       error: error.message || 'Internal server error',
+      stack: error.stack,
     });
   }
 }
