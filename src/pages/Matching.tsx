@@ -44,15 +44,19 @@ export default function Matching() {
   const runPropertyMatchingMutation = useRunPropertyMatching();
 
   const handleRunMatchingAll = async () => {
+    console.log('[Matching UI] handleRunMatchingAll called', { forceRematch });
     try {
       const result = await runMatchingMutation.mutateAsync({ minScore: 30, refreshAll: forceRematch });
+      console.log('[Matching UI] Result:', result);
       toast.success(result.message);
     } catch (error) {
+      console.error('[Matching UI] Error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to run matching');
     }
   };
 
   const handleRunMatchingBuyers = async () => {
+    console.log('[Matching UI] handleRunMatchingBuyers called', { buyerCount: buyers?.length });
     if (!buyers || buyers.length === 0) {
       toast.error('No buyers found');
       return;
@@ -64,11 +68,13 @@ export default function Matching() {
       }
       toast.success(`Matched ${buyers.length} buyers successfully`);
     } catch (error) {
+      console.error('[Matching UI] Error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to match buyers');
     }
   };
 
   const handleRunMatchingProperties = async () => {
+    console.log('[Matching UI] handleRunMatchingProperties called', { propertyCount: properties?.length });
     if (!properties || properties.length === 0) {
       toast.error('No properties found');
       return;
@@ -80,6 +86,7 @@ export default function Matching() {
       }
       toast.success(`Matched ${properties.length} properties successfully`);
     } catch (error) {
+      console.error('[Matching UI] Error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to match properties');
     }
   };

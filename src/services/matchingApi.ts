@@ -238,19 +238,25 @@ export const useRunMatching = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (params?: { minScore?: number }): Promise<RunMatchingResponse> => {
+    mutationFn: async (params?: { minScore?: number; refreshAll?: boolean }): Promise<RunMatchingResponse> => {
+      console.log('[Matching API] Calling run matching with params:', params);
       const response = await fetch(`${MATCHING_API_BASE}?action=run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params || {}),
       });
 
+      console.log('[Matching API] Response status:', response.status);
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Matching failed' }));
+        console.error('[Matching API] Error response:', error);
         throw new Error(error.error || 'Failed to run matching');
       }
 
-      return response.json();
+      const result = await response.json();
+      console.log('[Matching API] Success response:', result);
+      return result;
     },
     onSuccess: () => {
       // Invalidate all matching queries to refetch

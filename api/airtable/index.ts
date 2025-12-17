@@ -115,6 +115,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // List records from a specific table
         return handleListRecords(req, res, headers, table as string);
 
+      case 'get-record':
+        // Get a single record by ID from a specific table
+        return handleGetRecord(req, res, headers, table as string);
+
       case 'get-buyer-matches':
         // Get property matches for a buyer
         return handleGetBuyerMatches(req, res, headers);
@@ -203,6 +207,67 @@ async function handleListRecords(
       error: 'Failed to fetch records',
       message: error.message,
       table: tableName,
+    });
+  }
+}
+
+async function handleGetRecord(
+  req: VercelRequest,
+  res: VercelResponse,
+  headers: any,
+  tableName: string
+) {
+  const { recordId } = req.query;
+
+  if (!tableName) {
+    return res.status(400).json({ error: 'table parameter is required' });
+  }
+
+  if (!recordId) {
+    return res.status(400).json({ error: 'recordId parameter is required' });
+  }
+
+  console.log(`[Airtable] Fetching record ${recordId} from table: ${tableName}`);
+
+  try {
+    const response = await fetchWithRetry(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}/${recordId}`,
+      { headers }
+    );
+
+    console.log(`[Airtable] Response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Airtable] Error response:`, errorText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+
+      return res.status(response.status).json({
+        error: 'Airtable API error',
+        status: response.status,
+        statusText: response.statusText,
+        details: errorData,
+        table: tableName,
+        recordId,
+      });
+    }
+
+    const data = await response.json();
+    console.log(`[Airtable] Successfully fetched record ${recordId} from ${tableName}`);
+    return res.status(200).json({ record: data });
+  } catch (error: any) {
+    console.error(`[Airtable] Exception in handleGetRecord:`, error);
+    return res.status(500).json({
+      error: 'Failed to fetch record',
+      message: error.message,
+      table: tableName,
+      recordId,
     });
   }
 }
