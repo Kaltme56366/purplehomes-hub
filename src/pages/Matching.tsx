@@ -365,21 +365,45 @@ export default function Matching() {
                           className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
                         >
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="font-medium">Property {match.propertyRecordId.slice(-6)}</div>
-                              {match.isPriority && (
-                                <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
-                                  Priority
-                                </Badge>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {match.property ? (
+                                <>
+                                  <div className="font-medium">
+                                    {match.property.address}
+                                    {match.property.city && `, ${match.property.city}`}
+                                    {match.property.state && `, ${match.property.state}`}
+                                  </div>
+                                  {match.isPriority && (
+                                    <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
+                                      Priority
+                                    </Badge>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <div className="font-medium">Property {match.propertyRecordId.slice(-6)}</div>
+                                  {match.isPriority && (
+                                    <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
+                                      Priority
+                                    </Badge>
+                                  )}
+                                </>
                               )}
                             </div>
+                            {match.property && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {match.property.beds} bed • {match.property.baths} bath
+                                {match.property.sqft && ` • ${match.property.sqft.toLocaleString()} sqft`}
+                                {match.property.price && ` • $${match.property.price.toLocaleString()}`}
+                              </div>
+                            )}
                             {match.distance && (
                               <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                                 <MapPin className="h-3 w-3" />
                                 {match.distance.toFixed(1)} miles away
                               </div>
                             )}
-                            <div className="text-sm text-muted-foreground line-clamp-1">
+                            <div className="text-sm text-muted-foreground line-clamp-1 mt-1">
                               {match.reasoning}
                             </div>
                           </div>
@@ -448,21 +472,43 @@ export default function Matching() {
                           className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
                         >
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <div className="font-medium">Buyer {match.buyerRecordId.slice(-6)}</div>
-                              {match.isPriority && (
-                                <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
-                                  Priority
-                                </Badge>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {match.buyer ? (
+                                <>
+                                  <div className="font-medium">
+                                    {match.buyer.firstName} {match.buyer.lastName}
+                                  </div>
+                                  {match.isPriority && (
+                                    <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
+                                      Priority
+                                    </Badge>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <div className="font-medium">Buyer {match.buyerRecordId.slice(-6)}</div>
+                                  {match.isPriority && (
+                                    <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
+                                      Priority
+                                    </Badge>
+                                  )}
+                                </>
                               )}
                             </div>
+                            {match.buyer && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {match.buyer.email}
+                                {match.buyer.desiredBeds && ` • Looking for ${match.buyer.desiredBeds} bed`}
+                                {match.buyer.desiredBaths && `, ${match.buyer.desiredBaths} bath`}
+                              </div>
+                            )}
                             {match.distance && (
                               <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                                 <MapPin className="h-3 w-3" />
                                 {match.distance.toFixed(1)} miles from buyer
                               </div>
                             )}
-                            <div className="text-sm text-muted-foreground line-clamp-1">
+                            <div className="text-sm text-muted-foreground line-clamp-1 mt-1">
                               {match.reasoning}
                             </div>
                           </div>
