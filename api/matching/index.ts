@@ -129,17 +129,15 @@ async function fetchExistingMatches(headers: any, refreshAll: boolean): Promise<
 }
 
 /**
- * Batch create new matches in Airtable (up to 10 per request)
+ * Batch create new matches in Airtable (up to 10 per request, 5 concurrent)
  */
 async function batchCreateMatches(matches: any[], headers: any): Promise<number> {
   if (matches.length === 0) return 0;
 
   const BATCH_SIZE = 10;
-  let created = 0;
+  const CONCURRENCY = 5;
 
-  for (let i = 0; i < matches.length; i += BATCH_SIZE) {
-    const batch = matches.slice(i, i + BATCH_SIZE);
-
+  const executeBatch = async (batch: any[]): Promise<number> => {
     try {
       const createRes = await fetch(
         `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`,
@@ -149,33 +147,60 @@ async function batchCreateMatches(matches: any[], headers: any): Promise<number>
           body: JSON.stringify({ records: batch }),
         }
       );
-
       if (!createRes.ok) {
         const errorText = await createRes.text();
         console.error(`[Matching] Batch create failed:`, createRes.status, errorText);
-      } else {
-        created += batch.length;
+        return 0;
       }
+      return batch.length;
     } catch (error) {
       console.error(`[Matching] Error in batch create:`, error);
+      return 0;
     }
-  }
+  };
 
-  return created;
+  return parallelBatchExecute(matches, BATCH_SIZE, CONCURRENCY, executeBatch);
 }
 
 /**
- * Batch update existing matches in Airtable (up to 10 per request)
+ * Execute batches in parallel with concurrency limit
+ */
+async function parallelBatchExecute<T>(
+  items: T[],
+  batchSize: number,
+  concurrency: number,
+  executor: (batch: T[]) => Promise<number>
+): Promise<number> {
+  if (items.length === 0) return 0;
+
+  // Split into batches of batchSize
+  const batches: T[][] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    batches.push(items.slice(i, i + batchSize));
+  }
+
+  let totalProcessed = 0;
+
+  // Process batches in parallel chunks of 'concurrency'
+  for (let i = 0; i < batches.length; i += concurrency) {
+    const chunk = batches.slice(i, i + concurrency);
+    const results = await Promise.all(chunk.map(batch => executor(batch)));
+    totalProcessed += results.reduce((sum, n) => sum + n, 0);
+  }
+
+  return totalProcessed;
+}
+
+/**
+ * Batch update existing matches in Airtable (up to 10 per request, 5 concurrent)
  */
 async function batchUpdateMatches(updates: any[], headers: any): Promise<number> {
   if (updates.length === 0) return 0;
 
   const BATCH_SIZE = 10;
-  let updated = 0;
+  const CONCURRENCY = 5;
 
-  for (let i = 0; i < updates.length; i += BATCH_SIZE) {
-    const batch = updates.slice(i, i + BATCH_SIZE);
-
+  const executeBatch = async (batch: any[]): Promise<number> => {
     try {
       const updateRes = await fetch(
         `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`,
@@ -185,19 +210,19 @@ async function batchUpdateMatches(updates: any[], headers: any): Promise<number>
           body: JSON.stringify({ records: batch }),
         }
       );
-
       if (!updateRes.ok) {
         const errorText = await updateRes.text();
         console.error(`[Matching] Batch update failed:`, updateRes.status, errorText);
-      } else {
-        updated += batch.length;
+        return 0;
       }
+      return batch.length;
     } catch (error) {
       console.error(`[Matching] Error in batch update:`, error);
+      return 0;
     }
-  }
+  };
 
-  return updated;
+  return parallelBatchExecute(updates, BATCH_SIZE, CONCURRENCY, executeBatch);
 }
 
 /**
