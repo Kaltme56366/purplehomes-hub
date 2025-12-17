@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
+import { CacheStatusBar } from '@/components/matching/CacheStatusBar';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { useProperties } from '@/services/ghlApi';
@@ -205,6 +206,9 @@ export default function Matching() {
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
+      {/* Cache Status Bar */}
+      <CacheStatusBar />
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
