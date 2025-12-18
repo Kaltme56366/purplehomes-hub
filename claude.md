@@ -33,6 +33,10 @@ The Purple Homes Hub is an AI-powered property matching system that connects pot
 - **Database Management**: Uses Airtable as the primary database for buyers, properties, and matches
 - **Performance Optimization**: Server-side caching, batch processing, and pagination for fast performance
 - **User Interface**: Modern React-based web interface with filtering, search, and detailed match views
+- **Purple Homes Branding**: Professional brand identity with custom color palette and micro-interactions
+- **Proximity Discovery**: Zillow-style distance-based property recommendations with tier system
+- **International Phone Input**: Multi-country phone number support with automatic validation
+- **Email Notifications**: Send property PDFs to buyers via HighLevel with data isolation
 
 ### User Roles
 1. **Buyers**: End users looking for properties (future: self-service portal)
@@ -98,12 +102,14 @@ The Purple Homes Hub is an AI-powered property matching system that connects pot
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **UI Library**: React 18
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS + Custom Purple Homes CSS
 - **Component Library**: Shadcn/ui (Radix UI primitives)
 - **Data Fetching**: React Query (TanStack Query)
 - **State Management**: React hooks + React Query cache
 - **Icons**: Lucide React
 - **Notifications**: Sonner (toast notifications)
+- **Phone Input**: react-phone-number-input (international support)
+- **PDF Generation**: jsPDF (property PDFs)
 
 ### Backend
 - **Runtime**: Node.js (Vercel Serverless Functions)
@@ -148,13 +154,24 @@ purplehomes-hub/
 │   │   │   ├── button.tsx
 │   │   │   ├── card.tsx
 │   │   │   ├── badge.tsx
+│   │   │   ├── phone-input.tsx  # International phone input
 │   │   │   └── ...
-│   │   └── ...                  # Custom components
+│   │   ├── listings/            # Listing components
+│   │   │   ├── ProximityBadge.tsx  # Distance badges
+│   │   │   └── ...
+│   │   ├── EmailPropertyButton.tsx  # Email notification buttons
+│   │   └── ...                  # Other custom components
 │   │
 │   ├── lib/                     # Utility functions
 │   │   ├── apiClient.ts         # API client with retry logic
 │   │   ├── rateLimiter.ts       # Rate limiting utility
-│   │   └── utils.ts             # Common utilities
+│   │   ├── utils.ts             # Common utilities
+│   │   ├── proximityCalculator.ts  # Distance calculations (Haversine)
+│   │   └── propertyPdfGenerator.ts # PDF generation for emails
+│   │
+│   ├── styles/                  # Custom stylesheets
+│   │   ├── purple-branding.css  # Purple Homes brand styles
+│   │   └── phone-input.css      # Phone input custom styles
 │   │
 │   ├── pages/                   # Next.js pages
 │   │   ├── Matching.tsx         # Main matching interface
@@ -178,6 +195,11 @@ purplehomes-hub/
 ├── package.json
 ├── tsconfig.json                # TypeScript configuration
 ├── tailwind.config.js           # Tailwind CSS configuration
+├── docs/                        # Documentation
+│   ├── EMAIL_API_GUIDE.md       # Email API documentation
+│   ├── PHONE_INPUT_INTERNATIONAL.md  # Phone input guide
+│   ├── UI_UX_IMPROVEMENTS.md    # Design specifications
+│   └── UI_UX_IMPLEMENTATION.md  # Implementation summary
 ├── IMPLEMENTATION_SUMMARY.md    # Project documentation
 ├── IMPLEMENTATION_STORIES.md    # Development timeline
 ├── IMPLEMENTATION_PRIORITIES.md # Feature priorities
@@ -1467,6 +1489,125 @@ Consider WebSockets or Server-Sent Events for:
 
 ---
 
+## UI/UX Features
+
+### Purple Homes Brand Identity ([src/styles/purple-branding.css](src/styles/purple-branding.css))
+
+**Color System**:
+- Primary: `#667eea` → Secondary: `#764ba2`
+- Gradients: `linear-gradient(135deg, #667eea 0%, #764ba2 100%)`
+- Shadows: Purple-tinted shadows for elevation effects
+
+**Components**:
+- `.btn-purple-gradient`: Gradient buttons with hover animations
+- `.glass-purple`: Glassmorphism effects with backdrop blur
+- `.scale-hover`: Scale up on hover (1.05x)
+- `.pulse-purple`: Pulsing shadow effect for CTAs
+- `.fade-in-purple`: Smooth fade-in entrance animation
+- `.slide-up-purple`: Slide-up entrance animation
+- `.purple-underline`: Gradient accent underline
+
+**Visual Effects**:
+- All animations run at 60fps
+- Smooth transitions (300ms ease)
+- WCAG AA compliant color contrast
+- Mobile-responsive design
+
+---
+
+### Proximity-Based Discovery ([src/lib/proximityCalculator.ts](src/lib/proximityCalculator.ts))
+
+**Distance Calculation**:
+- Haversine formula for accurate geo-distance
+- ZIP code coordinate database (expandable)
+- Distance formatting (miles/feet)
+- Commute time estimation (40 mph average)
+
+**Proximity Tiers**:
+| Tier | Distance | Icon | Color | Badge |
+|------|----------|------|-------|-------|
+| Exact | 0 mi | 📍 | Purple | Your Search Area |
+| Nearby | ≤10 mi | 🎯 | Green | Nearby Properties |
+| Close | ≤25 mi | 📌 | Blue | Close Properties |
+| Moderate | ≤50 mi | 📍 | Orange | Moderate Distance |
+| Far | ≤100 mi | 🚗 | Gray | Extended Area |
+
+**Proximity Badges** ([src/components/listings/ProximityBadge.tsx](src/components/listings/ProximityBadge.tsx)):
+- **Compact**: Shows icon + distance (property cards)
+- **Default**: Shows icon + distance + optional commute time
+- **Detailed**: Shows tier name + distance + commute time (modals)
+
+**Usage**:
+```typescript
+import { ProximityBadge } from '@/components/listings/ProximityBadge';
+import { calculateZIPDistance } from '@/lib/proximityCalculator';
+
+const distance = calculateZIPDistance('94102', '94110');
+<ProximityBadge distance={distance} showCommute variant="detailed" />
+```
+
+---
+
+### International Phone Input ([src/components/ui/phone-input.tsx](src/components/ui/phone-input.tsx))
+
+**Features**:
+- 200+ countries supported
+- Country picker with flag icons
+- Automatic validation per country
+- E.164 international format storage
+- Matches shadcn/ui design system
+
+**Library**: react-phone-number-input
+
+**Usage**:
+```typescript
+import { PhoneInput } from '@/components/ui/phone-input';
+
+<PhoneInput
+  value={phone}
+  onChange={setPhone}
+  defaultCountry="US"
+  placeholder="Enter phone number"
+  required
+/>
+```
+
+**Output Format**: `+15551234567` (E.164)
+
+---
+
+### Email Notifications ([src/services/emailApi.ts](src/services/emailApi.ts))
+
+**Property PDF Generation** ([src/lib/propertyPdfGenerator.ts](src/lib/propertyPdfGenerator.ts)):
+- Professional property PDFs with buyer personalization
+- Match score breakdown and insights
+- Property images and features
+- **Data isolation**: Each PDF generated fresh per buyer-property pair
+
+**Email Sending**:
+- HighLevel Conversations API integration
+- Beautiful HTML email templates
+- Individual and bulk sending support
+- Progress tracking for bulk operations
+
+**UI Components** ([src/components/EmailPropertyButton.tsx](src/components/EmailPropertyButton.tsx)):
+```typescript
+// Individual email
+<EmailPropertyButton
+  buyer={buyer}
+  property={property}
+  match={match}
+/>
+
+// Bulk email
+<BulkEmailButton
+  matches={selectedMatches}
+  onComplete={() => setSelectedMatches([])}
+/>
+```
+
+---
+
 ## Resources
 
 ### Documentation
@@ -1481,6 +1622,10 @@ Consider WebSockets or Server-Sent Events for:
 - [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) - Feature overview
 - [IMPLEMENTATION_STORIES.md](IMPLEMENTATION_STORIES.md) - Development timeline
 - [IMPLEMENTATION_PRIORITIES.md](IMPLEMENTATION_PRIORITIES.md) - Feature priorities
+- [docs/UI_UX_IMPLEMENTATION.md](docs/UI_UX_IMPLEMENTATION.md) - UI/UX implementation guide
+- [docs/UI_UX_IMPROVEMENTS.md](docs/UI_UX_IMPROVEMENTS.md) - Design specifications and research
+- [docs/EMAIL_API_GUIDE.md](docs/EMAIL_API_GUIDE.md) - Email API documentation
+- [docs/PHONE_INPUT_INTERNATIONAL.md](docs/PHONE_INPUT_INTERNATIONAL.md) - Phone input guide
 
 ### Contact
 For questions or issues, check the README or contact the development team.

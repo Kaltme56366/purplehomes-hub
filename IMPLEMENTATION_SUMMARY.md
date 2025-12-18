@@ -63,8 +63,46 @@ A comprehensive AI-powered property matching system that connects buyers with su
   - Search and filter capabilities
   - Mobile-responsive design
   - Make Offer form submission (triggers HighLevel workflow)
+  - **Purple Homes Branding**: Consistent brand colors and gradient effects
+  - **Proximity-Based Discovery**: Zillow-style distance badges and tier system
+  - **International Phone Input**: Country picker with 200+ countries supported
 
-### 4.5. Email Notification System (NEW!)
+### 4.5. Purple Homes UI/UX & Proximity Discovery (NEW!)
+- **Brand Identity System** ([src/styles/purple-branding.css](src/styles/purple-branding.css)):
+  - Purple Homes color palette (#667eea → #764ba2 gradients)
+  - Glassmorphism effects with purple tints
+  - Micro-interactions (scale-hover, pulse-purple, fade-in, slide-up)
+  - Gradient buttons with shadow effects
+  - Professional animations running at 60fps
+- **Proximity Calculator** ([src/lib/proximityCalculator.ts](src/lib/proximityCalculator.ts)):
+  - Haversine formula for accurate distance calculations
+  - ZIP code coordinate database (expandable)
+  - 5 proximity tiers: Exact, Nearby (≤10mi), Close (≤25mi), Moderate (≤50mi), Far (≤100mi)
+  - Commute time estimation (40 mph average)
+  - Distance formatting (miles/feet)
+- **Proximity Badges** ([src/components/listings/ProximityBadge.tsx](src/components/listings/ProximityBadge.tsx)):
+  - Color-coded badges by proximity tier (📍🎯📌🚗)
+  - 3 variants: compact, default, detailed
+  - Shows distance and optional commute time
+  - Glassmorphism design with smooth animations
+- **Enhanced Property Modal**:
+  - Purple gradient overlay on hero images
+  - Detailed proximity info with commute estimates
+  - Purple accent underlines and drop shadows
+  - Pulsing "Make an Offer" CTA button
+  - Smooth slide-up and fade-in animations
+
+### 4.6. International Phone Input (NEW!)
+- **Phone Input Component** ([src/components/ui/phone-input.tsx](src/components/ui/phone-input.tsx)):
+  - React-phone-number-input library integration
+  - Country picker with flag icons (200+ countries)
+  - Automatic phone number validation per country
+  - E.164 international format storage
+  - Matches shadcn/ui design system
+- **Integration**: Updated PublicListings and Contacts forms
+- **Custom Styling** ([src/styles/phone-input.css](src/styles/phone-input.css))
+
+### 4.7. Email Notification System
 - **Property PDF Generation** ([src/lib/propertyPdfGenerator.ts](src/lib/propertyPdfGenerator.ts)):
   - Professional property listing PDFs with buyer personalization
   - Match score breakdown and insights
