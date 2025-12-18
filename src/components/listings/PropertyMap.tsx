@@ -11,9 +11,10 @@ interface PropertyMapProps {
   onPropertySelect: (property: Property) => void;
   hoveredPropertyId?: string | null;
   zipCode?: string;
+  isDarkMode?: boolean;
 }
 
-export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode }: PropertyMapProps) {
+export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode, isDarkMode = false }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,7 +76,7 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, z
 
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/light-v11',
+        style: isDarkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
         center,
         zoom: 10,
       });
@@ -283,6 +284,110 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, z
       });
     }
   }, [zipCode, mapLoaded]);
+
+  // Update map style when theme changes
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    const newStyle = isDarkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11';
+
+    // Set new style
+    map.current.setStyle(newStyle);
+
+    // Re-add layers when style is loaded
+    map.current.once('style.load', () => {
+      if (!map.current) return;
+
+      // Add clustered source
+      map.current.addSource('properties', {
+        type: 'geojson',
+        data: getGeoJSON(),
+        cluster: true,
+        clusterMaxZoom: 14,
+        clusterRadius: 50
+      });
+
+      // Cluster circles
+      map.current.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'properties',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            '#9333ea',
+            5,
+            '#7c3aed',
+            15,
+            '#6d28d9'
+          ],
+          'circle-radius': [
+            'step',
+            ['get', 'point_count'],
+            20,
+            5,
+            25,
+            15,
+            30
+          ],
+          'circle-stroke-width': 3,
+          'circle-stroke-color': 'rgba(255, 255, 255, 0.3)'
+        }
+      });
+
+      // Cluster count labels
+      map.current.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'properties',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+          'text-size': 14
+        },
+        paint: {
+          'text-color': '#ffffff'
+        }
+      });
+
+      // Individual property markers
+      map.current.addLayer({
+        id: 'unclustered-point',
+        type: 'circle',
+        source: 'properties',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': '#9333ea',
+          'circle-radius': 10,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': 'rgba(255, 255, 255, 0.5)'
+        }
+      });
+
+      // Price labels for individual properties
+      map.current.addLayer({
+        id: 'property-price',
+        type: 'symbol',
+        source: 'properties',
+        filter: ['!', ['has', 'point_count']],
+        layout: {
+          'text-field': ['concat', '$', ['/', ['get', 'price'], 1000], 'K'],
+          'text-font': ['DIN Offc Pro Bold', 'Arial Unicode MS Bold'],
+          'text-size': 11,
+          'text-offset': [0, -2.5],
+          'text-anchor': 'bottom'
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#9333ea',
+          'text-halo-width': 2
+        }
+      });
+    });
+  }, [isDarkMode, mapLoaded, getGeoJSON]);
 
   if (error) {
     return (
