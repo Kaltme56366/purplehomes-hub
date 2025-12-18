@@ -5,10 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin } from 'lucide-react';
+import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Database } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
-import { CacheStatusBar } from '@/components/matching/CacheStatusBar';
+import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { useProperties } from '@/services/ghlApi';
@@ -37,8 +37,42 @@ export default function Matching() {
   const [sortBy, setSortBy] = useState<SortOption>('matches-high');
   const [forceRematch, setForceRematch] = useState(false);
 
-  const { data: buyers, isLoading: loadingBuyers } = useBuyersWithMatches();
-  const { data: properties, isLoading: loadingProperties } = usePropertiesWithMatches();
+  // Filter state - start with no filters to show all matches
+  const [filters, setFilters] = useState({
+    matchStatus: undefined as 'Active' | 'Sent' | 'Viewed' | 'Closed' | undefined,
+    minScore: 0,
+    priorityOnly: false,
+    matchLimit: 25,
+    dateRange: 'all' as const,
+  });
+
+  // Pagination state - track offset tokens for cursor-based pagination
+  const [buyersOffset, setBuyersOffset] = useState<string | undefined>(undefined);
+  const [propertiesOffset, setPropertiesOffset] = useState<string | undefined>(undefined);
+  const [buyersOffsetHistory, setBuyersOffsetHistory] = useState<string[]>([]);
+  const [propertiesOffsetHistory, setPropertiesOffsetHistory] = useState<string[]>([]);
+  const pageSize = 20;
+
+  // Cache data hook
+  const {
+    isStale,
+    newPropertiesAvailable,
+    newBuyersAvailable,
+    propertiesCount,
+    buyersCount,
+    matchesCount,
+    lastSynced,
+    syncAll,
+    isSyncing,
+  } = useMatchingData();
+
+  const { data: buyersData, isLoading: loadingBuyers } = useBuyersWithMatches(filters, pageSize, buyersOffset);
+  const { data: propertiesData, isLoading: loadingProperties } = usePropertiesWithMatches(filters, pageSize, propertiesOffset);
+
+  const buyers = buyersData?.data;
+  const properties = propertiesData?.data;
+  const hasNextBuyersPage = !!buyersData?.nextOffset;
+  const hasNextPropertiesPage = !!propertiesData?.nextOffset;
   const { data: ghlProperties } = useProperties(SELLER_ACQUISITION_PIPELINE_ID);
   const runMatchingMutation = useRunMatching();
   const runBuyerMatchingMutation = useRunBuyerMatching();
@@ -204,35 +238,116 @@ export default function Matching() {
 
   const isMatching = runMatchingMutation.isPending || runBuyerMatchingMutation.isPending || runPropertyMatchingMutation.isPending;
 
-  return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      {/* Cache Status Bar */}
-      <CacheStatusBar />
+  // Format last synced timestamp
+  const formatLastSynced = (date: string | null | undefined) => {
+    if (!date) return 'Never';
+    const diff = Date.now() - new Date(date).getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m ago`;
+    if (hours < 24) return `${hours}h ago`;
+    return new Date(date).toLocaleDateString();
+  };
+
+  // Pagination handlers for buyers
+  const handleBuyersNextPage = () => {
+    if (buyersData?.nextOffset) {
+      setBuyersOffsetHistory(prev => [...prev, buyersOffset || '']);
+      setBuyersOffset(buyersData.nextOffset);
+    }
+  };
+
+  const handleBuyersPrevPage = () => {
+    if (buyersOffsetHistory.length > 0) {
+      const newHistory = [...buyersOffsetHistory];
+      const prevOffset = newHistory.pop();
+      setBuyersOffsetHistory(newHistory);
+      setBuyersOffset(prevOffset || undefined);
+    }
+  };
+
+  // Pagination handlers for properties
+  const handlePropertiesNextPage = () => {
+    if (propertiesData?.nextOffset) {
+      setPropertiesOffsetHistory(prev => [...prev, propertiesOffset || '']);
+      setPropertiesOffset(propertiesData.nextOffset);
+    }
+  };
+
+  const handlePropertiesPrevPage = () => {
+    if (propertiesOffsetHistory.length > 0) {
+      const newHistory = [...propertiesOffsetHistory];
+      const prevOffset = newHistory.pop();
+      setPropertiesOffsetHistory(newHistory);
+      setPropertiesOffset(prevOffset || undefined);
+    }
+  };
+
+  // Reset pagination when filters change
+  const handleFilterChange = (newFilters: any) => {
+    setFilters(newFilters);
+    setBuyersOffset(undefined);
+    setPropertiesOffset(undefined);
+    setBuyersOffsetHistory([]);
+    setPropertiesOffsetHistory([]);
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Header Row */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between px-6 py-4">
         <div>
-          <h1 className="text-3xl font-bold">AI Property Matching</h1>
-          <p className="text-muted-foreground mt-1">
-            Distance-based matching with 50-mile radius priority
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="force-rematch"
-              checked={forceRematch}
-              onCheckedChange={(checked) => setForceRematch(checked as boolean)}
-            />
-            <Label htmlFor="force-rematch" className="text-sm cursor-pointer">
-              Force re-match all
-            </Label>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold">AI Property Matching</h1>
+            <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
+              {matchesCount} {matchesCount === 1 ? 'Match' : 'Matches'}
+            </Badge>
+            <Badge variant="secondary" className="bg-blue-100 text-blue-700 border-blue-200">
+              {buyersCount} {buyersCount === 1 ? 'Buyer' : 'Buyers'}
+            </Badge>
+            <Badge variant="secondary" className="bg-green-100 text-green-700 border-green-200">
+              {propertiesCount} {propertiesCount === 1 ? 'Property' : 'Properties'}
+            </Badge>
           </div>
+          <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
+            {isStale ? (
+              <>
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <span className="text-amber-600">Cache outdated</span>
+                {(newPropertiesAvailable > 0 || newBuyersAvailable > 0) && (
+                  <span>
+                    • {newPropertiesAvailable > 0 && `${newPropertiesAvailable} new properties`}
+                    {newPropertiesAvailable > 0 && newBuyersAvailable > 0 && ', '}
+                    {newBuyersAvailable > 0 && `${newBuyersAvailable} new buyers`}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <span>Cache current</span>
+              </>
+            )}
+            <span>• Last synced: {formatLastSynced(lastSynced)}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={isStale ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => syncAll()}
+            disabled={isSyncing}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+            {isSyncing ? 'Syncing...' : 'Sync Now'}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 disabled={isMatching}
-                size="lg"
+                size="sm"
                 className="bg-purple-600 hover:bg-purple-700"
               >
                 {isMatching ? (
@@ -263,19 +378,20 @@ export default function Matching() {
         </div>
       </div>
 
-      {/* Search and Sort */}
-      <div className="mb-6 flex gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+      {/* Search/Filter Row */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center px-6 py-3 bg-muted/30 rounded-lg">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder={activeTab === 'buyers' ? 'Search buyers by name or email...' : 'Search properties by code, address, or city...'}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-10 bg-background"
           />
         </div>
+
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="w-full sm:w-[180px] bg-background">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -285,20 +401,80 @@ export default function Matching() {
             <SelectItem value="name-za">Name (Z-A)</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select
+          value={filters.matchStatus || 'all'}
+          onValueChange={(v) => handleFilterChange({ ...filters, matchStatus: v === 'all' ? undefined : v as 'Active' | 'Sent' | 'Viewed' | 'Closed' })}
+        >
+          <SelectTrigger className="w-full sm:w-[140px] bg-background">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Status</SelectItem>
+            <SelectItem value="Active">Active</SelectItem>
+            <SelectItem value="Sent">Sent</SelectItem>
+            <SelectItem value="Viewed">Viewed</SelectItem>
+            <SelectItem value="Closed">Closed</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.minScore.toString()}
+          onValueChange={(v) => handleFilterChange({ ...filters, minScore: parseInt(v) })}
+        >
+          <SelectTrigger className="w-full sm:w-[140px] bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="0">Score: Any</SelectItem>
+            <SelectItem value="30">Score: 30+</SelectItem>
+            <SelectItem value="50">Score: 50+</SelectItem>
+            <SelectItem value="70">Score: 70+</SelectItem>
+            <SelectItem value="80">Score: 80+</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={filters.matchLimit.toString()}
+          onValueChange={(v) => handleFilterChange({ ...filters, matchLimit: parseInt(v) })}
+        >
+          <SelectTrigger className="w-full sm:w-[160px] bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="5">Top 5 Matches</SelectItem>
+            <SelectItem value="10">Top 10 Matches</SelectItem>
+            <SelectItem value="25">Top 25 Matches</SelectItem>
+            <SelectItem value="50">Top 50 Matches</SelectItem>
+            <SelectItem value="100">All Matches</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <div className="flex items-center space-x-2 whitespace-nowrap">
+          <Checkbox
+            id="force-rematch"
+            checked={forceRematch}
+            onCheckedChange={(checked) => setForceRematch(checked as boolean)}
+          />
+          <Label htmlFor="force-rematch" className="text-sm cursor-pointer">
+            Force re-match
+          </Label>
+        </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'buyers' | 'properties')}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="buyers" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Buyers ({buyers?.length || 0})
-          </TabsTrigger>
-          <TabsTrigger value="properties" className="flex items-center gap-2">
-            <Home className="h-4 w-4" />
-            Properties ({properties?.length || 0})
-          </TabsTrigger>
-        </TabsList>
+      {/* Content Area */}
+      <div className="px-6">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'buyers' | 'properties')}>
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="buyers" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Buyers ({buyers?.length || 0})
+            </TabsTrigger>
+            <TabsTrigger value="properties" className="flex items-center gap-2">
+              <Home className="h-4 w-4" />
+              Properties ({properties?.length || 0})
+            </TabsTrigger>
+          </TabsList>
 
         {/* Buyer View */}
         <TabsContent value="buyers" className="mt-6">
@@ -439,6 +615,33 @@ export default function Matching() {
               </p>
             </div>
           )}
+
+          {/* Buyers Pagination */}
+          {buyers && buyers.length > 0 && (buyersOffsetHistory.length > 0 || hasNextBuyersPage) && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBuyersPrevPage}
+                disabled={buyersOffsetHistory.length === 0}
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {buyersOffsetHistory.length + 1} • {buyers.length} buyers
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBuyersNextPage}
+                disabled={!hasNextBuyersPage}
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
         {/* Property View */}
@@ -544,8 +747,36 @@ export default function Matching() {
               </p>
             </div>
           )}
+
+          {/* Properties Pagination */}
+          {properties && properties.length > 0 && (propertiesOffsetHistory.length > 0 || hasNextPropertiesPage) && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePropertiesPrevPage}
+                disabled={propertiesOffsetHistory.length === 0}
+              >
+                <ChevronLeft className="h-4 w-4 mr-2" />
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {propertiesOffsetHistory.length + 1} • {properties.length} properties
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePropertiesNextPage}
+                disabled={!hasNextPropertiesPage}
+              >
+                Next
+                <ChevronRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          )}
         </TabsContent>
-      </Tabs>
+        </Tabs>
+      </div>
     </div>
   );
 }
