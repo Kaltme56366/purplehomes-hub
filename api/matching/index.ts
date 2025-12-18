@@ -503,7 +503,7 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
             'Match Score': score.score,
             'Match Notes': matchNotes,
             'Match Status': 'Active',
-            'Priority': score.isPriority,
+            'Is Priority': score.isPriority,
           };
 
           // Check if this is an update or create
@@ -690,7 +690,7 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
         'Match Score': score.score,
         'Match Notes': matchNotes,
         'Match Status': 'Active',
-        'Priority': score.isPriority,
+        'Is Priority': score.isPriority,
       };
 
       const pairKey = `${buyer.id}:${property.id}`;
@@ -845,7 +845,7 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
         'Match Score': score.score,
         'Match Notes': matchNotes,
         'Match Status': 'Active',
-        'Priority': score.isPriority,
+        'Is Priority': score.isPriority,
       };
 
       const pairKey = `${buyer.id}:${property.id}`;
