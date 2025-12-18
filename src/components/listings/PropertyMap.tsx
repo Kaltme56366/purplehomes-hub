@@ -4,15 +4,17 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Card, CardContent } from '@/components/ui/card';
 import { Bed, Bath, AlertCircle, Loader2 } from 'lucide-react';
 import type { Property } from '@/types';
+import { ZIP_COORDINATES } from '@/lib/proximityCalculator';
 
 interface PropertyMapProps {
   properties: Property[];
   onPropertySelect: (property: Property) => void;
   hoveredPropertyId?: string | null;
   isDarkMode?: boolean;
+  zipCode?: string;
 }
 
-export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, isDarkMode = false }: PropertyMapProps) {
+export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, isDarkMode = false, zipCode }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,6 +53,14 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
   // Add map layers and sources
   const addMapLayers = useCallback(() => {
     if (!map.current) return;
+
+    // Check if source already exists (shouldn't happen after setStyle, but just in case)
+    if (map.current.getSource('properties')) {
+      console.log('Source already exists, skipping layer setup');
+      return;
+    }
+
+    console.log('Adding map layers with', properties.length, 'properties');
 
     // Add clustered source
     map.current.addSource('properties', {
@@ -290,6 +300,22 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
       addMapLayers();
     });
   }, [isDarkMode, mapLoaded, addMapLayers]);
+
+  // Pan to ZIP code when searched
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !zipCode || zipCode.length !== 5) return;
+
+    const coords = ZIP_COORDINATES[zipCode];
+    if (coords) {
+      // Fly to the ZIP code location
+      map.current.flyTo({
+        center: [coords.longitude, coords.latitude],
+        zoom: 12,
+        duration: 1500,
+        essential: true
+      });
+    }
+  }, [zipCode, mapLoaded]);
 
   if (error) {
     return (

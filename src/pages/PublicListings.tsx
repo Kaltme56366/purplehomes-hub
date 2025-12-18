@@ -710,6 +710,7 @@ export default function PublicListings() {
             onPropertySelect={setSelectedProperty}
             hoveredPropertyId={hoveredPropertyId}
             isDarkMode={isDarkMode}
+            zipCode={zipCode}
           />
         </div>
 
