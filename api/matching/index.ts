@@ -113,6 +113,67 @@ async function fetchCachedData(cacheKey: string, headers: any): Promise<any | nu
 }
 
 /**
+ * Updates a cache record with new data
+ */
+async function updateCacheRecord(cacheKey: string, data: any, recordCount: number, headers: any): Promise<void> {
+  try {
+    const formula = encodeURIComponent(`{cache_key} = "${cacheKey}"`);
+    const findRes = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/System%20Cache?filterByFormula=${formula}`,
+      { headers }
+    );
+
+    if (!findRes.ok) {
+      console.warn(`[Matching] Failed to find cache record for ${cacheKey}`);
+      return;
+    }
+
+    const findData = await findRes.json();
+    const recordId = findData.records?.[0]?.id;
+
+    const cacheFields = {
+      cache_key: cacheKey,
+      data: JSON.stringify(data),
+      record_count: recordCount,
+      source_count: recordCount,
+      last_synced: new Date().toISOString(),
+      is_valid: true,
+      version: 1,
+    };
+
+    if (recordId) {
+      // Update existing record
+      await fetch(
+        `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/System%20Cache/${recordId}`,
+        {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({
+            fields: cacheFields,
+          }),
+        }
+      );
+      console.log(`[Matching] Updated cache record for ${cacheKey}`);
+    } else {
+      // Create new record
+      await fetch(
+        `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/System%20Cache`,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            fields: cacheFields,
+          }),
+        }
+      );
+      console.log(`[Matching] Created cache record for ${cacheKey}`);
+    }
+  } catch (error) {
+    console.error(`[Matching] Error updating cache for ${cacheKey}:`, error);
+  }
+}
+
+/**
  * Invalidates a cache entry by setting is_valid to false
  */
 async function invalidateCache(cacheKey: string, headers: any): Promise<void> {
@@ -446,10 +507,56 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
     const matchesCreated = await batchCreateMatches(matchesToCreate, headers);
     const matchesUpdated = await batchUpdateMatches(matchesToUpdate, headers);
 
-    // Invalidate matches cache if we created or updated any matches
+    // Auto-refresh matches cache if we created or updated any matches
     if (matchesCreated > 0 || matchesUpdated > 0) {
-      console.log('[Matching] Invalidating matches cache due to changes...');
-      await invalidateCache('matches', headers);
+      console.log('[Matching] Auto-refreshing matches cache with new data...');
+      try {
+        // Fetch all matches from Airtable to refresh the cache
+        const allMatchesRes = await fetch(
+          `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`,
+          { headers }
+        );
+
+        if (allMatchesRes.ok) {
+          const allMatchesData = await allMatchesRes.json();
+          const allMatches = allMatchesData.records || [];
+
+          // Build indexes for fast lookup
+          const buyerIndex: Record<string, string[]> = {};
+          const propertyIndex: Record<string, string[]> = {};
+
+          allMatches.forEach((r: any) => {
+            const buyerRecordId = r.fields['Contact ID']?.[0] || '';
+            const propertyRecordId = r.fields['Property Code']?.[0] || '';
+
+            if (buyerRecordId) {
+              if (!buyerIndex[buyerRecordId]) buyerIndex[buyerRecordId] = [];
+              buyerIndex[buyerRecordId].push(r.id);
+            }
+
+            if (propertyRecordId) {
+              if (!propertyIndex[propertyRecordId]) propertyIndex[propertyRecordId] = [];
+              propertyIndex[propertyRecordId].push(r.id);
+            }
+          });
+
+          // Update the cache with fresh data
+          const cacheData = {
+            records: allMatches,
+            buyerIndex,
+            propertyIndex,
+          };
+
+          await updateCacheRecord('matches', cacheData, allMatches.length, headers);
+          console.log('[Matching] Successfully auto-refreshed matches cache with new data');
+        } else {
+          console.warn('[Matching] Failed to fetch matches for cache refresh, will invalidate');
+          await invalidateCache('matches', headers);
+        }
+      } catch (error) {
+        console.error('[Matching] Error auto-refreshing matches cache:', error);
+        await invalidateCache('matches', headers);
+      }
     }
 
     const totalTime = Date.now() - startTime;
@@ -579,10 +686,47 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
   const matchesCreated = await batchCreateMatches(matchesToCreate, headers);
   const matchesUpdated = await batchUpdateMatches(matchesToUpdate, headers);
 
-  // Invalidate matches cache if we created or updated any matches
+  // Auto-refresh matches cache if we created or updated any matches
   if (matchesCreated > 0 || matchesUpdated > 0) {
-    console.log('[Matching] Invalidating matches cache due to changes...');
-    await invalidateCache('matches', headers);
+    console.log('[Matching] Auto-refreshing matches cache with new data...');
+    try {
+      const allMatchesRes = await fetch(
+        `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`,
+        { headers }
+      );
+
+      if (allMatchesRes.ok) {
+        const allMatchesData = await allMatchesRes.json();
+        const allMatches = allMatchesData.records || [];
+
+        const buyerIndex: Record<string, string[]> = {};
+        const propertyIndex: Record<string, string[]> = {};
+
+        allMatches.forEach((r: any) => {
+          const buyerRecordId = r.fields['Contact ID']?.[0] || '';
+          const propertyRecordId = r.fields['Property Code']?.[0] || '';
+
+          if (buyerRecordId) {
+            if (!buyerIndex[buyerRecordId]) buyerIndex[buyerRecordId] = [];
+            buyerIndex[buyerRecordId].push(r.id);
+          }
+
+          if (propertyRecordId) {
+            if (!propertyIndex[propertyRecordId]) propertyIndex[propertyRecordId] = [];
+            propertyIndex[propertyRecordId].push(r.id);
+          }
+        });
+
+        const cacheData = { records: allMatches, buyerIndex, propertyIndex };
+        await updateCacheRecord('matches', cacheData, allMatches.length, headers);
+        console.log('[Matching] Successfully auto-refreshed matches cache');
+      } else {
+        await invalidateCache('matches', headers);
+      }
+    } catch (error) {
+      console.error('[Matching] Error auto-refreshing cache:', error);
+      await invalidateCache('matches', headers);
+    }
   }
 
   return res.status(200).json({
@@ -697,10 +841,47 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
   const matchesCreated = await batchCreateMatches(matchesToCreate, headers);
   const matchesUpdated = await batchUpdateMatches(matchesToUpdate, headers);
 
-  // Invalidate matches cache if we created or updated any matches
+  // Auto-refresh matches cache if we created or updated any matches
   if (matchesCreated > 0 || matchesUpdated > 0) {
-    console.log('[Matching] Invalidating matches cache due to changes...');
-    await invalidateCache('matches', headers);
+    console.log('[Matching] Auto-refreshing matches cache with new data...');
+    try {
+      const allMatchesRes = await fetch(
+        `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`,
+        { headers }
+      );
+
+      if (allMatchesRes.ok) {
+        const allMatchesData = await allMatchesRes.json();
+        const allMatches = allMatchesData.records || [];
+
+        const buyerIndex: Record<string, string[]> = {};
+        const propertyIndex: Record<string, string[]> = {};
+
+        allMatches.forEach((r: any) => {
+          const buyerRecordId = r.fields['Contact ID']?.[0] || '';
+          const propertyRecordId = r.fields['Property Code']?.[0] || '';
+
+          if (buyerRecordId) {
+            if (!buyerIndex[buyerRecordId]) buyerIndex[buyerRecordId] = [];
+            buyerIndex[buyerRecordId].push(r.id);
+          }
+
+          if (propertyRecordId) {
+            if (!propertyIndex[propertyRecordId]) propertyIndex[propertyRecordId] = [];
+            propertyIndex[propertyRecordId].push(r.id);
+          }
+        });
+
+        const cacheData = { records: allMatches, buyerIndex, propertyIndex };
+        await updateCacheRecord('matches', cacheData, allMatches.length, headers);
+        console.log('[Matching] Successfully auto-refreshed matches cache');
+      } else {
+        await invalidateCache('matches', headers);
+      }
+    } catch (error) {
+      console.error('[Matching] Error auto-refreshing cache:', error);
+      await invalidateCache('matches', headers);
+    }
   }
 
   return res.status(200).json({
