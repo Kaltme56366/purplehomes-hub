@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home } from 'lucide-react';
 import type { PropertyCondition, PropertyType, Property } from '@/types';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -777,12 +778,12 @@ export default function PublicListings() {
                       </div>
                       <div>
                         <Label>Phone *</Label>
-                        <Input
-                          type="tel"
+                        <PhoneInput
                           value={offerForm.phone}
-                          onChange={(e) => setOfferForm(prev => ({ ...prev, phone: e.target.value }))}
+                          onChange={(value) => setOfferForm(prev => ({ ...prev, phone: value || '' }))}
                           required
-                          placeholder="(555) 123-4567"
+                          placeholder="Enter phone number"
+                          defaultCountry="US"
                           className="mt-1"
                         />
                       </div>

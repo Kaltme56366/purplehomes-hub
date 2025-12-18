@@ -826,7 +826,7 @@ if (resource === 'opportunities') {
           customFields.push({ key: 'offer_amount', field_value: body.offer_amount });
         }
         if (body.listing_message || body.message) {
-          customFields.push({ key: 'notes', field_value: body.listing_message || body.message });
+          customFields.push({ key: 'contact.listing_message', field_value: body.listing_message || body.message });
         }
         
         if (tags.length > 0) contactData.tags = tags;

@@ -1,0 +1,80 @@
+/* Phone Input Custom Styles */
+/* Override react-phone-number-input styles to match shadcn/ui theme */
+
+.phone-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.PhoneInputCountry {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  border: 1px solid hsl(var(--input));
+  border-radius: 0.375rem;
+  background: hsl(var(--background));
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.PhoneInputCountry:hover {
+  background: hsl(var(--accent));
+}
+
+.PhoneInputCountry:focus-within {
+  outline: none;
+  ring: 2px;
+  ring-color: hsl(var(--ring));
+  ring-offset: 2px;
+}
+
+.PhoneInputCountryIcon {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.PhoneInputCountrySelectArrow {
+  opacity: 0.5;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.PhoneInputInput {
+  flex: 1;
+}
+
+/* Country selector dropdown */
+.PhoneInputCountrySelect {
+  position: absolute;
+  z-index: 1;
+  margin-top: 0.25rem;
+  max-height: 20rem;
+  overflow-y: auto;
+  border-radius: 0.375rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--popover));
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.PhoneInputCountrySelectOption {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.PhoneInputCountrySelectOption:hover {
+  background: hsl(var(--accent));
+}
+
+.PhoneInputCountrySelectOption--selected {
+  background: hsl(var(--accent));
+  font-weight: 500;
+}
+
+/* Disabled state */
+.phone-input-wrapper:has(input:disabled) .PhoneInputCountry {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

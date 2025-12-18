@@ -21,6 +21,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -938,11 +939,11 @@ export default function Contacts() {
               </div>
               <div className="space-y-2">
                 <Label>Phone</Label>
-                <Input
-                  type="tel"
+                <PhoneInput
                   value={newContact.phone}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="(555) 123-4567"
+                  onChange={(value) => setNewContact(prev => ({ ...prev, phone: value || '' }))}
+                  placeholder="Enter phone number"
+                  defaultCountry="US"
                 />
               </div>
             </div>
