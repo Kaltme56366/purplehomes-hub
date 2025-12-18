@@ -163,13 +163,13 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
       return;
     }
 
-    // Wait for properties to be available (first render might have empty array)
-    if (properties.length === 0) {
-      console.log('Waiting for properties to load...');
+    // Wait for properties to be available
+    if (!properties || properties.length === 0) {
+      console.log('Waiting for properties to load...', properties);
       return;
     }
 
-    console.log('Initializing map with', properties.length, 'properties');
+    console.log('🗺️ Initializing map with', properties.length, 'properties');
     mapInitialized.current = true;
 
     try {
@@ -382,7 +382,7 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
       map.current?.remove();
       mapInitialized.current = false;
     };
-  }, [mapboxToken]);
+  }, [mapboxToken, properties]);
 
   // Update data when properties change
   useEffect(() => {
