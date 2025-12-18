@@ -2,10 +2,9 @@ import { useState, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Database, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
@@ -38,7 +37,6 @@ export default function Matching() {
   const [sendingEmails, setSendingEmails] = useState<Set<string>>(new Set());
   const [sendingSingleProperty, setSendingSingleProperty] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<SortOption>('matches-high');
-  const [forceRematch, setForceRematch] = useState(false);
   const [expandedBuyers, setExpandedBuyers] = useState<Set<string>>(new Set());
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
   const [selectedProperty, setSelectedProperty] = useState<PropertyDetails | null>(null);
@@ -86,9 +84,9 @@ export default function Matching() {
   const clearMatchesMutation = useClearMatches();
 
   const handleRunMatchingAll = async () => {
-    console.log('[Matching UI] handleRunMatchingAll called', { forceRematch });
+    console.log('[Matching UI] handleRunMatchingAll called');
     try {
-      const result = await runMatchingMutation.mutateAsync({ minScore: 30, refreshAll: forceRematch });
+      const result = await runMatchingMutation.mutateAsync({ minScore: 30, refreshAll: false });
       console.log('[Matching UI] Result:', result);
       toast.success(result.message);
     } catch (error) {
@@ -456,87 +454,80 @@ export default function Matching() {
         </div>
       </div>
 
-      {/* Search/Filter Row */}
-      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center px-6 py-3 bg-muted/30 rounded-lg">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={activeTab === 'buyers' ? 'Search buyers by name or email...' : 'Search properties by code, address, or city...'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-background"
-          />
-        </div>
+      {/* Search/Filter Row - Sticky on scroll */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center px-6 py-3">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={activeTab === 'buyers' ? 'Search buyers...' : 'Search properties...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10 h-9"
+            />
+          </div>
 
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-full sm:w-[180px] bg-background">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="matches-high">Most Matches</SelectItem>
-            <SelectItem value="matches-low">Least Matches</SelectItem>
-            <SelectItem value="name-az">Name (A-Z)</SelectItem>
-            <SelectItem value="name-za">Name (Z-A)</SelectItem>
-          </SelectContent>
-        </Select>
+          <div className="flex flex-wrap gap-2">
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
+              <SelectTrigger className="w-[140px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="matches-high">Most Matches</SelectItem>
+                <SelectItem value="matches-low">Least Matches</SelectItem>
+                <SelectItem value="name-az">Name (A-Z)</SelectItem>
+                <SelectItem value="name-za">Name (Z-A)</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Select
-          value={filters.matchStatus || 'all'}
-          onValueChange={(v) => handleFilterChange({ ...filters, matchStatus: v === 'all' ? undefined : v as 'Active' | 'Sent' | 'Viewed' | 'Closed' })}
-        >
-          <SelectTrigger className="w-full sm:w-[140px] bg-background">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="Active">Active</SelectItem>
-            <SelectItem value="Sent">Sent</SelectItem>
-            <SelectItem value="Viewed">Viewed</SelectItem>
-            <SelectItem value="Closed">Closed</SelectItem>
-          </SelectContent>
-        </Select>
+            <Select
+              value={filters.matchStatus || 'all'}
+              onValueChange={(v) => handleFilterChange({ ...filters, matchStatus: v === 'all' ? undefined : v as 'Active' | 'Sent' | 'Viewed' | 'Closed' })}
+            >
+              <SelectTrigger className="w-[120px] h-9">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Active">Active</SelectItem>
+                <SelectItem value="Sent">Sent</SelectItem>
+                <SelectItem value="Viewed">Viewed</SelectItem>
+                <SelectItem value="Closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Select
-          value={filters.minScore.toString()}
-          onValueChange={(v) => handleFilterChange({ ...filters, minScore: parseInt(v) })}
-        >
-          <SelectTrigger className="w-full sm:w-[140px] bg-background">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">Score: Any</SelectItem>
-            <SelectItem value="30">Score: 30+</SelectItem>
-            <SelectItem value="50">Score: 50+</SelectItem>
-            <SelectItem value="70">Score: 70+</SelectItem>
-            <SelectItem value="80">Score: 80+</SelectItem>
-          </SelectContent>
-        </Select>
+            <Select
+              value={filters.minScore.toString()}
+              onValueChange={(v) => handleFilterChange({ ...filters, minScore: parseInt(v) })}
+            >
+              <SelectTrigger className="w-[110px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Any Score</SelectItem>
+                <SelectItem value="30">30+</SelectItem>
+                <SelectItem value="50">50+</SelectItem>
+                <SelectItem value="70">70+</SelectItem>
+                <SelectItem value="80">80+</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Select
-          value={filters.matchLimit.toString()}
-          onValueChange={(v) => handleFilterChange({ ...filters, matchLimit: parseInt(v) })}
-        >
-          <SelectTrigger className="w-full sm:w-[160px] bg-background">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="5">Top 5 Matches</SelectItem>
-            <SelectItem value="10">Top 10 Matches</SelectItem>
-            <SelectItem value="25">Top 25 Matches</SelectItem>
-            <SelectItem value="50">Top 50 Matches</SelectItem>
-            <SelectItem value="100">All Matches</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="flex items-center space-x-2 whitespace-nowrap">
-          <Checkbox
-            id="force-rematch"
-            checked={forceRematch}
-            onCheckedChange={(checked) => setForceRematch(checked as boolean)}
-          />
-          <Label htmlFor="force-rematch" className="text-sm cursor-pointer">
-            Force re-match
-          </Label>
+            <Select
+              value={filters.matchLimit.toString()}
+              onValueChange={(v) => handleFilterChange({ ...filters, matchLimit: parseInt(v) })}
+            >
+              <SelectTrigger className="w-[120px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">Top 5</SelectItem>
+                <SelectItem value="10">Top 10</SelectItem>
+                <SelectItem value="25">Top 25</SelectItem>
+                <SelectItem value="50">Top 50</SelectItem>
+                <SelectItem value="100">All</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -557,61 +548,115 @@ export default function Matching() {
         {/* Buyer View */}
         <TabsContent value="buyers" className="mt-6">
           {loadingBuyers ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+            <div className="grid gap-4">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-6 w-40" />
+                        <Skeleton className="h-5 w-20" />
+                      </div>
+                      <Skeleton className="h-4 w-48" />
+                      <div className="flex gap-4">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <Skeleton className="h-8 w-24" />
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t space-y-3">
+                    <Skeleton className="h-4 w-32" />
+                    {[1, 2].map((j) => (
+                      <div key={j} className="flex gap-3 p-3 bg-muted/30 rounded-lg">
+                        <Skeleton className="h-16 w-16 rounded-lg" />
+                        <div className="flex-1 space-y-2">
+                          <Skeleton className="h-4 w-48" />
+                          <Skeleton className="h-3 w-32" />
+                        </div>
+                        <Skeleton className="h-6 w-16" />
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ))}
             </div>
           ) : filteredBuyers && filteredBuyers.length > 0 ? (
             <div className="grid gap-4">
               {filteredBuyers.map((buyer) => (
                 <Card key={buyer.recordId} className="p-6">
                   <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold">
-                        {buyer.firstName} {buyer.lastName}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">{buyer.email}</p>
-                      {buyer.city && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          📍 {buyer.city}
-                        </p>
-                      )}
-                      {(buyer.desiredBeds || buyer.desiredBaths) && (
-                        <p className="text-sm text-muted-foreground">
-                          Looking for: {buyer.desiredBeds && `${buyer.desiredBeds} bed`}{buyer.desiredBeds && buyer.desiredBaths && ' • '}{buyer.desiredBaths && `${buyer.desiredBaths} bath`}
-                        </p>
-                      )}
-                      {buyer.downPayment && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <DollarSign className="h-3 w-3" />
-                          Down payment: ${buyer.downPayment.toLocaleString()}
-                        </p>
-                      )}
-                      {buyer.preferredLocation && (
-                        <p className="text-sm text-muted-foreground flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />
-                          Preferred: {buyer.preferredLocation}
-                        </p>
-                      )}
-                      {buyer.preferredZipCodes && buyer.preferredZipCodes.length > 0 && (
-                        <div className="flex items-center gap-1 flex-wrap mt-1">
-                          <span className="text-sm text-muted-foreground">ZIP codes:</span>
-                          {buyer.preferredZipCodes.slice(0, 5).map((zip) => (
-                            <Badge key={zip} variant="secondary" className="text-xs">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-lg font-semibold truncate">
+                          {buyer.firstName} {buyer.lastName}
+                        </h3>
+                        {buyer.buyerType && (
+                          <Badge variant="outline" className="text-xs flex-shrink-0">
+                            {buyer.buyerType}
+                          </Badge>
+                        )}
+                        {buyer.matches.some(m => m.isPriority) && (
+                          <Badge className="text-xs bg-purple-500 text-white flex-shrink-0">
+                            Has Priority Matches
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">{buyer.email}</p>
+
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
+                        {buyer.city && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 flex-shrink-0" />
+                            {buyer.city}
+                          </span>
+                        )}
+                        {(buyer.desiredBeds || buyer.desiredBaths) && (
+                          <span className="flex items-center gap-1">
+                            <Bed className="h-3 w-3 flex-shrink-0" />
+                            {buyer.desiredBeds && `${buyer.desiredBeds} bed`}
+                            {buyer.desiredBeds && buyer.desiredBaths && ' / '}
+                            {buyer.desiredBaths && `${buyer.desiredBaths} bath`}
+                          </span>
+                        )}
+                        {buyer.downPayment && (
+                          <span className="flex items-center gap-1">
+                            <DollarSign className="h-3 w-3 flex-shrink-0" />
+                            ${buyer.downPayment.toLocaleString()} down
+                          </span>
+                        )}
+                      </div>
+
+                      {(buyer.preferredLocation || (buyer.preferredZipCodes && buyer.preferredZipCodes.length > 0)) && (
+                        <div className="flex items-center gap-2 flex-wrap mt-2">
+                          {buyer.preferredLocation && (
+                            <Badge variant="secondary" className="text-xs">
+                              <MapPin className="h-2.5 w-2.5 mr-1" />
+                              {buyer.preferredLocation}
+                            </Badge>
+                          )}
+                          {buyer.preferredZipCodes && buyer.preferredZipCodes.slice(0, 3).map((zip) => (
+                            <Badge key={zip} variant="outline" className="text-xs">
                               {zip}
                             </Badge>
                           ))}
-                          {buyer.preferredZipCodes.length > 5 && (
-                            <span className="text-xs text-muted-foreground">+{buyer.preferredZipCodes.length - 5} more</span>
+                          {buyer.preferredZipCodes && buyer.preferredZipCodes.length > 3 && (
+                            <span className="text-xs text-muted-foreground">+{buyer.preferredZipCodes.length - 3} more</span>
                           )}
                         </div>
                       )}
                     </div>
-                    <div className="text-right flex flex-col items-end gap-3">
-                      <div>
-                        <div className="text-2xl font-bold text-purple-600">
+
+                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                      <div className="text-center">
+                        <div className="text-3xl font-bold text-purple-600">
                           {buyer.totalMatches}
                         </div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-xs text-muted-foreground uppercase tracking-wide">
                           {buyer.totalMatches === 1 ? 'Match' : 'Matches'}
                         </div>
                       </div>
@@ -620,17 +665,17 @@ export default function Matching() {
                           onClick={() => handleSendPropertyMatches(buyer)}
                           disabled={sendingEmails.has(buyer.contactId)}
                           size="sm"
-                          className="bg-purple-600 hover:bg-purple-700"
+                          className="bg-purple-600 hover:bg-purple-700 gap-2"
                         >
                           {sendingEmails.has(buyer.contactId) ? (
                             <>
-                              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                              <Loader2 className="h-4 w-4 animate-spin" />
                               Sending...
                             </>
                           ) : (
                             <>
-                              <Send className="h-3 w-3 mr-2" />
-                              Send {buyer.totalMatches} {buyer.totalMatches === 1 ? 'Match' : 'Matches'}
+                              <Send className="h-4 w-4" />
+                              Email All
                             </>
                           )}
                         </Button>
@@ -646,62 +691,86 @@ export default function Matching() {
                       {(expandedBuyers.has(buyer.recordId) ? buyer.matches : buyer.matches.slice(0, 3)).map((match) => (
                         <div
                           key={match.id}
-                          className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
+                          className="flex gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
                         >
-                          <div className="flex-1">
+                          {/* Property Thumbnail Placeholder */}
+                          <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg flex items-center justify-center">
+                            <Home className="h-6 w-6 text-purple-300" />
+                          </div>
+
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               {match.property ? (
                                 <>
                                   <button
                                     onClick={() => setSelectedProperty(match.property)}
-                                    className="font-medium text-left hover:text-purple-600 hover:underline transition-colors"
+                                    className="font-medium text-left hover:text-purple-600 transition-colors truncate max-w-[200px] sm:max-w-none"
                                   >
                                     {match.property.address}
-                                    {match.property.city && `, ${match.property.city}`}
-                                    {match.property.state && `, ${match.property.state}`}
                                   </button>
                                   {match.isPriority && (
-                                    <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
+                                    <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30 flex-shrink-0">
                                       Priority
                                     </Badge>
                                   )}
                                 </>
                               ) : (
-                                <>
-                                  <div className="font-medium">Property {match.propertyRecordId.slice(-6)}</div>
-                                  {match.isPriority && (
-                                    <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
-                                      Priority
-                                    </Badge>
-                                  )}
-                                </>
+                                <div className="font-medium">Property {match.propertyRecordId.slice(-6)}</div>
                               )}
                             </div>
+
                             {match.property && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {match.property.beds} bed • {match.property.baths} bath
-                                {match.property.sqft && ` • ${match.property.sqft.toLocaleString()} sqft`}
-                                {match.property.zipCode && ` • ${match.property.zipCode}`}
-                                {match.property.price && ` • $${match.property.price.toLocaleString()}`}
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5">
+                                <span className="flex items-center gap-1">
+                                  <Bed className="h-3 w-3" />
+                                  {match.property.beds}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Bath className="h-3 w-3" />
+                                  {match.property.baths}
+                                </span>
+                                {match.property.sqft && (
+                                  <span className="flex items-center gap-1">
+                                    <Square className="h-3 w-3" />
+                                    {match.property.sqft.toLocaleString()}
+                                  </span>
+                                )}
+                                {match.property.zipCode && (
+                                  <Badge variant="outline" className="text-xs px-1.5 py-0 h-5">
+                                    {match.property.zipCode}
+                                  </Badge>
+                                )}
+                                {match.property.price && (
+                                  <span className="font-medium text-foreground">
+                                    ${match.property.price.toLocaleString()}
+                                  </span>
+                                )}
                               </div>
                             )}
+
                             {match.distance && (
                               <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                                 <MapPin className="h-3 w-3" />
-                                {match.distance.toFixed(1)} miles away
+                                {match.distance.toFixed(1)} mi
                               </div>
                             )}
-                            <div className="text-sm text-muted-foreground line-clamp-1 mt-1">
-                              {match.reasoning}
-                            </div>
+
+                            {match.reasoning && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1" title={match.reasoning}>
+                                {match.reasoning}
+                              </p>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
+
+                          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                            <MatchScoreBadge score={match.score} size="sm" showLabel={false} />
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => handleSendSingleProperty(buyer, match)}
                               disabled={sendingSingleProperty.has(`${buyer.contactId}-${match.propertyRecordId}`)}
-                              className="h-8 px-2"
+                              className="h-7 px-2 text-xs"
+                              title="Send this property"
                             >
                               {sendingSingleProperty.has(`${buyer.contactId}-${match.propertyRecordId}`) ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -709,7 +778,6 @@ export default function Matching() {
                                 <Send className="h-3 w-3" />
                               )}
                             </Button>
-                            <MatchScoreBadge score={match.score} size="sm" />
                           </div>
                         </div>
                       ))}
@@ -778,8 +846,34 @@ export default function Matching() {
         {/* Property View */}
         <TabsContent value="properties" className="mt-6">
           {loadingProperties ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-purple-600" />
+            <div className="grid gap-4">
+              {[1, 2, 3].map((i) => (
+                <Card key={i} className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-6 w-56" />
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-4 w-40" />
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Skeleton className="h-8 w-8" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t space-y-3">
+                    <Skeleton className="h-4 w-28" />
+                    {[1, 2].map((j) => (
+                      <div key={j} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-36" />
+                          <Skeleton className="h-3 w-48" />
+                        </div>
+                        <Skeleton className="h-6 w-16" />
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ))}
             </div>
           ) : filteredProperties && filteredProperties.length > 0 ? (
             <div className="grid gap-4">
