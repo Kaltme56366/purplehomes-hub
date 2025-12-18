@@ -582,7 +582,7 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
   // Invalidate matches cache if we created or updated any matches
   if (matchesCreated > 0 || matchesUpdated > 0) {
     console.log('[Matching] Invalidating matches cache due to changes...');
-    await invalidateCache('cache:matches', headers);
+    await invalidateCache('matches', headers);
   }
 
   return res.status(200).json({
@@ -700,7 +700,7 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
   // Invalidate matches cache if we created or updated any matches
   if (matchesCreated > 0 || matchesUpdated > 0) {
     console.log('[Matching] Invalidating matches cache due to changes...');
-    await invalidateCache('cache:matches', headers);
+    await invalidateCache('matches', headers);
   }
 
   return res.status(200).json({
