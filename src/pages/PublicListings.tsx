@@ -217,10 +217,10 @@ export default function PublicListings() {
     const distance = getPropertyDistance(property);
 
     return (
-      <div 
+      <div
         className={cn(
-          "group relative bg-card rounded-xl overflow-hidden cursor-pointer transition-all duration-300",
-          "border border-border/50 hover:border-purple-500/50",
+          "group relative bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300",
+          "border border-gray-200 hover:border-purple-500/50",
           isHovered && "ring-2 ring-purple-500 shadow-lg shadow-purple-500/20",
           compact && "flex"
         )}
@@ -284,7 +284,7 @@ export default function PublicListings() {
             </p>
           )}
           <div className={cn(
-            "flex items-center gap-3 text-sm text-muted-foreground mb-2",
+            "flex items-center gap-3 text-sm text-gray-600 mb-2",
             compact && "gap-2 text-xs mb-1"
           )}>
             <span className="flex items-center gap-1 font-medium">
@@ -299,13 +299,13 @@ export default function PublicListings() {
               </span>
             )}
           </div>
-          
+
           <h3 className={cn(
-            "font-semibold text-foreground truncate",
+            "font-semibold text-gray-900 truncate",
             compact && "text-sm"
           )}>{property.address}</h3>
           <p className={cn(
-            "text-sm text-muted-foreground truncate",
+            "text-sm text-gray-600 truncate",
             compact && "text-xs"
           )}>{property.city}</p>
         </div>
@@ -315,13 +315,13 @@ export default function PublicListings() {
 
   const PropertyListPanel = () => (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b border-border/50 bg-card/50">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
         <div>
-          <h2 className="font-semibold">{filteredProperties.length} Properties</h2>
-          <p className="text-xs text-muted-foreground">Investment opportunities</p>
+          <h2 className="font-semibold text-purple-600">{filteredProperties.length} Properties</h2>
+          <p className="text-xs text-gray-600">Investment opportunities</p>
         </div>
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-[140px] text-xs h-8">
+          <SelectTrigger className="w-[140px] text-xs h-8 bg-white text-gray-900 border-gray-300">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -342,10 +342,10 @@ export default function PublicListings() {
 
           {filteredProperties.length === 0 && (
             <div className="text-center py-12">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                <Search className="h-8 w-8 text-muted-foreground" />
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className="h-8 w-8 text-gray-400" />
               </div>
-              <p className="text-muted-foreground">No properties match your criteria</p>
+              <p className="text-gray-600">No properties match your criteria</p>
               <Button variant="link" onClick={clearFilters} className="text-purple-500">
                 Clear all filters
               </Button>
@@ -382,7 +382,7 @@ export default function PublicListings() {
                 placeholder="ZIP"
                 value={zipCode}
                 onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                className="pl-9 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent"
+                className="pl-9 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent"
                 maxLength={5}
               />
             </div>
@@ -394,14 +394,14 @@ export default function PublicListings() {
                 placeholder="Search address, city..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent"
+                className="pl-10 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent"
               />
             </div>
 
             {/* Quick Filters - Desktop Only */}
             <div className="hidden lg:flex items-center gap-2">
               <Select value={beds} onValueChange={setBeds}>
-                <SelectTrigger className="w-24 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <SelectTrigger className="w-24 bg-white text-gray-900 border border-gray-300 shadow-sm hover:shadow-md transition-shadow">
                   <SelectValue placeholder="Beds" />
                 </SelectTrigger>
                 <SelectContent>
@@ -415,7 +415,7 @@ export default function PublicListings() {
               </Select>
 
               <Select value={baths} onValueChange={setBaths}>
-                <SelectTrigger className="w-24 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <SelectTrigger className="w-24 bg-white text-gray-900 border border-gray-300 shadow-sm hover:shadow-md transition-shadow">
                   <SelectValue placeholder="Baths" />
                 </SelectTrigger>
                 <SelectContent>
@@ -431,7 +431,7 @@ export default function PublicListings() {
                 const [min, max] = value.split('-').map(Number);
                 setPriceRange([min, max]);
               }}>
-                <SelectTrigger className="w-36 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <SelectTrigger className="w-36 bg-white text-gray-900 border border-gray-300 shadow-sm hover:shadow-md transition-shadow">
                   <DollarSign className="h-4 w-4" />
                   <SelectValue placeholder="Price" />
                 </SelectTrigger>
@@ -469,7 +469,7 @@ export default function PublicListings() {
                 
                 <div className="space-y-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Property Type</Label>
+                    <Label className="text-xs text-gray-600">Property Type</Label>
                     <Select value={propertyType} onValueChange={setPropertyType}>
                       <SelectTrigger className="mt-1">
                         <SelectValue placeholder="Any" />
@@ -484,7 +484,7 @@ export default function PublicListings() {
                   </div>
 
                   <div>
-                    <Label className="text-xs text-muted-foreground">Condition</Label>
+                    <Label className="text-xs text-gray-600">Condition</Label>
                     <Select value={condition} onValueChange={setCondition}>
                       <SelectTrigger className="mt-1">
                         <SelectValue placeholder="Any" />
@@ -499,7 +499,7 @@ export default function PublicListings() {
                   </div>
 
                   <div>
-                    <Label className="text-xs text-muted-foreground">Down Payment Range</Label>
+                    <Label className="text-xs text-gray-600">Down Payment Range</Label>
                     <Slider
                       value={downPaymentRange}
                       min={0}
@@ -508,7 +508,7 @@ export default function PublicListings() {
                       onValueChange={(value) => setDownPaymentRange(value as [number, number])}
                       className="mt-3"
                     />
-                    <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                    <div className="flex justify-between text-xs text-gray-600 mt-1">
                       <span>${downPaymentRange[0].toLocaleString()}</span>
                       <span>{downPaymentRange[1] >= 1000000 ? '$1M+' : `$${downPaymentRange[1].toLocaleString()}`}</span>
                     </div>
@@ -517,7 +517,7 @@ export default function PublicListings() {
                   {/* Mobile-only filters */}
                   <div className="lg:hidden space-y-3">
                     <div>
-                      <Label className="text-xs text-muted-foreground">Price Range</Label>
+                      <Label className="text-xs text-gray-600">Price Range</Label>
                       <Slider
                         value={priceRange}
                         min={0}
@@ -526,14 +526,14 @@ export default function PublicListings() {
                         onValueChange={(value) => setPriceRange(value as [number, number])}
                         className="mt-3"
                       />
-                      <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                      <div className="flex justify-between text-xs text-gray-600 mt-1">
                         <span>${priceRange[0].toLocaleString()}</span>
                         <span>{priceRange[1] >= 1000000 ? '$1M+' : `$${priceRange[1].toLocaleString()}`}</span>
                       </div>
                     </div>
 
                     <div>
-                      <Label className="text-xs text-muted-foreground">Bedrooms</Label>
+                      <Label className="text-xs text-gray-600">Bedrooms</Label>
                       <Select value={beds} onValueChange={setBeds}>
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder="Any" />
@@ -549,7 +549,7 @@ export default function PublicListings() {
                     </div>
 
                     <div>
-                      <Label className="text-xs text-muted-foreground">Bathrooms</Label>
+                      <Label className="text-xs text-gray-600">Bathrooms</Label>
                       <Select value={baths} onValueChange={setBaths}>
                         <SelectTrigger className="mt-1">
                           <SelectValue placeholder="Any" />
@@ -582,7 +582,7 @@ export default function PublicListings() {
       {activeFilterCount > 0 && (
         <div className="flex-shrink-0 bg-purple-50 border-b border-purple-100 px-4 py-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground font-medium">Active Filters:</span>
+            <span className="text-xs text-purple-700 font-medium">Active Filters:</span>
 
             {zipCode && (
               <Badge variant="secondary" className="gap-1">
@@ -750,7 +750,7 @@ export default function PublicListings() {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">{selectedProperty.beds}</p>
-                      <p className="text-sm text-muted-foreground">Bedrooms</p>
+                      <p className="text-sm text-gray-600">Bedrooms</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -759,7 +759,7 @@ export default function PublicListings() {
                     </div>
                     <div>
                       <p className="text-2xl font-bold">{selectedProperty.baths}</p>
-                      <p className="text-sm text-muted-foreground">Bathrooms</p>
+                      <p className="text-sm text-gray-600">Bathrooms</p>
                     </div>
                   </div>
                   {selectedProperty.sqft && (
@@ -769,7 +769,7 @@ export default function PublicListings() {
                       </div>
                       <div>
                         <p className="text-2xl font-bold">{selectedProperty.sqft.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">Sq Ft</p>
+                        <p className="text-sm text-gray-600">Sq Ft</p>
                       </div>
                     </div>
                   )}
@@ -780,7 +780,7 @@ export default function PublicListings() {
                       </div>
                       <div>
                         <p className="text-lg font-bold">{selectedProperty.condition}</p>
-                        <p className="text-sm text-muted-foreground">Condition</p>
+                        <p className="text-sm text-gray-600">Condition</p>
                       </div>
                     </div>
                   )}
@@ -791,7 +791,7 @@ export default function PublicListings() {
                       </div>
                       <div>
                         <p className="text-lg font-bold">{selectedProperty.propertyType}</p>
-                        <p className="text-sm text-muted-foreground">Type</p>
+                        <p className="text-sm text-gray-600">Type</p>
                       </div>
                     </div>
                   )}
@@ -802,7 +802,7 @@ export default function PublicListings() {
                       </div>
                       <div>
                         <p className="text-lg font-bold">${selectedProperty.downPayment.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">Down Payment</p>
+                        <p className="text-sm text-gray-600">Down Payment</p>
                       </div>
                     </div>
                   )}
@@ -811,7 +811,7 @@ export default function PublicListings() {
                 {selectedProperty.description && (
                   <div>
                     <h3 className="font-semibold mb-2">About This Property</h3>
-                    <p className="text-muted-foreground">{selectedProperty.description}</p>
+                    <p className="text-gray-600">{selectedProperty.description}</p>
                   </div>
                 )}
 
