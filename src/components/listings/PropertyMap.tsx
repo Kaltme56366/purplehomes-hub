@@ -22,8 +22,17 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
   const [error, setError] = useState<string | null>(null);
   const [hoveredProperty, setHoveredProperty] = useState<Property | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [propertiesReady, setPropertiesReady] = useState(false);
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
+  // Trigger when properties are ready
+  useEffect(() => {
+    if (properties && properties.length > 0 && !propertiesReady) {
+      console.log('✅ Properties ready:', properties.length);
+      setPropertiesReady(true);
+    }
+  }, [properties, propertiesReady]);
 
   // Create GeoJSON from properties
   const getGeoJSON = useCallback(() => {
@@ -163,9 +172,8 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
       return;
     }
 
-    // Wait for properties to be available
-    if (!properties || properties.length === 0) {
-      console.log('Waiting for properties to load...', properties);
+    // Wait for properties to be ready
+    if (!propertiesReady) {
       return;
     }
 
@@ -382,7 +390,7 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
       map.current?.remove();
       mapInitialized.current = false;
     };
-  }, [mapboxToken, properties]);
+  }, [mapboxToken, propertiesReady]);
 
   // Update data when properties change
   useEffect(() => {
