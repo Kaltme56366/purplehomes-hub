@@ -78,7 +78,7 @@ async function fetchAllRecords(tableName: string, fields?: string[]): Promise<an
 }
 
 async function updateCache(cacheKey: string, data: any, recordCount: number): Promise<void> {
-  // First, find the cache record ID
+  // First, try to find existing cache record
   const formula = `{cache_key}="${cacheKey}"`;
   const findRes = await fetch(
     `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent('System Cache')}?filterByFormula=${encodeURIComponent(formula)}&fields[]=cache_key`,
@@ -87,31 +87,52 @@ async function updateCache(cacheKey: string, data: any, recordCount: number): Pr
   const findData = await findRes.json();
   const recordId = findData.records?.[0]?.id;
 
-  if (!recordId) {
-    throw new Error(`Cache record not found for key: ${cacheKey}`);
-  }
+  const cacheFields = {
+    cache_key: cacheKey,
+    data: JSON.stringify(data),
+    record_count: recordCount,
+    source_count: recordCount,
+    last_synced: new Date().toISOString(),
+    is_valid: true,
+    version: 1,
+  };
 
-  // Update the cache record
-  const updateRes = await fetch(
-    `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent('System Cache')}/${recordId}`,
-    {
-      method: 'PATCH',
-      headers,
-      body: JSON.stringify({
-        fields: {
-          data: JSON.stringify(data),
-          record_count: recordCount,
-          source_count: recordCount,
-          last_synced: new Date().toISOString(),
-          is_valid: true,
-        },
-      }),
+  if (recordId) {
+    // Update existing record
+    console.log(`[Sync] Updating existing cache record for ${cacheKey}`);
+    const updateRes = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent('System Cache')}/${recordId}`,
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          fields: cacheFields,
+        }),
+      }
+    );
+
+    if (!updateRes.ok) {
+      const error = await updateRes.json();
+      throw new Error(`Failed to update cache: ${JSON.stringify(error)}`);
     }
-  );
+  } else {
+    // Create new record
+    console.log(`[Sync] Creating new cache record for ${cacheKey}`);
+    const createRes = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent('System Cache')}`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          fields: cacheFields,
+        }),
+      }
+    );
 
-  if (!updateRes.ok) {
-    const error = await updateRes.json();
-    throw new Error(`Failed to update cache: ${JSON.stringify(error)}`);
+    if (!createRes.ok) {
+      const error = await createRes.json();
+      throw new Error(`Failed to create cache: ${JSON.stringify(error)}`);
+    }
   }
 }
 
