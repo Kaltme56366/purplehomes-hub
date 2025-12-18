@@ -162,7 +162,7 @@ async function fetchExistingMatches(headers: any, refreshAll: boolean): Promise<
   try {
     // Try to fetch from cache first
     console.log('[Matching] Attempting to fetch existing matches from cache...');
-    const cachedMatches = await fetchCachedData('cache:matches', headers);
+    const cachedMatches = await fetchCachedData('matches', headers);
     let matchRecords = cachedMatches?.records || [];
 
     // Fallback to direct Airtable query if cache unavailable
@@ -317,7 +317,7 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
   try {
     // Try to fetch buyers from cache first
     console.log('[Matching] Attempting to fetch buyers from cache...');
-    let buyersData = await fetchCachedData('cache:buyers', headers);
+    let buyersData = await fetchCachedData('buyers', headers);
     let buyers = buyersData?.records || [];
 
     // Fallback to direct Airtable query if cache unavailable
@@ -336,7 +336,7 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
 
     // Try to fetch properties from cache first
     console.log('[Matching] Attempting to fetch properties from cache...');
-    let propertiesData = await fetchCachedData('cache:properties', headers);
+    let propertiesData = await fetchCachedData('properties', headers);
     let properties = propertiesData?.records || [];
 
     // Fallback to direct Airtable query if cache unavailable
@@ -449,7 +449,7 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
     // Invalidate matches cache if we created or updated any matches
     if (matchesCreated > 0 || matchesUpdated > 0) {
       console.log('[Matching] Invalidating matches cache due to changes...');
-      await invalidateCache('cache:matches', headers);
+      await invalidateCache('matches', headers);
     }
 
     const totalTime = Date.now() - startTime;
@@ -495,7 +495,7 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
 
   // Try to fetch buyers from cache first
   console.log('[Matching] Attempting to fetch buyers from cache...');
-  let buyersData = await fetchCachedData('cache:buyers', headers);
+  let buyersData = await fetchCachedData('buyers', headers);
   let allBuyers = buyersData?.records || [];
 
   // Fallback to direct Airtable query if cache unavailable
@@ -520,7 +520,7 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
 
   // Try to fetch properties from cache first
   console.log('[Matching] Attempting to fetch properties from cache...');
-  let propertiesData = await fetchCachedData('cache:properties', headers);
+  let propertiesData = await fetchCachedData('properties', headers);
   let properties = propertiesData?.records || [];
 
   // Fallback to direct Airtable query if cache unavailable
@@ -613,7 +613,7 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
 
   // Try to fetch properties from cache first
   console.log('[Matching] Attempting to fetch properties from cache...');
-  let propertiesData = await fetchCachedData('cache:properties', headers);
+  let propertiesData = await fetchCachedData('properties', headers);
   let allProperties = propertiesData?.records || [];
 
   // Fallback to direct Airtable query if cache unavailable
@@ -638,7 +638,7 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
 
   // Try to fetch buyers from cache first
   console.log('[Matching] Attempting to fetch buyers from cache...');
-  let buyersData = await fetchCachedData('cache:buyers', headers);
+  let buyersData = await fetchCachedData('buyers', headers);
   let buyers = buyersData?.records || [];
 
   // Fallback to direct Airtable query if cache unavailable
