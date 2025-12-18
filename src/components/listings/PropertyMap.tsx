@@ -17,6 +17,7 @@ interface PropertyMapProps {
 export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, isDarkMode = false, zipCode }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const mapInitialized = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredProperty, setHoveredProperty] = useState<Property | null>(null);
@@ -153,13 +154,23 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
   }, [getGeoJSON]);
 
   useEffect(() => {
-    if (!mapContainer.current) return;
+    // Only initialize map once
+    if (mapInitialized.current || !mapContainer.current) return;
 
     if (!mapboxToken) {
       setError('Mapbox token not configured');
       setIsLoading(false);
       return;
     }
+
+    // Wait for properties to be available
+    if (properties.length === 0) {
+      console.log('Waiting for properties to load...');
+      return;
+    }
+
+    console.log('Initializing map with', properties.length, 'properties');
+    mapInitialized.current = true;
 
     try {
       mapboxgl.accessToken = mapboxToken;
@@ -369,8 +380,9 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
 
     return () => {
       map.current?.remove();
+      mapInitialized.current = false;
     };
-  }, [mapboxToken]);
+  }, [mapboxToken, properties.length, isDarkMode]);
 
   // Update data when properties change
   useEffect(() => {

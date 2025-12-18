@@ -34,8 +34,11 @@ export default function Matching() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'buyers' | 'properties'>('buyers');
   const [sendingEmails, setSendingEmails] = useState<Set<string>>(new Set());
+  const [sendingSingleProperty, setSendingSingleProperty] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<SortOption>('matches-high');
   const [forceRematch, setForceRematch] = useState(false);
+  const [expandedBuyers, setExpandedBuyers] = useState<Set<string>>(new Set());
+  const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
 
   // Filter state - start with no filters to show all matches
   const [filters, setFilters] = useState({
@@ -198,6 +201,53 @@ export default function Matching() {
       setSendingEmails((prev) => {
         const next = new Set(prev);
         next.delete(buyer.contactId);
+        return next;
+      });
+    }
+  };
+
+  const handleSendSingleProperty = async (buyer: any, match: any) => {
+    if (!buyer.contactId || !buyer.email) {
+      toast.error('Buyer contact information is missing');
+      return;
+    }
+
+    if (!match.property) {
+      toast.error('Property details not available');
+      return;
+    }
+
+    const sendKey = `${buyer.contactId}-${match.propertyRecordId}`;
+    setSendingSingleProperty((prev) => new Set(prev).add(sendKey));
+
+    try {
+      // Find the GHL property
+      const matchedProperty = ghlProperties?.properties.find((prop) =>
+        prop.id === match.propertyRecordId || prop.ghlOpportunityId === match.propertyRecordId
+      );
+
+      if (!matchedProperty) {
+        toast.error('Could not find property details from GHL');
+        return;
+      }
+
+      await sendPropertyEmail({
+        contactId: buyer.contactId,
+        contactName: `${buyer.firstName} ${buyer.lastName}`,
+        contactEmail: buyer.email,
+        properties: [matchedProperty],
+        subject: `Property Match: ${match.property.address} from Purple Homes`,
+        customMessage: 'We found a property that matches your preferences.',
+      });
+
+      toast.success(`Sent ${match.property.address} to ${buyer.firstName} ${buyer.lastName}`);
+    } catch (error) {
+      console.error('Failed to send property:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to send property');
+    } finally {
+      setSendingSingleProperty((prev) => {
+        const next = new Set(prev);
+        next.delete(sendKey);
         return next;
       });
     }

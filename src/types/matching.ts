@@ -30,6 +30,7 @@ export interface PropertyDetails {
   address: string;
   city: string;
   state?: string;
+  zipCode?: string;
   price?: number;
   beds: number;
   baths: number;

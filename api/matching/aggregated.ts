@@ -20,6 +20,13 @@ const buyersCache = new Map<string, { data: any[], timestamp: number }>();
 const propertiesCache = new Map<string, { data: any[], timestamp: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+// Helper to extract ZIP code from city string (e.g., "Kenner, LA 70062" -> "70062")
+function extractZipFromCity(city: string | undefined): string | undefined {
+  if (!city) return undefined;
+  const match = city.match(/\b\d{5}\b/);
+  return match ? match[0] : undefined;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Aggregated API] *** NEW CODE VERSION *** Request:', {
     method: req.method,
@@ -263,6 +270,7 @@ async function handleBuyersAggregated(
             address: property.fields['Address'] || '',
             city: property.fields['City'] || '',
             state: property.fields['State'],
+            zipCode: property.fields['Zip Code'] || property.fields['Zip'] || extractZipFromCity(property.fields['City']),
             price: property.fields['Price'],
             beds: property.fields['Beds'] || 0,
             baths: property.fields['Baths'] || 0,
@@ -520,6 +528,7 @@ async function handlePropertiesAggregated(
       address: property.fields['Address'] || '',
       city: property.fields['City'] || '',
       state: property.fields['State'],
+      zipCode: property.fields['Zip Code'] || property.fields['Zip'] || extractZipFromCity(property.fields['City']),
       price: property.fields['Price'],
       beds: property.fields['Beds'] || 0,
       baths: property.fields['Baths'] || 0,
