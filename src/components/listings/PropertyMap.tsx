@@ -208,105 +208,13 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
       );
 
       // Use 'style.load' event to ensure map style is fully loaded before adding layers
-      map.current.on('style.load', () => {
+      map.current.once('style.load', () => {
         if (!map.current) return;
 
-        console.log('Map style loaded, properties count:', properties.length);
+        console.log('🎨 Map style loaded, adding layers...');
 
-        // Add all map layers and sources directly (not using callback to avoid stale closure)
-        if (map.current.getSource('properties')) {
-          console.log('Source already exists on load');
-          return;
-        }
-
-        // Add clustered source
-        map.current.addSource('properties', {
-          type: 'geojson',
-          data: getGeoJSON(),
-          cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: 50
-        });
-
-        // Cluster circles
-        map.current.addLayer({
-          id: 'clusters',
-          type: 'circle',
-          source: 'properties',
-          filter: ['has', 'point_count'],
-          paint: {
-            'circle-color': [
-              'step',
-              ['get', 'point_count'],
-              '#9333ea',
-              5,
-              '#7c3aed',
-              15,
-              '#6d28d9'
-            ],
-            'circle-radius': [
-              'step',
-              ['get', 'point_count'],
-              20,
-              5,
-              25,
-              15,
-              30
-            ],
-            'circle-stroke-width': 3,
-            'circle-stroke-color': 'rgba(255, 255, 255, 0.3)'
-          }
-        });
-
-        // Cluster count labels
-        map.current.addLayer({
-          id: 'cluster-count',
-          type: 'symbol',
-          source: 'properties',
-          filter: ['has', 'point_count'],
-          layout: {
-            'text-field': '{point_count_abbreviated}',
-            'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-            'text-size': 14
-          },
-          paint: {
-            'text-color': '#ffffff'
-          }
-        });
-
-        // Individual property markers
-        map.current.addLayer({
-          id: 'unclustered-point',
-          type: 'circle',
-          source: 'properties',
-          filter: ['!', ['has', 'point_count']],
-          paint: {
-            'circle-color': '#9333ea',
-            'circle-radius': 10,
-            'circle-stroke-width': 2,
-            'circle-stroke-color': 'rgba(255, 255, 255, 0.5)'
-          }
-        });
-
-        // Price labels
-        map.current.addLayer({
-          id: 'property-price',
-          type: 'symbol',
-          source: 'properties',
-          filter: ['!', ['has', 'point_count']],
-          layout: {
-            'text-field': ['concat', '$', ['/', ['get', 'price'], 1000], 'K'],
-            'text-font': ['DIN Offc Pro Bold', 'Arial Unicode MS Bold'],
-            'text-size': 11,
-            'text-offset': [0, -2.5],
-            'text-anchor': 'bottom'
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': '#9333ea',
-            'text-halo-width': 2
-          }
-        });
+        // Use the addMapLayers callback which has proper dependencies
+        addMapLayers();
 
         // Click on cluster to zoom
         map.current.on('click', 'clusters', (e) => {
