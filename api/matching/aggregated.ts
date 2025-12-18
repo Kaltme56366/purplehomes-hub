@@ -276,6 +276,7 @@ async function handleBuyersAggregated(
             baths: property.fields['Baths'] || 0,
             sqft: property.fields['Sqft'],
             stage: property.fields['Stage'],
+            heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
           } : null,
         };
       });
@@ -534,6 +535,7 @@ async function handlePropertiesAggregated(
       baths: property.fields['Baths'] || 0,
       sqft: property.fields['Sqft'],
       stage: property.fields['Stage'],
+      heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
       matches: propertyMatches,
       totalMatches: propertyMatches.length,
     };

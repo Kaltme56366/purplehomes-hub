@@ -609,12 +609,6 @@ export default function Matching() {
                       <p className="text-sm text-muted-foreground truncate">{buyer.email}</p>
 
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
-                        {buyer.city && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 flex-shrink-0" />
-                            {buyer.city}
-                          </span>
-                        )}
                         {(buyer.desiredBeds || buyer.desiredBaths) && (
                           <span className="flex items-center gap-1">
                             <Bed className="h-3 w-3 flex-shrink-0" />
@@ -631,12 +625,12 @@ export default function Matching() {
                         )}
                       </div>
 
-                      {(buyer.preferredLocation || (buyer.preferredZipCodes && buyer.preferredZipCodes.length > 0)) && (
+                      {(buyer.preferredLocation || buyer.city || (buyer.preferredZipCodes && buyer.preferredZipCodes.length > 0)) && (
                         <div className="flex items-center gap-2 flex-wrap mt-2">
-                          {buyer.preferredLocation && (
+                          {(buyer.preferredLocation || buyer.city) && (
                             <Badge variant="secondary" className="text-xs">
                               <MapPin className="h-2.5 w-2.5 mr-1" />
-                              {buyer.preferredLocation}
+                              {buyer.preferredLocation || buyer.city}
                             </Badge>
                           )}
                           {buyer.preferredZipCodes && buyer.preferredZipCodes.slice(0, 3).map((zip) => (
@@ -675,7 +669,7 @@ export default function Matching() {
                           ) : (
                             <>
                               <Send className="h-4 w-4" />
-                              Email All
+                              Email All Matches
                             </>
                           )}
                         </Button>
@@ -693,9 +687,17 @@ export default function Matching() {
                           key={match.id}
                           className="flex gap-3 p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
                         >
-                          {/* Property Thumbnail Placeholder */}
-                          <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-purple-100 to-purple-50 rounded-lg flex items-center justify-center">
-                            <Home className="h-6 w-6 text-purple-300" />
+                          {/* Property Thumbnail */}
+                          <div className="flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center">
+                            {match.property?.heroImage ? (
+                              <img
+                                src={match.property.heroImage}
+                                alt={match.property.address}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <Home className="h-6 w-6 text-purple-300" />
+                            )}
                           </div>
 
                           <div className="flex-1 min-w-0">
@@ -765,17 +767,19 @@ export default function Matching() {
                           <div className="flex flex-col items-end gap-2 flex-shrink-0">
                             <MatchScoreBadge score={match.score} size="sm" showLabel={false} />
                             <Button
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => handleSendSingleProperty(buyer, match)}
                               disabled={sendingSingleProperty.has(`${buyer.contactId}-${match.propertyRecordId}`)}
-                              className="h-7 px-2 text-xs"
-                              title="Send this property"
+                              className="h-7 px-2 text-xs gap-1"
                             >
                               {sendingSingleProperty.has(`${buyer.contactId}-${match.propertyRecordId}`) ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
                               ) : (
-                                <Send className="h-3 w-3" />
+                                <>
+                                  <Send className="h-3 w-3" />
+                                  Email
+                                </>
                               )}
                             </Button>
                           </div>
@@ -879,24 +883,67 @@ export default function Matching() {
             <div className="grid gap-4">
               {filteredProperties.map((property) => (
                 <Card key={property.recordId} className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold">{property.address}</h3>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        📍 {property.city}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {property.beds} bed • {property.baths} bath
-                        {property.sqft && ` • ${property.sqft.toLocaleString()} sqft`}
-                        {property.zipCode && ` • ${property.zipCode}`}
-                      </p>
+                  <div className="flex gap-4">
+                    {/* Property Thumbnail */}
+                    <div className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center">
+                      {property.heroImage ? (
+                        <img
+                          src={property.heroImage}
+                          alt={property.address}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Home className="h-8 w-8 text-purple-300" />
+                      )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-purple-600">
-                        {property.totalMatches}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {property.totalMatches === 1 ? 'Match' : 'Matches'}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-semibold truncate">{property.address}</h3>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="secondary" className="text-xs">
+                              <MapPin className="h-2.5 w-2.5 mr-1" />
+                              {property.city}
+                            </Badge>
+                            {property.zipCode && (
+                              <Badge variant="outline" className="text-xs">
+                                {property.zipCode}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-2">
+                            <span className="flex items-center gap-1">
+                              <Bed className="h-3.5 w-3.5" />
+                              {property.beds} bed
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Bath className="h-3.5 w-3.5" />
+                              {property.baths} bath
+                            </span>
+                            {property.sqft && (
+                              <span className="flex items-center gap-1">
+                                <Square className="h-3.5 w-3.5" />
+                                {property.sqft.toLocaleString()} sqft
+                              </span>
+                            )}
+                          </div>
+                          {property.price && (
+                            <div className="text-lg font-semibold text-purple-600 mt-1">
+                              ${property.price.toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                          <div className="text-center">
+                            <div className="text-3xl font-bold text-purple-600">
+                              {property.totalMatches}
+                            </div>
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                              {property.totalMatches === 1 ? 'Match' : 'Matches'}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
