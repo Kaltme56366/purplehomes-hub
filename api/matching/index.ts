@@ -516,8 +516,9 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
             });
           } else {
             // Queue for batch create
-            matchFields['Property Code'] = [property.id];
-            matchFields['Contact ID'] = [buyer.id];
+            // Use actual Property Code and GHL Contact ID, not Airtable record IDs
+            matchFields['Property Code'] = [property.fields['Property Code']];
+            matchFields['Contact ID'] = [buyer.fields['Contact ID']];
             matchesToCreate.push({
               fields: matchFields,
             });
@@ -699,8 +700,9 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
       if (existingMatchId) {
         matchesToUpdate.push({ id: existingMatchId, fields: matchFields });
       } else {
-        matchFields['Property Code'] = [property.id];
-        matchFields['Contact ID'] = [buyer.id];
+        // Use actual Property Code and GHL Contact ID, not Airtable record IDs
+        matchFields['Property Code'] = [property.fields['Property Code']];
+        matchFields['Contact ID'] = [buyer.fields['Contact ID']];
         matchesToCreate.push({ fields: matchFields });
       }
 
@@ -854,8 +856,9 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
       if (existingMatchId) {
         matchesToUpdate.push({ id: existingMatchId, fields: matchFields });
       } else {
-        matchFields['Property Code'] = [property.id];
-        matchFields['Contact ID'] = [buyer.id];
+        // Use actual Property Code and GHL Contact ID, not Airtable record IDs
+        matchFields['Property Code'] = [property.fields['Property Code']];
+        matchFields['Contact ID'] = [buyer.fields['Contact ID']];
         matchesToCreate.push({ fields: matchFields });
       }
 
