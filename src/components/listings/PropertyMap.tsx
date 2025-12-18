@@ -207,11 +207,11 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
         'bottom-right'
       );
 
-      // Use 'style.load' event to ensure map style is fully loaded before adding layers
-      map.current.once('style.load', () => {
+      // Wait for map to be fully loaded before adding layers
+      map.current.on('load', () => {
         if (!map.current) return;
 
-        console.log('🎨 Map style loaded, adding layers...');
+        console.log('🎨 Map fully loaded, adding layers...');
 
         // Use the addMapLayers callback which has proper dependencies
         addMapLayers();
@@ -222,10 +222,10 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
           const features = map.current.queryRenderedFeatures(e.point, { layers: ['clusters'] });
           const clusterId = features[0]?.properties?.cluster_id;
           if (!clusterId) return;
-          
+
           const geometry = features[0].geometry;
           if (geometry.type !== 'Point') return;
-          
+
           (map.current.getSource('properties') as mapboxgl.GeoJSONSource).getClusterExpansionZoom(
             clusterId,
             (err, zoom) => {
