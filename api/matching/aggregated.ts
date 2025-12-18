@@ -153,9 +153,9 @@ async function handleBuyersAggregated(
   }
 
   // Step 2: Fetch ALL matches for these buyers in ONE call using filterByFormula
-  // Use Contact ID (GHL ID) instead of Airtable record ID
+  // Use the text field 'Contact ID (for GHL)' which stores the GHL Contact ID
   const buyerContactIds = buyers.map((b: any) => b.fields['Contact ID']).filter(id => id);
-  const matchesFormula = `OR(${buyerContactIds.map(id => `FIND("${id}", ARRAYJOIN({Contact ID}))`).join(',')})`;
+  const matchesFormula = `OR(${buyerContactIds.map(id => `{Contact ID (for GHL)} = "${id}"`).join(',')})`;
 
   console.log(`[Aggregated] Fetching matches for ${buyerContactIds.length} buyers using Contact IDs:`, buyerContactIds.slice(0, 3));
 
@@ -211,8 +211,9 @@ async function handleBuyersAggregated(
 
     const buyerMatches = allMatches
       .filter((m: any) => {
-        const contactIds = m.fields['Contact ID'] || [];
-        const matchesContact = contactIds.includes(buyerContactId);
+        // Use the GHL text field for matching
+        const matchContactId = m.fields['Contact ID (for GHL)'] || '';
+        const matchesContact = matchContactId === buyerContactId;
 
         if (!matchesContact) return false;
 
@@ -369,9 +370,9 @@ async function handlePropertiesAggregated(
   }
 
   // Step 2: Fetch ALL matches for these properties in ONE call
-  // Use Property Code field values instead of Airtable record IDs
+  // Use the text field 'Opportunity ID (for GHL) ' which stores the Property Code
   const propertyCodes = properties.map((p: any) => p.fields['Property Code']).filter(code => code);
-  const matchesFormula = `OR(${propertyCodes.map(code => `FIND("${code}", ARRAYJOIN({Property Code}))`).join(',')})`;
+  const matchesFormula = `OR(${propertyCodes.map(code => `{Opportunity ID (for GHL) } = "${code}"`).join(',')})`;
 
   console.log(`[Aggregated] Fetching matches for ${propertyCodes.length} properties using Property Codes:`, propertyCodes.slice(0, 3));
 
@@ -387,10 +388,10 @@ async function handlePropertiesAggregated(
 
   console.log(`[Aggregated] Fetched ${allMatches.length} matches in ${Date.now() - startTime}ms`);
 
-  // Step 3: Get unique buyer Contact IDs (GHL IDs) and batch fetch buyers
+  // Step 3: Get unique buyer Contact IDs (GHL IDs) from text field and batch fetch buyers
   const buyerContactIds = [
     ...new Set(
-      allMatches.flatMap((m: any) => m.fields['Contact ID'] || [])
+      allMatches.map((m: any) => m.fields['Contact ID (for GHL)']).filter(Boolean)
     ),
   ];
 
@@ -435,8 +436,9 @@ async function handlePropertiesAggregated(
 
     const propertyMatches = allMatches
       .filter((m: any) => {
-        const matchPropertyCodes = m.fields['Property Code'] || [];
-        const matchesProperty = matchPropertyCodes.includes(propertyCode);
+        // Use the GHL text field for matching
+        const matchPropertyCode = m.fields['Opportunity ID (for GHL) '] || '';
+        const matchesProperty = matchPropertyCode === propertyCode;
 
         if (!matchesProperty) return false;
 
@@ -464,12 +466,13 @@ async function handlePropertiesAggregated(
       .sort((a: any, b: any) => (b.fields['Match Score'] || 0) - (a.fields['Match Score'] || 0))
       .slice(0, filters.matchLimit)
       .map((match: any) => {
-        const buyerRecordId = match.fields['Contact ID']?.[0];
-        const buyer = buyersMap[buyerRecordId];
+        // Use GHL Contact ID from text field to lookup buyer
+        const buyerContactId = match.fields['Contact ID (for GHL)'] || '';
+        const buyer = buyersMap[buyerContactId];
 
         return {
           id: match.id,
-          buyerRecordId: buyerRecordId || '',
+          buyerRecordId: buyer?.id || '',
           propertyRecordId: property.id,
           contactId: buyer?.fields['Contact ID'] || '',
           propertyCode: property.fields['Property Code'] || '',
