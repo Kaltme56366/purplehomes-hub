@@ -9,9 +9,10 @@ interface PropertyMapProps {
   properties: Property[];
   onPropertySelect: (property: Property) => void;
   hoveredPropertyId?: string | null;
+  isDarkMode?: boolean;
 }
 
-export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId }: PropertyMapProps) {
+export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, isDarkMode = false }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -73,7 +74,7 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId }:
 
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
-        style: 'mapbox://styles/mapbox/light-v11',
+        style: isDarkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11',
         center,
         zoom: 10,
       });
@@ -266,6 +267,13 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId }:
       source.setData(getGeoJSON());
     }
   }, [properties, mapLoaded, getGeoJSON]);
+
+  // Update map style when theme changes
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+    const newStyle = isDarkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11';
+    map.current.setStyle(newStyle);
+  }, [isDarkMode, mapLoaded]);
 
   if (error) {
     return (

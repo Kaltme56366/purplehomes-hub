@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home } from 'lucide-react';
+import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home, Moon, Sun } from 'lucide-react';
 import type { PropertyCondition, PropertyType, Property } from '@/types';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
@@ -55,6 +55,7 @@ type SortOption = 'price-high' | 'price-low' | 'newest' | 'beds' | 'sqft';
 
 export default function PublicListings() {
   const isMobile = useIsMobile();
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [search, setSearch] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
@@ -219,8 +220,10 @@ export default function PublicListings() {
     return (
       <div
         className={cn(
-          "group relative bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300",
-          "border border-gray-200 hover:border-purple-500/50",
+          "group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300",
+          isDarkMode
+            ? "bg-card border border-border/50 hover:border-purple-500/50"
+            : "bg-white border border-gray-200 hover:border-purple-500/50",
           isHovered && "ring-2 ring-purple-500 shadow-lg shadow-purple-500/20",
           compact && "flex"
         )}
@@ -284,7 +287,8 @@ export default function PublicListings() {
             </p>
           )}
           <div className={cn(
-            "flex items-center gap-3 text-sm text-gray-600 mb-2",
+            "flex items-center gap-3 text-sm mb-2",
+            isDarkMode ? "text-muted-foreground" : "text-gray-600",
             compact && "gap-2 text-xs mb-1"
           )}>
             <span className="flex items-center gap-1 font-medium">
@@ -301,11 +305,13 @@ export default function PublicListings() {
           </div>
 
           <h3 className={cn(
-            "font-semibold text-gray-900 truncate",
+            "font-semibold truncate",
+            isDarkMode ? "text-foreground" : "text-gray-900",
             compact && "text-sm"
           )}>{property.address}</h3>
           <p className={cn(
-            "text-sm text-gray-600 truncate",
+            "text-sm truncate",
+            isDarkMode ? "text-muted-foreground" : "text-gray-600",
             compact && "text-xs"
           )}>{property.city}</p>
         </div>
@@ -315,13 +321,22 @@ export default function PublicListings() {
 
   const PropertyListPanel = () => (
     <div className="flex flex-col h-full">
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+      <div className={cn(
+        "flex items-center justify-between p-4 border-b",
+        isDarkMode ? "border-border/50 bg-card/50" : "border-gray-200 bg-white"
+      )}>
         <div>
           <h2 className="font-semibold text-purple-600">{filteredProperties.length} Properties</h2>
-          <p className="text-xs text-gray-600">Investment opportunities</p>
+          <p className={cn(
+            "text-xs",
+            isDarkMode ? "text-muted-foreground" : "text-gray-600"
+          )}>Investment opportunities</p>
         </div>
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-[140px] text-xs h-8 bg-white text-gray-900 border-gray-300">
+          <SelectTrigger className={cn(
+            "w-[140px] text-xs h-8",
+            isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 border-gray-300"
+          )}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -357,9 +372,15 @@ export default function PublicListings() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
+    <div className={cn(
+      "h-screen flex flex-col overflow-hidden",
+      isDarkMode ? "bg-background" : "bg-gray-50"
+    )}>
       {/* Header */}
-      <header className="flex-shrink-0 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm z-50">
+      <header className={cn(
+        "flex-shrink-0 backdrop-blur-md border-b shadow-sm z-50",
+        isDarkMode ? "bg-card/95 border-border/50" : "bg-white/95 border-gray-200"
+      )}>
         <div className="flex items-center gap-3 px-4 py-3">
           {/* Logo */}
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -377,31 +398,46 @@ export default function PublicListings() {
           <div className="flex-1 flex items-center gap-2 max-w-4xl">
             {/* ZIP Code - Most Important for Proximity */}
             <div className="relative w-28">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <MapPin className={cn(
+                "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4",
+                isDarkMode ? "text-muted-foreground" : "text-gray-400"
+              )} />
               <Input
                 placeholder="ZIP"
                 value={zipCode}
                 onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                className="pl-9 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent"
+                className={cn(
+                  "pl-9 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent",
+                  isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 placeholder:text-gray-400 border-gray-300"
+                )}
                 maxLength={5}
               />
             </div>
 
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className={cn(
+                "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4",
+                isDarkMode ? "text-muted-foreground" : "text-gray-400"
+              )} />
               <Input
                 placeholder="Search address, city..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-300 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent"
+                className={cn(
+                  "pl-10 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent",
+                  isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 placeholder:text-gray-400 border-gray-300"
+                )}
               />
             </div>
 
             {/* Quick Filters - Desktop Only */}
             <div className="hidden lg:flex items-center gap-2">
               <Select value={beds} onValueChange={setBeds}>
-                <SelectTrigger className="w-24 bg-white text-gray-900 border border-gray-300 shadow-sm hover:shadow-md transition-shadow">
+                <SelectTrigger className={cn(
+                  "w-24 shadow-sm hover:shadow-md transition-shadow",
+                  isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 border-gray-300"
+                )}>
                   <SelectValue placeholder="Beds" />
                 </SelectTrigger>
                 <SelectContent>
@@ -415,7 +451,10 @@ export default function PublicListings() {
               </Select>
 
               <Select value={baths} onValueChange={setBaths}>
-                <SelectTrigger className="w-24 bg-white text-gray-900 border border-gray-300 shadow-sm hover:shadow-md transition-shadow">
+                <SelectTrigger className={cn(
+                  "w-24 shadow-sm hover:shadow-md transition-shadow",
+                  isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 border-gray-300"
+                )}>
                   <SelectValue placeholder="Baths" />
                 </SelectTrigger>
                 <SelectContent>
@@ -431,7 +470,10 @@ export default function PublicListings() {
                 const [min, max] = value.split('-').map(Number);
                 setPriceRange([min, max]);
               }}>
-                <SelectTrigger className="w-36 bg-white text-gray-900 border border-gray-300 shadow-sm hover:shadow-md transition-shadow">
+                <SelectTrigger className={cn(
+                  "w-36 shadow-sm hover:shadow-md transition-shadow",
+                  isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 border-gray-300"
+                )}>
                   <DollarSign className="h-4 w-4" />
                   <SelectValue placeholder="Price" />
                 </SelectTrigger>
@@ -446,6 +488,20 @@ export default function PublicListings() {
               </Select>
             </div>
           </div>
+
+          {/* Theme Toggle */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className="flex-shrink-0"
+          >
+            {isDarkMode ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
+          </Button>
 
           {/* More Filters */}
           <Popover open={showFilters} onOpenChange={setShowFilters}>
@@ -649,15 +705,19 @@ export default function PublicListings() {
       <div className="flex-1 flex overflow-hidden relative">
         {/* Map - Full screen on mobile */}
         <div className="flex-1 relative">
-          <PropertyMap 
+          <PropertyMap
             properties={filteredProperties}
             onPropertySelect={setSelectedProperty}
             hoveredPropertyId={hoveredPropertyId}
+            isDarkMode={isDarkMode}
           />
         </div>
 
         {/* Desktop Side Panel */}
-        <div className="hidden md:flex w-[420px] lg:w-[480px] flex-shrink-0 border-l border-gray-200 bg-white flex-col">
+        <div className={cn(
+          "hidden md:flex w-[420px] lg:w-[480px] flex-shrink-0 border-l flex-col",
+          isDarkMode ? "border-border bg-card" : "border-gray-200 bg-white"
+        )}>
           <PropertyListPanel />
         </div>
 
