@@ -87,9 +87,17 @@ async function updateCache(cacheKey: string, data: any, recordCount: number): Pr
   const findData = await findRes.json();
   const recordId = findData.records?.[0]?.id;
 
+  const jsonData = JSON.stringify(data);
+  const dataSize = jsonData.length;
+  console.log(`[Sync] Cache data size for ${cacheKey}: ${dataSize} characters (${(dataSize / 1024).toFixed(2)} KB)`);
+
+  if (dataSize > 100000) {
+    console.warn(`[Sync] WARNING: Cache data for ${cacheKey} exceeds Airtable's 100KB limit! Size: ${dataSize}`);
+  }
+
   const cacheFields = {
     cache_key: cacheKey,
-    data: JSON.stringify(data),
+    data: jsonData,
     record_count: recordCount,
     source_count: recordCount,
     last_synced: new Date().toISOString(),
@@ -99,7 +107,7 @@ async function updateCache(cacheKey: string, data: any, recordCount: number): Pr
 
   if (recordId) {
     // Update existing record
-    console.log(`[Sync] Updating existing cache record for ${cacheKey}`);
+    console.log(`[Sync] Updating existing cache record for ${cacheKey} (recordId: ${recordId})`);
     const updateRes = await fetch(
       `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent('System Cache')}/${recordId}`,
       {
@@ -112,9 +120,13 @@ async function updateCache(cacheKey: string, data: any, recordCount: number): Pr
     );
 
     if (!updateRes.ok) {
-      const error = await updateRes.json();
-      throw new Error(`Failed to update cache: ${JSON.stringify(error)}`);
+      const errorText = await updateRes.text();
+      console.error(`[Sync] Failed to update cache for ${cacheKey}:`, errorText);
+      throw new Error(`Failed to update cache: ${errorText}`);
     }
+
+    const result = await updateRes.json();
+    console.log(`[Sync] Successfully updated cache for ${cacheKey}. Record ID: ${result.id}`);
   } else {
     // Create new record
     console.log(`[Sync] Creating new cache record for ${cacheKey}`);
@@ -130,33 +142,25 @@ async function updateCache(cacheKey: string, data: any, recordCount: number): Pr
     );
 
     if (!createRes.ok) {
-      const error = await createRes.json();
-      throw new Error(`Failed to create cache: ${JSON.stringify(error)}`);
+      const errorText = await createRes.text();
+      console.error(`[Sync] Failed to create cache for ${cacheKey}:`, errorText);
+      throw new Error(`Failed to create cache: ${errorText}`);
     }
+
+    const result = await createRes.json();
+    console.log(`[Sync] Successfully created cache for ${cacheKey}. Record ID: ${result.id}`);
   }
 }
 
 async function syncProperties() {
   console.log('Syncing properties cache...');
 
-  const records = await fetchAllRecords('Properties', [
-    'Property Code', 'Address', 'City', 'State', 'Price',
-    'Beds', 'Baths', 'Sqft', 'Stage'
-  ]);
+  const records = await fetchAllRecords('Properties');
 
+  // Store the full Airtable record structure with 'fields' property
+  // This matches what the matching algorithm expects
   const cacheData = {
-    records: records.map(r => ({
-      id: r.id,
-      propertyCode: r.fields['Property Code'] || '',
-      address: r.fields['Address'] || '',
-      city: r.fields['City'] || '',
-      state: r.fields['State'] || '',
-      price: r.fields['Price'] || 0,
-      beds: r.fields['Beds'] || 0,
-      baths: r.fields['Baths'] || 0,
-      sqft: r.fields['Sqft'],
-      stage: r.fields['Stage'],
-    })),
+    records: records,  // Keep original Airtable structure!
   };
 
   await updateCache('properties', cacheData, records.length);
@@ -167,26 +171,12 @@ async function syncProperties() {
 async function syncBuyers() {
   console.log('Syncing buyers cache...');
 
-  const records = await fetchAllRecords('Buyers', [
-    'Contact ID', 'First Name', 'Last Name', 'Email',
-    'City', 'Location', 'Monthly Income', 'Downpayment',
-    'No. of Bedrooms', 'No. of Bath'
-  ]);
+  const records = await fetchAllRecords('Buyers');
 
+  // Store the full Airtable record structure with 'fields' property
+  // This matches what the matching algorithm expects
   const cacheData = {
-    records: records.map(r => ({
-      id: r.id,
-      contactId: r.fields['Contact ID'] || '',
-      firstName: r.fields['First Name'] || '',
-      lastName: r.fields['Last Name'] || '',
-      email: r.fields['Email'] || '',
-      city: r.fields['City'],
-      location: r.fields['Location'],
-      monthlyIncome: r.fields['Monthly Income'],
-      downPayment: r.fields['Downpayment'],
-      desiredBeds: r.fields['No. of Bedrooms'],
-      desiredBaths: r.fields['No. of Bath'],
-    })),
+    records: records,  // Keep original Airtable structure!
   };
 
   await updateCache('buyers', cacheData, records.length);
@@ -197,16 +187,13 @@ async function syncBuyers() {
 async function syncMatches() {
   console.log('Syncing matches cache...');
 
-  const records = await fetchAllRecords('Property-Buyer Matches', [
-    'Contact ID', 'Property Code', 'Match Score',
-    'Distance (miles)', 'Match Notes', 'Match Status'
-  ]);
+  const records = await fetchAllRecords('Property-Buyer Matches');
 
-  // Build indexes for fast lookup
+  // Build indexes for fast lookup (keep the indexes!)
   const buyerIndex: Record<string, string[]> = {};
   const propertyIndex: Record<string, string[]> = {};
 
-  const matchRecords = records.map(r => {
+  records.forEach(r => {
     const buyerRecordId = r.fields['Contact ID']?.[0] || '';
     const propertyRecordId = r.fields['Property Code']?.[0] || '';
 
@@ -221,20 +208,11 @@ async function syncMatches() {
       if (!propertyIndex[propertyRecordId]) propertyIndex[propertyRecordId] = [];
       propertyIndex[propertyRecordId].push(r.id);
     }
-
-    return {
-      id: r.id,
-      buyerRecordId,
-      propertyRecordId,
-      score: r.fields['Match Score'] || 0,
-      distance: r.fields['Distance (miles)'],
-      reasoning: r.fields['Match Notes'] || '',
-      status: r.fields['Match Status'] || 'Active',
-    };
   });
 
+  // Store the full Airtable record structure with 'fields' property
   const cacheData = {
-    records: matchRecords,
+    records: records,  // Keep original Airtable structure!
     buyerIndex,
     propertyIndex,
   };
