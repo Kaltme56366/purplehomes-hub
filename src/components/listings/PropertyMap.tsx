@@ -17,22 +17,12 @@ interface PropertyMapProps {
 export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, isDarkMode = false, zipCode }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const mapInitialized = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredProperty, setHoveredProperty] = useState<Property | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [propertiesReady, setPropertiesReady] = useState(false);
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
-
-  // Trigger when properties are ready
-  useEffect(() => {
-    if (properties && properties.length > 0 && !propertiesReady) {
-      console.log('✅ Properties ready:', properties.length);
-      setPropertiesReady(true);
-    }
-  }, [properties, propertiesReady]);
 
   // Create GeoJSON from properties
   const getGeoJSON = useCallback(() => {
@@ -61,22 +51,13 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
   }, [properties]);
 
   useEffect(() => {
-    // Only initialize map once
-    if (mapInitialized.current || !mapContainer.current) return;
+    if (!mapContainer.current) return;
 
     if (!mapboxToken) {
       setError('Mapbox token not configured');
       setIsLoading(false);
       return;
     }
-
-    // Wait for properties to be ready
-    if (!propertiesReady) {
-      return;
-    }
-
-    console.log('🗺️ Initializing map with', properties.length, 'properties');
-    mapInitialized.current = true;
 
     try {
       mapboxgl.accessToken = mapboxToken;
@@ -105,11 +86,8 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
         'bottom-right'
       );
 
-      // Wait for map to be fully loaded before adding layers
       map.current.on('load', () => {
         if (!map.current) return;
-
-        console.log('🎨 Map fully loaded, adding layers...');
 
         // Add clustered source
         map.current.addSource('properties', {
@@ -280,22 +258,15 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
 
     return () => {
       map.current?.remove();
-      mapInitialized.current = false;
     };
-  }, [mapboxToken, propertiesReady]);
+  }, [mapboxToken]);
 
   // Update data when properties change
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
-
-    console.log('Updating map data, properties count:', properties.length);
     const source = map.current.getSource('properties') as mapboxgl.GeoJSONSource;
     if (source) {
-      const geoJSON = getGeoJSON();
-      console.log('GeoJSON features count:', geoJSON.features.length);
-      source.setData(geoJSON);
-    } else {
-      console.warn('Properties source not found!');
+      source.setData(getGeoJSON());
     }
   }, [properties, mapLoaded, getGeoJSON]);
 
@@ -305,16 +276,12 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
 
     const newStyle = isDarkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11';
 
-    console.log('🎨 Changing theme to:', isDarkMode ? 'dark' : 'light');
-
     // Set new style
     map.current.setStyle(newStyle);
 
     // Re-add layers when style is loaded
     map.current.once('style.load', () => {
       if (!map.current) return;
-
-      console.log('🎨 Theme style loaded, re-adding layers...');
 
       // Add clustered source
       map.current.addSource('properties', {
