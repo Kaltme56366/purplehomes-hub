@@ -40,7 +40,13 @@ export default function Matching() {
   const [sortBy, setSortBy] = useState<SortOption>('matches-high');
   const [expandedBuyers, setExpandedBuyers] = useState<Set<string>>(new Set());
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
-  const [selectedProperty, setSelectedProperty] = useState<PropertyDetails | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<{
+    property: PropertyDetails;
+    reasoning?: string;
+    highlights?: string[];
+    concerns?: string[];
+    score?: number;
+  } | null>(null);
 
   // Filter state - start with no filters to show all matches
   const [filters, setFilters] = useState({
@@ -705,7 +711,13 @@ export default function Matching() {
                               {match.property ? (
                                 <>
                                   <button
-                                    onClick={() => setSelectedProperty(match.property)}
+                                    onClick={() => setSelectedMatch({
+                                      property: match.property!,
+                                      reasoning: match.reasoning,
+                                      highlights: match.highlights,
+                                      concerns: match.concerns,
+                                      score: match.score,
+                                    })}
                                     className="font-medium text-left text-purple-600 hover:text-purple-700 underline underline-offset-2 decoration-purple-300 hover:decoration-purple-500 transition-colors truncate max-w-[200px] sm:max-w-none"
                                     title="Click to view property details"
                                   >
@@ -1074,76 +1086,117 @@ export default function Matching() {
       </div>
 
       {/* Property Detail Modal */}
-      <Dialog open={!!selectedProperty} onOpenChange={() => setSelectedProperty(null)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          {selectedProperty && (
-            <div className="space-y-4">
-              {/* Hero Image */}
-              {selectedProperty.heroImage && (
-                <div className="relative -mx-6 -mt-6 mb-4">
+      <Dialog open={!!selectedMatch} onOpenChange={() => setSelectedMatch(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+          {selectedMatch && (
+            <div>
+              {/* Hero Image with Overlay */}
+              <div className="relative h-64 sm:h-80 bg-gradient-to-br from-purple-100 to-purple-50">
+                {selectedMatch.property.heroImage ? (
                   <img
-                    src={selectedProperty.heroImage}
-                    alt={selectedProperty.address}
-                    className="w-full h-48 object-cover rounded-t-lg"
+                    src={selectedMatch.property.heroImage}
+                    alt={selectedMatch.property.address}
+                    className="w-full h-full object-cover"
                   />
-                </div>
-              )}
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Home className="h-20 w-20 text-purple-200" />
+                  </div>
+                )}
+                {/* Gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-              <div>
-                <h2 className="text-xl font-semibold">{selectedProperty.address}</h2>
-                <p className="text-muted-foreground">
-                  {selectedProperty.city}
-                  {selectedProperty.state && `, ${selectedProperty.state}`}
-                  {selectedProperty.zipCode && ` ${selectedProperty.zipCode}`}
-                </p>
+                {/* Price and Match Score on image */}
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      {selectedMatch.property.price && (
+                        <div className="text-3xl sm:text-4xl font-bold text-white mb-1">
+                          ${selectedMatch.property.price.toLocaleString()}
+                        </div>
+                      )}
+                      <h2 className="text-xl sm:text-2xl font-semibold text-white">{selectedMatch.property.address}</h2>
+                      <p className="text-white/80">
+                        {selectedMatch.property.city}
+                        {selectedMatch.property.state && `, ${selectedMatch.property.state}`}
+                        {selectedMatch.property.zipCode && ` ${selectedMatch.property.zipCode}`}
+                      </p>
+                    </div>
+                    {selectedMatch.score && (
+                      <MatchScoreBadge score={selectedMatch.score} size="lg" />
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {selectedProperty.price && (
-                <div className="text-2xl font-bold text-purple-600">
-                  ${selectedProperty.price.toLocaleString()}
+              {/* Content */}
+              <div className="p-6 space-y-6">
+                {/* Property Stats Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
+                    <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
+                      <Bed className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{selectedMatch.property.beds}</p>
+                    <p className="text-xs text-muted-foreground">Bedrooms</p>
+                  </div>
+                  <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
+                    <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
+                      <Bath className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <p className="text-2xl font-bold">{selectedMatch.property.baths}</p>
+                    <p className="text-xs text-muted-foreground">Bathrooms</p>
+                  </div>
+                  {selectedMatch.property.sqft && (
+                    <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
+                      <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
+                        <Square className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <p className="text-2xl font-bold">{selectedMatch.property.sqft.toLocaleString()}</p>
+                      <p className="text-xs text-muted-foreground">Sqft</p>
+                    </div>
+                  )}
+                  {selectedMatch.property.stage && (
+                    <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
+                      <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
+                        <Building className="h-5 w-5 text-purple-600" />
+                      </div>
+                      <p className="text-lg font-bold">{selectedMatch.property.stage}</p>
+                      <p className="text-xs text-muted-foreground">Stage</p>
+                    </div>
+                  )}
                 </div>
-              )}
 
-              <div className="grid grid-cols-3 gap-4">
-                <div className="flex flex-col items-center p-3 bg-muted/50 rounded-lg">
-                  <Bed className="h-5 w-5 text-muted-foreground mb-1" />
-                  <p className="text-xl font-bold">{selectedProperty.beds}</p>
-                  <p className="text-xs text-muted-foreground">Beds</p>
-                </div>
-                <div className="flex flex-col items-center p-3 bg-muted/50 rounded-lg">
-                  <Bath className="h-5 w-5 text-muted-foreground mb-1" />
-                  <p className="text-xl font-bold">{selectedProperty.baths}</p>
-                  <p className="text-xs text-muted-foreground">Baths</p>
-                </div>
-                {selectedProperty.sqft && (
-                  <div className="flex flex-col items-center p-3 bg-muted/50 rounded-lg">
-                    <Square className="h-5 w-5 text-muted-foreground mb-1" />
-                    <p className="text-xl font-bold">{selectedProperty.sqft.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Sqft</p>
+                {/* Match Reasoning Section */}
+                {selectedMatch.reasoning && (
+                  <div className="bg-muted/30 rounded-xl p-5">
+                    <h3 className="text-base font-semibold mb-3">Why This Property Matches</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{selectedMatch.reasoning}</p>
+
+                    {/* Match Tags */}
+                    <MatchTags
+                      highlights={selectedMatch.highlights}
+                      concerns={selectedMatch.concerns}
+                      maxVisible={10}
+                    />
+                  </div>
+                )}
+
+                {/* Property Notes */}
+                {selectedMatch.property.notes && (
+                  <div>
+                    <h3 className="text-base font-semibold mb-2">Property Notes</h3>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedMatch.property.notes}</p>
+                  </div>
+                )}
+
+                {/* Footer Info */}
+                {selectedMatch.property.propertyCode && (
+                  <div className="text-xs text-muted-foreground pt-4 border-t">
+                    Property Code: {selectedMatch.property.propertyCode}
                   </div>
                 )}
               </div>
-
-              {selectedProperty.stage && (
-                <div className="flex items-center gap-2">
-                  <Building className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Stage: <Badge variant="secondary">{selectedProperty.stage}</Badge></span>
-                </div>
-              )}
-
-              {/* Notes Section */}
-              {selectedProperty.notes && (
-                <div className="pt-3 border-t">
-                  <h3 className="text-sm font-semibold text-muted-foreground mb-2">Notes</h3>
-                  <p className="text-sm whitespace-pre-wrap">{selectedProperty.notes}</p>
-                </div>
-              )}
-
-              {selectedProperty.propertyCode && (
-                <div className="text-xs text-muted-foreground pt-2 border-t">
-                  Property Code: {selectedProperty.propertyCode}
-                </div>
-              )}
             </div>
           )}
         </DialogContent>
