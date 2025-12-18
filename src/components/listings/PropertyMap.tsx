@@ -21,6 +21,7 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, z
   const [error, setError] = useState<string | null>(null);
   const [hoveredProperty, setHoveredProperty] = useState<Property | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+  const prevIsDarkModeRef = useRef<boolean | null>(null);
 
   const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
@@ -288,6 +289,17 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, z
   // Update map style when theme changes
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
+
+    // Skip on initial load - only run when isDarkMode actually changes
+    if (prevIsDarkModeRef.current === null) {
+      prevIsDarkModeRef.current = isDarkMode;
+      return;
+    }
+
+    // If isDarkMode hasn't changed, skip
+    if (prevIsDarkModeRef.current === isDarkMode) return;
+
+    prevIsDarkModeRef.current = isDarkMode;
 
     const newStyle = isDarkMode ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/light-v11';
 
