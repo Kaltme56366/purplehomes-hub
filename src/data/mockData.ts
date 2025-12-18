@@ -12,8 +12,8 @@ export const demoProperties: Property[] = [
     sqft: 1850,
     condition: 'Good',
     propertyType: 'Single Family',
-    lat: 33.4484,
-    lng: -112.0740,
+    lat: 33.4486,
+    lng: -112.0742,
     description: 'Beautiful single-family home in a quiet neighborhood. Perfect for investors or first-time homebuyers.',
     heroImage: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800',
     images: [
