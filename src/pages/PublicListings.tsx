@@ -578,6 +578,73 @@ export default function PublicListings() {
         </div>
       </header>
 
+      {/* Active Filters Bar */}
+      {activeFilterCount > 0 && (
+        <div className="flex-shrink-0 bg-muted/30 border-b border-border/50 px-4 py-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground font-medium">Active Filters:</span>
+
+            {zipCode && (
+              <Badge variant="secondary" className="gap-1">
+                ZIP: {zipCode}
+                <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => setZipCode('')} />
+              </Badge>
+            )}
+
+            {beds !== 'any' && (
+              <Badge variant="secondary" className="gap-1">
+                Beds: {beds}+
+                <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => setBeds('any')} />
+              </Badge>
+            )}
+
+            {baths !== 'any' && (
+              <Badge variant="secondary" className="gap-1">
+                Baths: {baths}+
+                <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => setBaths('any')} />
+              </Badge>
+            )}
+
+            {(priceRange[0] > 0 || priceRange[1] < 1000000) && (
+              <Badge variant="secondary" className="gap-1">
+                ${(priceRange[0]/1000).toFixed(0)}K - {priceRange[1] >= 1000000 ? '$1M+' : `$${(priceRange[1]/1000).toFixed(0)}K`}
+                <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => setPriceRange([0, 1000000])} />
+              </Badge>
+            )}
+
+            {propertyType !== 'any' && (
+              <Badge variant="secondary" className="gap-1">
+                {propertyType}
+                <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => setPropertyType('any')} />
+              </Badge>
+            )}
+
+            {condition !== 'any' && (
+              <Badge variant="secondary" className="gap-1">
+                {condition}
+                <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => setCondition('any')} />
+              </Badge>
+            )}
+
+            {(downPaymentRange[0] > 0 || downPaymentRange[1] < 1000000) && (
+              <Badge variant="secondary" className="gap-1">
+                Down: ${(downPaymentRange[0]/1000).toFixed(0)}K - {downPaymentRange[1] >= 1000000 ? '$1M+' : `$${(downPaymentRange[1]/1000).toFixed(0)}K`}
+                <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => setDownPaymentRange([0, 1000000])} />
+              </Badge>
+            )}
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="h-6 text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+            >
+              Clear All
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Map - Full screen on mobile */}
