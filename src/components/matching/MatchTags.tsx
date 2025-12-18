@@ -120,6 +120,29 @@ function parseConcernToTag(concern: string): ParsedTag {
   return { label: shortened, variant: 'warning', originalText: concern };
 }
 
+/**
+ * Extract just the summary portion from reasoning text
+ * Removes redundant "Highlights:" and "Concerns:" sections
+ */
+export function extractReasoningSummary(reasoning: string | undefined): string {
+  if (!reasoning) return '';
+
+  // Remove [PRIORITY] prefix if present
+  let cleaned = reasoning.replace(/^\[PRIORITY\]\s*/i, '');
+
+  // Find where "Highlights:" or "Concerns:" starts and cut there
+  const highlightsIndex = cleaned.toLowerCase().indexOf('highlights:');
+  const concernsIndex = cleaned.toLowerCase().indexOf('concerns:');
+
+  // Get the earliest cutoff point
+  let cutoffIndex = cleaned.length;
+  if (highlightsIndex > 0) cutoffIndex = Math.min(cutoffIndex, highlightsIndex);
+  if (concernsIndex > 0) cutoffIndex = Math.min(cutoffIndex, concernsIndex);
+
+  // Extract just the summary
+  return cleaned.substring(0, cutoffIndex).trim();
+}
+
 export interface MatchTagsProps {
   highlights?: string[];
   concerns?: string[];
@@ -170,8 +193,9 @@ export function MatchTags({
   const hiddenCount = allTags.length - maxVisible;
   const hasOverflow = hiddenCount > 0 && !showAll;
 
-  // Build full tooltip text
-  const tooltipText = reasoning || [
+  // Build tooltip text with cleaned summary
+  const summary = extractReasoningSummary(reasoning);
+  const tooltipText = summary || [
     ...highlights.map(h => `+ ${h}`),
     ...concerns.map(c => `- ${c}`)
   ].join('\n');

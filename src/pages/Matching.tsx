@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Loader2, Users, Home, Send, ChevronDown, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
-import { MatchTags } from '@/components/matching/MatchTags';
+import { MatchTags, extractReasoningSummary } from '@/components/matching/MatchTags';
 import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
@@ -1171,7 +1171,9 @@ export default function Matching() {
                 {selectedMatch.reasoning && (
                   <div className="bg-muted/30 rounded-xl p-5">
                     <h3 className="text-base font-semibold mb-3">Why This Property Matches</h3>
-                    <p className="text-sm text-muted-foreground mb-4">{selectedMatch.reasoning}</p>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {extractReasoningSummary(selectedMatch.reasoning)}
+                    </p>
 
                     {/* Match Tags */}
                     <MatchTags
