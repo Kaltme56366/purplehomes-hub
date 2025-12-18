@@ -151,7 +151,15 @@ async function handleBuyersAggregated(
   // Step 4: Assemble the response with pre-joined data
   const buyersWithMatches = buyers.map((buyer: any) => {
     const buyerMatches = allMatches
-      .filter((m: any) => (m.fields['Contact ID'] || []).includes(buyer.id))
+      .filter((m: any) => {
+        const contactIds = m.fields['Contact ID'] || [];
+        const matches = contactIds.includes(buyer.id);
+        // Debug first buyer's matches
+        if (buyer.id === buyers[0].id && allMatches.indexOf(m) < 3) {
+          console.log(`[Aggregated] Checking match ${m.id}: contactIds=${JSON.stringify(contactIds)}, buyerId=${buyer.id}, matches=${matches}`);
+        }
+        return matches;
+      })
       .map((match: any) => {
         const propertyRecordId = match.fields['Property Code']?.[0];
         const property = propertiesMap[propertyRecordId];
