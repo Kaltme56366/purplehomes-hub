@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Database } from 'lucide-react';
-import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching } from '@/services/matchingApi';
+import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Database, Trash2 } from 'lucide-react';
+import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
@@ -77,6 +77,7 @@ export default function Matching() {
   const runMatchingMutation = useRunMatching();
   const runBuyerMatchingMutation = useRunBuyerMatching();
   const runPropertyMatchingMutation = useRunPropertyMatching();
+  const clearMatchesMutation = useClearMatches();
 
   const handleRunMatchingAll = async () => {
     console.log('[Matching UI] handleRunMatchingAll called', { forceRematch });
@@ -123,6 +124,21 @@ export default function Matching() {
     } catch (error) {
       console.error('[Matching UI] Error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to match properties');
+    }
+  };
+
+  const handleClearMatches = async () => {
+    if (!confirm('Are you sure you want to delete ALL matches? This will remove all records from the Property-Buyer Matches table. You will need to run matching again to recreate them.')) {
+      return;
+    }
+    console.log('[Matching UI] handleClearMatches called');
+    try {
+      toast.info('Clearing all matches...');
+      const result = await clearMatchesMutation.mutateAsync();
+      toast.success(result.message || `Deleted ${result.deletedCount} matches`);
+    } catch (error) {
+      console.error('[Matching UI] Clear error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to clear matches');
     }
   };
 
@@ -237,6 +253,7 @@ export default function Matching() {
   }, [properties, searchQuery, sortBy]);
 
   const isMatching = runMatchingMutation.isPending || runBuyerMatchingMutation.isPending || runPropertyMatchingMutation.isPending;
+  const isClearing = clearMatchesMutation.isPending;
 
   // Format last synced timestamp
   const formatLastSynced = (date: string | null | undefined) => {
@@ -372,6 +389,14 @@ export default function Matching() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleRunMatchingProperties}>
                 Match All Properties
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleClearMatches}
+                disabled={isClearing}
+                className="text-red-600 focus:text-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {isClearing ? 'Clearing...' : 'Clear All Matches'}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

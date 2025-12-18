@@ -1187,15 +1187,215 @@ if (resource === 'opportunities') {
     }
 
     // ============ MESSAGES ============
-    // For sending emails and SMS
+    // For sending emails and SMS via Conversations API
+    // Docs: https://marketplace.gohighlevel.com/docs/ghl/conversations/send-a-new-message
     if (resource === 'messages') {
-      if (method === 'POST') {
-        const type = query.type as string; // 'email' or 'sms'
-        const endpoint = type === 'email' ? 'emails' : 'sms';
-        
-        const response = await fetch(`${GHL_API_URL}/conversations/messages/${endpoint}`, {
-          method: 'POST', headers, body: JSON.stringify({ ...body, locationId: GHL_LOCATION_ID })
+      // Send email or SMS with optional attachments
+      if (method === 'POST' && action === 'send') {
+        const {
+          type,
+          contactId,
+          message,
+          html,
+          subject,
+          attachments,
+          emailFrom,
+          emailCc,
+          emailBcc,
+          emailTo,
+          emailReplyMode,
+          appointmentId,
+          replyMessageId,
+          templateId,
+          threadId,
+          scheduledTimestamp,
+          conversationProviderId,
+          fromNumber,
+          toNumber,
+          mentions
+        } = body;
+
+        console.log('[MESSAGES] Sending message:', {
+          type: type || 'Email',
+          contactId,
+          hasMessage: !!message,
+          hasHtml: !!html,
+          hasAttachments: !!attachments,
+          attachmentCount: attachments?.length
         });
+
+        if (!contactId) {
+          return res.status(400).json({ error: 'contactId is required' });
+        }
+
+        if (!message && !html) {
+          return res.status(400).json({ error: 'message or html content is required' });
+        }
+
+        // Build message payload for Conversations API
+        // Schema: https://marketplace.gohighlevel.com/docs/ghl/conversations/send-a-new-message
+        const messagePayload: any = {
+          type: type || 'Email', // 'Email', 'SMS', 'WhatsApp', etc.
+          contactId,
+        };
+
+        // Add message content (html takes priority for emails)
+        if (html) {
+          messagePayload.html = html;
+        }
+        if (message) {
+          messagePayload.message = message;
+        }
+
+        // Email-specific fields
+        if (subject) messagePayload.subject = subject;
+        if (emailFrom) messagePayload.emailFrom = emailFrom;
+        if (emailTo) messagePayload.emailTo = emailTo;
+        if (emailCc && Array.isArray(emailCc)) messagePayload.emailCc = emailCc;
+        if (emailBcc && Array.isArray(emailBcc)) messagePayload.emailBcc = emailBcc;
+        if (emailReplyMode) messagePayload.emailReplyMode = emailReplyMode; // 'reply_all' or 'reply'
+
+        // Add attachments if provided (array of URLs from upload endpoint)
+        if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+          messagePayload.attachments = attachments;
+        }
+
+        // Optional fields
+        if (appointmentId) messagePayload.appointmentId = appointmentId;
+        if (replyMessageId) messagePayload.replyMessageId = replyMessageId;
+        if (templateId) messagePayload.templateId = templateId;
+        if (threadId) messagePayload.threadId = threadId;
+        if (scheduledTimestamp) messagePayload.scheduledTimestamp = scheduledTimestamp;
+        if (conversationProviderId) messagePayload.conversationProviderId = conversationProviderId;
+        if (fromNumber) messagePayload.fromNumber = fromNumber;
+        if (toNumber) messagePayload.toNumber = toNumber;
+        if (mentions && Array.isArray(mentions)) messagePayload.mentions = mentions;
+
+        console.log('[MESSAGES] Payload:', JSON.stringify(messagePayload).substring(0, 300));
+
+        try {
+          const response = await fetch(`${GHL_API_URL}/conversations/messages`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(messagePayload)
+          });
+
+          const responseText = await response.text();
+          console.log('[MESSAGES] Response:', response.status, responseText.substring(0, 200));
+
+          let data;
+          try {
+            data = responseText ? JSON.parse(responseText) : {};
+          } catch {
+            data = { message: responseText };
+          }
+
+          if (!response.ok) {
+            console.error('[MESSAGES] ❌ Send failed:', data);
+            return res.status(response.status).json({
+              error: 'Failed to send message',
+              details: data
+            });
+          }
+
+          console.log('[MESSAGES] ✅ Message sent successfully');
+          return res.status(200).json({
+            success: true,
+            message: 'Message sent successfully',
+            data
+          });
+        } catch (error) {
+          console.error('[MESSAGES] ❌ Exception:', error);
+          return res.status(500).json({
+            error: 'Failed to send message',
+            details: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+
+      // Upload file attachment to get URL for use in messages
+      // Endpoint: POST /conversations/messages/upload
+      // Docs: https://marketplace.gohighlevel.com/docs/ghl/conversations/upload-file-attachments
+      // Supported: JPG, JPEG, PNG, MP4, MPEG, ZIP, RAR, PDF, DOC, DOCX, TXT, MP3, WAV
+      if (method === 'POST' && action === 'upload') {
+        console.log('[MESSAGES] Uploading attachment');
+
+        // File can be provided as base64 or buffer
+        const { fileData, fileName, fileType } = body;
+
+        if (!fileData) {
+          return res.status(400).json({ error: 'fileData is required (base64 or buffer)' });
+        }
+
+        try {
+          // Convert base64 to buffer if needed
+          let fileBuffer: Buffer;
+          if (typeof fileData === 'string') {
+            // Remove data URL prefix if present (e.g., "data:application/pdf;base64,")
+            const base64Data = fileData.replace(/^data:[^;]+;base64,/, '');
+            fileBuffer = Buffer.from(base64Data, 'base64');
+          } else {
+            fileBuffer = Buffer.from(fileData);
+          }
+
+          console.log('[MESSAGES] File buffer size:', fileBuffer.length, 'bytes');
+
+          // Create form data for multipart upload
+          const FormData = (await import('form-data')).default;
+          const form = new FormData();
+          form.append('fileAttachment', fileBuffer, {
+            filename: fileName || 'attachment.pdf',
+            contentType: fileType || 'application/pdf'
+          });
+
+          console.log('[MESSAGES] Uploading to GHL...');
+
+          const response = await fetch(`${GHL_API_URL}/conversations/messages/upload`, {
+            method: 'POST',
+            headers: {
+              'Authorization': headers['Authorization'],
+              'Version': headers['Version'],
+              ...form.getHeaders()
+            },
+            body: form as any
+          });
+
+          const responseText = await response.text();
+          console.log('[MESSAGES] Upload response:', response.status, responseText.substring(0, 300));
+
+          let data;
+          try {
+            data = responseText ? JSON.parse(responseText) : {};
+          } catch {
+            data = { message: responseText };
+          }
+
+          if (!response.ok) {
+            console.error('[MESSAGES] ❌ Upload failed:', data);
+            return res.status(response.status).json({
+              error: 'Failed to upload attachment',
+              details: data
+            });
+          }
+
+          console.log('[MESSAGES] ✅ Attachment uploaded successfully');
+          return res.status(200).json({
+            success: true,
+            urls: data.urls || data.url || data,
+            data
+          });
+        } catch (error) {
+          console.error('[MESSAGES] ❌ Upload exception:', error);
+          return res.status(500).json({
+            error: 'Failed to upload attachment',
+            details: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+
+      // Get conversation messages
+      if (method === 'GET' && id) {
+        const response = await fetch(`${GHL_API_URL}/conversations/${id}/messages`, { headers });
         return res.status(response.ok ? 200 : response.status).json(await response.json());
       }
     }

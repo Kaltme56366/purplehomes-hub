@@ -207,3 +207,36 @@ export const useRunPropertyMatching = () => {
     },
   });
 };
+
+/**
+ * Clear all matches (deletes all records from Property-Buyer Matches table)
+ * Use this to clean up matches with incorrect IDs
+ */
+export const useClearMatches = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (): Promise<{ success: boolean; deletedCount: number; message: string }> => {
+      console.log('[Matching API] Clearing all matches...');
+      const response = await fetch(`${MATCHING_API_BASE}/clear`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to clear matches' }));
+        throw new Error(error.error || 'Failed to clear matches');
+      }
+
+      const result = await response.json();
+      console.log('[Matching API] Clear matches result:', result);
+      return result;
+    },
+    onSuccess: () => {
+      // Refresh all matching queries after clearing
+      queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['cache-status'] });
+      queryClient.refetchQueries({ queryKey: ['cache', 'matches'] });
+    },
+  });
+};
