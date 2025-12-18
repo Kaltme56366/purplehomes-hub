@@ -398,20 +398,27 @@ async function handlePropertiesAggregated(
 
   if (buyerContactIds.length > 0) {
     console.log(`[Aggregated] Batch fetching ${buyerContactIds.length} buyers`);
+    console.log(`[Aggregated] Buyer Contact IDs to search:`, buyerContactIds);
 
-    // Use Contact ID field to fetch buyers (not RECORD_ID)
-    const buyersFormula = `OR(${buyerContactIds.map(id => `{Contact ID}="${id}"`).join(',')})`;
+    // Use FIND() syntax for Contact ID field (similar to properties)
+    const buyersFormula = `OR(${buyerContactIds.map(id => `FIND("${id}", {Contact ID})`).join(',')})`;
+    console.log(`[Aggregated] Buyer lookup formula:`, buyersFormula);
+
     const buyersUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?filterByFormula=${encodeURIComponent(buyersFormula)}`;
 
     const buyersRes = await fetch(buyersUrl, { headers });
     if (buyersRes.ok) {
       const buyersData = await buyersRes.json();
+      console.log(`[Aggregated] Buyer API response: ${buyersData.records?.length || 0} records found`);
+
       // Map by Contact ID (GHL ID) instead of Airtable record ID
       buyersMap = Object.fromEntries(
         (buyersData.records || []).map((b: any) => [b.fields['Contact ID'], b])
       );
     } else {
       console.warn(`[Aggregated] Failed to fetch buyers: ${buyersRes.status}`);
+      const errorText = await buyersRes.text();
+      console.warn(`[Aggregated] Error details:`, errorText);
     }
   }
 
