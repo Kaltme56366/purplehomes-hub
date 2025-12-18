@@ -42,11 +42,17 @@ export function PropertyCard({
   const showPostedDate = property.status === 'posted' && property.postedDate;
   const showScheduledDate = property.status === 'scheduled' && property.scheduledDate;
 
+  // Check if property is NEW (posted within last 7 days)
+  const isNew = property.postedDate &&
+    (new Date().getTime() - new Date(property.postedDate).getTime()) < 7 * 24 * 60 * 60 * 1000;
+
   return (
-    <Card 
+    <Card
       className={cn(
-        "overflow-hidden transition-all duration-200 hover:border-primary/50 cursor-pointer group",
-        selected && "ring-2 ring-primary border-primary",
+        "overflow-hidden transition-all duration-300 cursor-pointer group bg-white",
+        "hover:shadow-xl hover:shadow-purple-500/20 hover:-translate-y-1",
+        "border border-gray-200 hover:border-purple-300",
+        selected && "ring-2 ring-primary border-primary shadow-lg shadow-purple-500/30",
         property.status === 'deleted' && "opacity-60"
       )}
       onClick={handleCardClick}
@@ -65,6 +71,11 @@ export function PropertyCard({
         {/* Top badges row */}
         <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
+            {isNew && (
+              <span className="inline-flex items-center rounded-full bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs font-bold text-white shadow-lg animate-pulse">
+                NEW!
+              </span>
+            )}
             <span className="inline-flex items-center rounded-md bg-black/60 backdrop-blur-sm px-2 py-1 text-xs font-medium text-white">
               {property.propertyCode}
             </span>
@@ -120,25 +131,27 @@ export function PropertyCard({
 
       <CardContent className="p-4">
         {/* Address */}
-        <h3 className="font-semibold text-foreground mb-0.5 truncate">
+        <h3 className="font-semibold text-gray-900 mb-0.5 truncate">
           {property.address}
         </h3>
-        <p className="text-sm text-muted-foreground mb-3">{property.city}</p>
+        <p className="text-sm text-gray-600 mb-3">{property.city}</p>
 
         {/* Price */}
         <div className="mb-3">
-          <p className="text-2xl font-bold text-foreground">
+          <p className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-purple-400 bg-clip-text text-transparent">
             {formatPrice(property.price)}
           </p>
           {property.downPayment !== undefined && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Down: {formatPrice(property.downPayment)}
-            </p>
+            <div className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-full bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200">
+              <span className="text-xs font-semibold text-green-700">
+                ✨ Only {formatPrice(property.downPayment)} down!
+              </span>
+            </div>
           )}
         </div>
 
         {/* Property details row */}
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-4 text-sm text-gray-600">
           <span className="flex items-center gap-1.5">
             <Bed className="h-4 w-4" />
             {property.beds}

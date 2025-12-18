@@ -357,9 +357,9 @@ export default function PublicListings() {
   );
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
+    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Header */}
-      <header className="flex-shrink-0 bg-card/95 backdrop-blur-md border-b border-border/50 z-50">
+      <header className="flex-shrink-0 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm z-50">
         <div className="flex items-center gap-3 px-4 py-3">
           {/* Logo */}
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -377,31 +377,31 @@ export default function PublicListings() {
           <div className="flex-1 flex items-center gap-2 max-w-4xl">
             {/* ZIP Code - Most Important for Proximity */}
             <div className="relative w-28">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="ZIP"
                 value={zipCode}
                 onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                className="pl-9 bg-muted/50 border-0 focus-visible:ring-purple-500"
+                className="pl-9 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent"
                 maxLength={5}
               />
             </div>
 
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
                 placeholder="Search address, city..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10 bg-muted/50 border-0 focus-visible:ring-purple-500"
+                className="pl-10 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent"
               />
             </div>
 
             {/* Quick Filters - Desktop Only */}
             <div className="hidden lg:flex items-center gap-2">
               <Select value={beds} onValueChange={setBeds}>
-                <SelectTrigger className="w-24 bg-muted/50 border-0">
+                <SelectTrigger className="w-24 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                   <SelectValue placeholder="Beds" />
                 </SelectTrigger>
                 <SelectContent>
@@ -415,7 +415,7 @@ export default function PublicListings() {
               </Select>
 
               <Select value={baths} onValueChange={setBaths}>
-                <SelectTrigger className="w-24 bg-muted/50 border-0">
+                <SelectTrigger className="w-24 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                   <SelectValue placeholder="Baths" />
                 </SelectTrigger>
                 <SelectContent>
@@ -431,7 +431,7 @@ export default function PublicListings() {
                 const [min, max] = value.split('-').map(Number);
                 setPriceRange([min, max]);
               }}>
-                <SelectTrigger className="w-36 bg-muted/50 border-0">
+                <SelectTrigger className="w-36 bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                   <DollarSign className="h-4 w-4" />
                   <SelectValue placeholder="Price" />
                 </SelectTrigger>
@@ -580,7 +580,7 @@ export default function PublicListings() {
 
       {/* Active Filters Bar */}
       {activeFilterCount > 0 && (
-        <div className="flex-shrink-0 bg-muted/30 border-b border-border/50 px-4 py-2">
+        <div className="flex-shrink-0 bg-purple-50 border-b border-purple-100 px-4 py-2">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground font-medium">Active Filters:</span>
 
@@ -657,7 +657,7 @@ export default function PublicListings() {
         </div>
 
         {/* Desktop Side Panel */}
-        <div className="hidden md:flex w-[420px] lg:w-[480px] flex-shrink-0 border-l border-border/50 bg-background flex-col">
+        <div className="hidden md:flex w-[420px] lg:w-[480px] flex-shrink-0 border-l border-gray-200 bg-white flex-col">
           <PropertyListPanel />
         </div>
 
