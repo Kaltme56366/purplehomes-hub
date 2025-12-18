@@ -106,3 +106,11 @@ export interface RunMatchingResponse {
     withinRadius?: number; // Priority matches count
   };
 }
+
+export interface MatchFilters {
+  matchStatus?: 'Active' | 'Sent' | 'Viewed' | 'Closed';
+  minScore?: number;
+  priorityOnly?: boolean;
+  matchLimit?: number;
+  dateRange?: '7days' | '30days' | 'all';
+}

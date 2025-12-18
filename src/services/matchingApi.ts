@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse } from '@/types/matching';
+import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse, MatchFilters } from '@/types/matching';
 
 const MATCHING_API_BASE = '/api/matching';
 const AIRTABLE_API_BASE = '/api/airtable';
@@ -12,13 +12,28 @@ const AIRTABLE_API_BASE = '/api/airtable';
  * Fetch all buyers with their matches using optimized aggregated endpoint
  * This solves the N+1 query problem by doing server-side aggregation
  */
-export const useBuyersWithMatches = () => {
+export const useBuyersWithMatches = (filters?: MatchFilters, pageSize: number = 20, offset?: string) => {
   return useQuery({
-    queryKey: ['buyers-with-matches'],
-    queryFn: async (): Promise<BuyerWithMatches[]> => {
-      console.log('[Matching API] Fetching buyers with matches (aggregated)');
+    queryKey: ['buyers-with-matches', filters, pageSize, offset],
+    queryFn: async (): Promise<{ data: BuyerWithMatches[], nextOffset?: string }> => {
+      console.log('[Matching API] Fetching buyers with matches (aggregated)', filters, 'pageSize:', pageSize, 'offset:', offset);
 
-      const response = await fetch(`${MATCHING_API_BASE}/aggregated?type=buyers&limit=100`);
+      const params = new URLSearchParams({
+        type: 'buyers',
+        limit: pageSize.toString(),
+      });
+
+      // Add offset if provided (for pagination)
+      if (offset) params.set('offset', offset);
+
+      // Add filter parameters if provided
+      if (filters?.matchStatus) params.set('matchStatus', filters.matchStatus);
+      if (filters?.minScore !== undefined) params.set('minScore', filters.minScore.toString());
+      if (filters?.priorityOnly) params.set('priorityOnly', 'true');
+      if (filters?.matchLimit !== undefined) params.set('matchLimit', filters.matchLimit.toString());
+      if (filters?.dateRange) params.set('dateRange', filters.dateRange);
+
+      const response = await fetch(`${MATCHING_API_BASE}/aggregated?${params}`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch buyers' }));
@@ -30,12 +45,18 @@ export const useBuyersWithMatches = () => {
       console.log('[Matching API] Buyers fetched:', {
         count: result.data?.length || 0,
         stats: result.stats,
+        nextOffset: result.nextOffset,
       });
 
       // Sort by match count (highest first)
-      return (result.data || []).sort((a: BuyerWithMatches, b: BuyerWithMatches) =>
+      const sortedData = (result.data || []).sort((a: BuyerWithMatches, b: BuyerWithMatches) =>
         b.totalMatches - a.totalMatches
       );
+
+      return {
+        data: sortedData,
+        nextOffset: result.nextOffset,
+      };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes (increased from 2 minutes due to server-side caching)
   });
@@ -45,13 +66,28 @@ export const useBuyersWithMatches = () => {
  * Fetch all properties with their matches using optimized aggregated endpoint
  * This solves the N+1 query problem by doing server-side aggregation
  */
-export const usePropertiesWithMatches = () => {
+export const usePropertiesWithMatches = (filters?: MatchFilters, pageSize: number = 20, offset?: string) => {
   return useQuery({
-    queryKey: ['properties-with-matches'],
-    queryFn: async (): Promise<PropertyWithMatches[]> => {
-      console.log('[Matching API] Fetching properties with matches (aggregated)');
+    queryKey: ['properties-with-matches', filters, pageSize, offset],
+    queryFn: async (): Promise<{ data: PropertyWithMatches[], nextOffset?: string }> => {
+      console.log('[Matching API] Fetching properties with matches (aggregated)', filters, 'pageSize:', pageSize, 'offset:', offset);
 
-      const response = await fetch(`${MATCHING_API_BASE}/aggregated?type=properties&limit=100`);
+      const params = new URLSearchParams({
+        type: 'properties',
+        limit: pageSize.toString(),
+      });
+
+      // Add offset if provided (for pagination)
+      if (offset) params.set('offset', offset);
+
+      // Add filter parameters if provided
+      if (filters?.matchStatus) params.set('matchStatus', filters.matchStatus);
+      if (filters?.minScore !== undefined) params.set('minScore', filters.minScore.toString());
+      if (filters?.priorityOnly) params.set('priorityOnly', 'true');
+      if (filters?.matchLimit !== undefined) params.set('matchLimit', filters.matchLimit.toString());
+      if (filters?.dateRange) params.set('dateRange', filters.dateRange);
+
+      const response = await fetch(`${MATCHING_API_BASE}/aggregated?${params}`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch properties' }));
@@ -63,12 +99,18 @@ export const usePropertiesWithMatches = () => {
       console.log('[Matching API] Properties fetched:', {
         count: result.data?.length || 0,
         stats: result.stats,
+        nextOffset: result.nextOffset,
       });
 
       // Sort by match count (highest first)
-      return (result.data || []).sort((a: PropertyWithMatches, b: PropertyWithMatches) =>
+      const sortedData = (result.data || []).sort((a: PropertyWithMatches, b: PropertyWithMatches) =>
         b.totalMatches - a.totalMatches
       );
+
+      return {
+        data: sortedData,
+        nextOffset: result.nextOffset,
+      };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes (increased from 2 minutes due to server-side caching)
   });

@@ -15,12 +15,23 @@ const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_URL = 'https://api.airtable.com/v0';
 
+// In-memory cache for buyers and properties (semi-static data)
+const buyersCache = new Map<string, { data: any[], timestamp: number }>();
+const propertiesCache = new Map<string, { data: any[], timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log('[Aggregated API] Request:', {
+  console.log('[Aggregated API] *** NEW CODE VERSION *** Request:', {
     method: req.method,
     type: req.query.type,
     limit: req.query.limit,
     offset: req.query.offset,
+    filters: {
+      matchStatus: req.query.matchStatus,
+      minScore: req.query.minScore,
+      priorityOnly: req.query.priorityOnly,
+      matchLimit: req.query.matchLimit,
+    },
   });
 
   // CORS
@@ -47,13 +58,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     'Content-Type': 'application/json',
   };
 
-  const { type, limit = '50', offset = '' } = req.query;
+  const {
+    type,
+    limit = '50',
+    offset = '',
+    matchStatus,
+    minScore = '30',
+    priorityOnly = 'false',
+    matchLimit = '25',
+    dateRange = 'all',
+  } = req.query;
+
+  const filters = {
+    matchStatus: matchStatus as string | undefined,
+    minScore: parseInt(minScore as string),
+    priorityOnly: priorityOnly === 'true',
+    matchLimit: parseInt(matchLimit as string),
+    dateRange: dateRange as string,
+  };
 
   try {
     if (type === 'buyers') {
-      return await handleBuyersAggregated(req, res, headers, parseInt(limit as string), offset as string);
+      return await handleBuyersAggregated(req, res, headers, parseInt(limit as string), offset as string, filters);
     } else if (type === 'properties') {
-      return await handlePropertiesAggregated(req, res, headers, parseInt(limit as string), offset as string);
+      return await handlePropertiesAggregated(req, res, headers, parseInt(limit as string), offset as string, filters);
     } else {
       return res.status(400).json({ error: 'type parameter must be "buyers" or "properties"' });
     }
@@ -74,22 +102,45 @@ async function handleBuyersAggregated(
   res: VercelResponse,
   headers: any,
   limit: number,
-  offset: string
+  offset: string,
+  filters: {
+    matchStatus?: string;
+    minScore: number;
+    priorityOnly: boolean;
+    matchLimit: number;
+    dateRange: string;
+  }
 ) {
   const startTime = Date.now();
 
-  // Step 1: Fetch buyers (paginated)
+  // Step 1: Fetch buyers (paginated) with caching
   console.log(`[Aggregated] Fetching buyers with limit=${limit}, offset=${offset}`);
 
-  const buyersUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?maxRecords=${limit}${offset ? `&offset=${offset}` : ''}`;
+  const buyersCacheKey = `buyers-${limit}-${offset}`;
+  const cachedBuyers = buyersCache.get(buyersCacheKey);
 
-  const buyersRes = await fetch(buyersUrl, { headers });
-  if (!buyersRes.ok) {
-    throw new Error(`Failed to fetch buyers: ${buyersRes.status} ${buyersRes.statusText}`);
+  let buyers: any[];
+  let buyersData: any;
+
+  if (cachedBuyers && Date.now() - cachedBuyers.timestamp < CACHE_TTL) {
+    console.log(`[Aggregated] Using cached buyers (age: ${Math.floor((Date.now() - cachedBuyers.timestamp) / 1000)}s)`);
+    buyers = cachedBuyers.data;
+    buyersData = { records: buyers, offset: undefined }; // Cached data doesn't have offset
+  } else {
+    const buyersUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?maxRecords=${limit}${offset ? `&offset=${offset}` : ''}`;
+
+    const buyersRes = await fetch(buyersUrl, { headers });
+    if (!buyersRes.ok) {
+      throw new Error(`Failed to fetch buyers: ${buyersRes.status} ${buyersRes.statusText}`);
+    }
+
+    buyersData = await buyersRes.json();
+    buyers = buyersData.records || [];
+
+    // Cache the buyers data
+    buyersCache.set(buyersCacheKey, { data: buyers, timestamp: Date.now() });
+    console.log(`[Aggregated] Cached buyers data`);
   }
-
-  const buyersData = await buyersRes.json();
-  const buyers = buyersData.records || [];
 
   console.log(`[Aggregated] Fetched ${buyers.length} buyers in ${Date.now() - startTime}ms`);
 
@@ -102,10 +153,11 @@ async function handleBuyersAggregated(
   }
 
   // Step 2: Fetch ALL matches for these buyers in ONE call using filterByFormula
-  const buyerIds = buyers.map((b: any) => b.id);
-  const matchesFormula = `OR(${buyerIds.map(id => `FIND("${id}", ARRAYJOIN({Contact ID}))`).join(',')})`;
+  // Use Contact ID (GHL ID) instead of Airtable record ID
+  const buyerContactIds = buyers.map((b: any) => b.fields['Contact ID']).filter(id => id);
+  const matchesFormula = `OR(${buyerContactIds.map(id => `FIND("${id}", ARRAYJOIN({Contact ID}))`).join(',')})`;
 
-  console.log(`[Aggregated] Fetching matches for ${buyerIds.length} buyers with formula`);
+  console.log(`[Aggregated] Fetching matches for ${buyerContactIds.length} buyers using Contact IDs:`, buyerContactIds.slice(0, 3));
 
   const matchesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${encodeURIComponent(matchesFormula)}`;
 
@@ -150,16 +202,43 @@ async function handleBuyersAggregated(
 
   // Step 4: Assemble the response with pre-joined data
   const buyersWithMatches = buyers.map((buyer: any) => {
+    const buyerContactId = buyer.fields['Contact ID'];
+
+    // Debug: Log first buyer's matching process
+    if (buyers.indexOf(buyer) === 0) {
+      console.log(`[Aggregated] Matching for first buyer (Contact ID: ${buyerContactId})`);
+    }
+
     const buyerMatches = allMatches
       .filter((m: any) => {
         const contactIds = m.fields['Contact ID'] || [];
-        const matches = contactIds.includes(buyer.id);
-        // Debug first buyer's matches
-        if (buyer.id === buyers[0].id && allMatches.indexOf(m) < 3) {
-          console.log(`[Aggregated] Checking match ${m.id}: contactIds=${JSON.stringify(contactIds)}, buyerId=${buyer.id}, matches=${matches}`);
+        const matchesContact = contactIds.includes(buyerContactId);
+
+        if (!matchesContact) return false;
+
+        // Score filter
+        const score = m.fields['Match Score'] || 0;
+        if (score < filters.minScore) return false;
+
+        // Status filter
+        if (filters.matchStatus && m.fields['Match Status'] !== filters.matchStatus) return false;
+
+        // Priority filter
+        if (filters.priorityOnly && !m.fields['Is Priority']) return false;
+
+        // Date range filter
+        if (filters.dateRange && filters.dateRange !== 'all') {
+          const createdTime = new Date(m.createdTime);
+          const now = new Date();
+          const daysAgo = filters.dateRange === '7days' ? 7 : 30;
+          const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+          if (createdTime < cutoffDate) return false;
         }
-        return matches;
+
+        return true;
       })
+      .sort((a: any, b: any) => (b.fields['Match Score'] || 0) - (a.fields['Match Score'] || 0))
+      .slice(0, filters.matchLimit)
       .map((match: any) => {
         const propertyRecordId = match.fields['Property Code']?.[0];
         const property = propertiesMap[propertyRecordId];
@@ -191,6 +270,11 @@ async function handleBuyersAggregated(
           } : null,
         };
       });
+
+    // Debug: Log first buyer's match count
+    if (buyers.indexOf(buyer) === 0) {
+      console.log(`[Aggregated] First buyer has ${buyerMatches.length} matches after filtering`);
+    }
 
     return {
       contactId: buyer.fields['Contact ID'] || '',
@@ -234,22 +318,45 @@ async function handlePropertiesAggregated(
   res: VercelResponse,
   headers: any,
   limit: number,
-  offset: string
+  offset: string,
+  filters: {
+    matchStatus?: string;
+    minScore: number;
+    priorityOnly: boolean;
+    matchLimit: number;
+    dateRange: string;
+  }
 ) {
   const startTime = Date.now();
 
-  // Step 1: Fetch properties (paginated)
+  // Step 1: Fetch properties (paginated) with caching
   console.log(`[Aggregated] Fetching properties with limit=${limit}, offset=${offset}`);
 
-  const propertiesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties?maxRecords=${limit}${offset ? `&offset=${offset}` : ''}`;
+  const propertiesCacheKey = `properties-${limit}-${offset}`;
+  const cachedProperties = propertiesCache.get(propertiesCacheKey);
 
-  const propertiesRes = await fetch(propertiesUrl, { headers });
-  if (!propertiesRes.ok) {
-    throw new Error(`Failed to fetch properties: ${propertiesRes.status} ${propertiesRes.statusText}`);
+  let properties: any[];
+  let propertiesData: any;
+
+  if (cachedProperties && Date.now() - cachedProperties.timestamp < CACHE_TTL) {
+    console.log(`[Aggregated] Using cached properties (age: ${Math.floor((Date.now() - cachedProperties.timestamp) / 1000)}s)`);
+    properties = cachedProperties.data;
+    propertiesData = { records: properties, offset: undefined }; // Cached data doesn't have offset
+  } else {
+    const propertiesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties?maxRecords=${limit}${offset ? `&offset=${offset}` : ''}`;
+
+    const propertiesRes = await fetch(propertiesUrl, { headers });
+    if (!propertiesRes.ok) {
+      throw new Error(`Failed to fetch properties: ${propertiesRes.status} ${propertiesRes.statusText}`);
+    }
+
+    propertiesData = await propertiesRes.json();
+    properties = propertiesData.records || [];
+
+    // Cache the properties data
+    propertiesCache.set(propertiesCacheKey, { data: properties, timestamp: Date.now() });
+    console.log(`[Aggregated] Cached properties data`);
   }
-
-  const propertiesData = await propertiesRes.json();
-  const properties = propertiesData.records || [];
 
   console.log(`[Aggregated] Fetched ${properties.length} properties in ${Date.now() - startTime}ms`);
 
@@ -262,10 +369,11 @@ async function handlePropertiesAggregated(
   }
 
   // Step 2: Fetch ALL matches for these properties in ONE call
-  const propertyIds = properties.map((p: any) => p.id);
-  const matchesFormula = `OR(${propertyIds.map(id => `FIND("${id}", ARRAYJOIN({Property Code}))`).join(',')})`;
+  // Use Property Code field values instead of Airtable record IDs
+  const propertyCodes = properties.map((p: any) => p.fields['Property Code']).filter(code => code);
+  const matchesFormula = `OR(${propertyCodes.map(code => `FIND("${code}", ARRAYJOIN({Property Code}))`).join(',')})`;
 
-  console.log(`[Aggregated] Fetching matches for ${propertyIds.length} properties`);
+  console.log(`[Aggregated] Fetching matches for ${propertyCodes.length} properties using Property Codes:`, propertyCodes.slice(0, 3));
 
   const matchesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${encodeURIComponent(matchesFormula)}`;
 
@@ -279,8 +387,8 @@ async function handlePropertiesAggregated(
 
   console.log(`[Aggregated] Fetched ${allMatches.length} matches in ${Date.now() - startTime}ms`);
 
-  // Step 3: Get unique buyer IDs and batch fetch buyers
-  const buyerIds = [
+  // Step 3: Get unique buyer Contact IDs (GHL IDs) and batch fetch buyers
+  const buyerContactIds = [
     ...new Set(
       allMatches.flatMap((m: any) => m.fields['Contact ID'] || [])
     ),
@@ -288,18 +396,19 @@ async function handlePropertiesAggregated(
 
   let buyersMap: Record<string, any> = {};
 
-  if (buyerIds.length > 0) {
-    console.log(`[Aggregated] Batch fetching ${buyerIds.length} buyers`);
+  if (buyerContactIds.length > 0) {
+    console.log(`[Aggregated] Batch fetching ${buyerContactIds.length} buyers`);
 
-    // Use filterByFormula with RECORD_ID() to fetch multiple buyers at once
-    const buyersFormula = `OR(${buyerIds.map(id => `RECORD_ID()="${id}"`).join(',')})`;
+    // Use Contact ID field to fetch buyers (not RECORD_ID)
+    const buyersFormula = `OR(${buyerContactIds.map(id => `{Contact ID}="${id}"`).join(',')})`;
     const buyersUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?filterByFormula=${encodeURIComponent(buyersFormula)}`;
 
     const buyersRes = await fetch(buyersUrl, { headers });
     if (buyersRes.ok) {
       const buyersData = await buyersRes.json();
+      // Map by Contact ID (GHL ID) instead of Airtable record ID
       buyersMap = Object.fromEntries(
-        (buyersData.records || []).map((b: any) => [b.id, b])
+        (buyersData.records || []).map((b: any) => [b.fields['Contact ID'], b])
       );
     } else {
       console.warn(`[Aggregated] Failed to fetch buyers: ${buyersRes.status}`);
@@ -310,8 +419,43 @@ async function handlePropertiesAggregated(
 
   // Step 4: Assemble the response
   const propertiesWithMatches = properties.map((property: any) => {
+    const propertyCode = property.fields['Property Code'];
+
+    // Debug: Log first property's matching process
+    if (properties.indexOf(property) === 0) {
+      console.log(`[Aggregated] Matching for first property (Property Code: ${propertyCode})`);
+    }
+
     const propertyMatches = allMatches
-      .filter((m: any) => (m.fields['Property Code'] || []).includes(property.id))
+      .filter((m: any) => {
+        const matchPropertyCodes = m.fields['Property Code'] || [];
+        const matchesProperty = matchPropertyCodes.includes(propertyCode);
+
+        if (!matchesProperty) return false;
+
+        // Score filter
+        const score = m.fields['Match Score'] || 0;
+        if (score < filters.minScore) return false;
+
+        // Status filter
+        if (filters.matchStatus && m.fields['Match Status'] !== filters.matchStatus) return false;
+
+        // Priority filter
+        if (filters.priorityOnly && !m.fields['Is Priority']) return false;
+
+        // Date range filter
+        if (filters.dateRange && filters.dateRange !== 'all') {
+          const createdTime = new Date(m.createdTime);
+          const now = new Date();
+          const daysAgo = filters.dateRange === '7days' ? 7 : 30;
+          const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+          if (createdTime < cutoffDate) return false;
+        }
+
+        return true;
+      })
+      .sort((a: any, b: any) => (b.fields['Match Score'] || 0) - (a.fields['Match Score'] || 0))
+      .slice(0, filters.matchLimit)
       .map((match: any) => {
         const buyerRecordId = match.fields['Contact ID']?.[0];
         const buyer = buyersMap[buyerRecordId];
@@ -345,6 +489,11 @@ async function handlePropertiesAggregated(
           } : null,
         };
       });
+
+    // Debug: Log first property's match count
+    if (properties.indexOf(property) === 0) {
+      console.log(`[Aggregated] First property has ${propertyMatches.length} matches after filtering`);
+    }
 
     return {
       recordId: property.id,
