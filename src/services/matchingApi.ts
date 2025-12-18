@@ -102,9 +102,9 @@ export const useRunMatching = () => {
       return result;
     },
     onSuccess: () => {
-      // Invalidate all matching queries to refetch
-      queryClient.invalidateQueries({ queryKey: ['buyers-with-matches'] });
-      queryClient.invalidateQueries({ queryKey: ['properties-with-matches'] });
+      // Force immediate refetch of all matching queries
+      queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
     },
   });
 };
@@ -132,8 +132,8 @@ export const useRunBuyerMatching = () => {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['buyers-with-matches'] });
-      queryClient.invalidateQueries({ queryKey: ['airtable-buyer-matches'] });
+      queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['airtable-buyer-matches'] });
     },
   });
 };
@@ -161,7 +161,7 @@ export const useRunPropertyMatching = () => {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['properties-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
     },
   });
 };
