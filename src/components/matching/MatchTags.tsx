@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Info } from 'lucide-react';
+import { Info, Check, AlertTriangle } from 'lucide-react';
 import { MatchTag, type TagVariant } from './MatchTag';
 import {
   Tooltip,
@@ -141,6 +141,63 @@ export function extractReasoningSummary(reasoning: string | undefined): string {
 
   // Extract just the summary
   return cleaned.substring(0, cutoffIndex).trim();
+}
+
+/**
+ * Detailed list view of highlights and concerns
+ * Shows full text with icons for use in modals/expanded views
+ */
+export interface MatchDetailsListProps {
+  highlights?: string[];
+  concerns?: string[];
+  className?: string;
+}
+
+export function MatchDetailsList({
+  highlights = [],
+  concerns = [],
+  className
+}: MatchDetailsListProps) {
+  const hasHighlights = highlights.length > 0;
+  const hasConcerns = concerns.length > 0;
+
+  if (!hasHighlights && !hasConcerns) {
+    return null;
+  }
+
+  return (
+    <div className={cn('space-y-4', className)}>
+      {/* Highlights Section */}
+      {hasHighlights && (
+        <div>
+          <h4 className="text-sm font-medium text-emerald-700 mb-2">Highlights</h4>
+          <ul className="space-y-1.5">
+            {highlights.map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <Check className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Concerns Section */}
+      {hasConcerns && (
+        <div>
+          <h4 className="text-sm font-medium text-amber-700 mb-2">Considerations</h4>
+          <ul className="space-y-1.5">
+            {concerns.map((item, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export interface MatchTagsProps {

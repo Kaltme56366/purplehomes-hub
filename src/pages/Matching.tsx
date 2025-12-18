@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Loader2, Users, Home, Send, ChevronDown, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
-import { MatchTags, extractReasoningSummary } from '@/components/matching/MatchTags';
+import { MatchTags, MatchDetailsList, extractReasoningSummary } from '@/components/matching/MatchTags';
 import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
@@ -1168,19 +1168,35 @@ export default function Matching() {
                 </div>
 
                 {/* Match Reasoning Section */}
-                {selectedMatch.reasoning && (
-                  <div className="bg-muted/30 rounded-xl p-5">
-                    <h3 className="text-base font-semibold mb-3">Why This Property Matches</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      {extractReasoningSummary(selectedMatch.reasoning)}
-                    </p>
+                {(selectedMatch.reasoning || (selectedMatch.highlights && selectedMatch.highlights.length > 0) || (selectedMatch.concerns && selectedMatch.concerns.length > 0)) && (
+                  <div className="bg-muted/30 rounded-xl p-5 space-y-4">
+                    {/* Summary Statement */}
+                    {selectedMatch.reasoning && (
+                      <div>
+                        <h3 className="text-base font-semibold mb-2">Why This Property Matches</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {extractReasoningSummary(selectedMatch.reasoning)}
+                        </p>
+                      </div>
+                    )}
 
-                    {/* Match Tags */}
-                    <MatchTags
+                    {/* Detailed Highlights & Concerns */}
+                    <MatchDetailsList
                       highlights={selectedMatch.highlights}
                       concerns={selectedMatch.concerns}
-                      maxVisible={10}
                     />
+
+                    {/* Quick Summary Tags */}
+                    {((selectedMatch.highlights && selectedMatch.highlights.length > 0) || (selectedMatch.concerns && selectedMatch.concerns.length > 0)) && (
+                      <div className="pt-3 border-t">
+                        <p className="text-xs text-muted-foreground mb-2">Quick Summary</p>
+                        <MatchTags
+                          highlights={selectedMatch.highlights}
+                          concerns={selectedMatch.concerns}
+                          maxVisible={10}
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
 
