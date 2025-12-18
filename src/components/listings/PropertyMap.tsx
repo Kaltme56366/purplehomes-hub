@@ -188,10 +188,11 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
         'bottom-right'
       );
 
-      map.current.on('load', () => {
+      // Use 'style.load' event to ensure map style is fully loaded before adding layers
+      map.current.on('style.load', () => {
         if (!map.current) return;
 
-        console.log('Map loaded, properties count:', properties.length);
+        console.log('Map style loaded, properties count:', properties.length);
 
         // Add all map layers and sources directly (not using callback to avoid stale closure)
         if (map.current.getSource('properties')) {

@@ -277,6 +277,12 @@ async function handleBuyersAggregated(
       console.log(`[Aggregated] First buyer has ${buyerMatches.length} matches after filtering`);
     }
 
+    // Parse preferred zip codes from comma-separated string
+    const zipCodesRaw = buyer.fields['Preferred Zip Codes'] || buyer.fields['Zip Codes'] || '';
+    const preferredZipCodes = typeof zipCodesRaw === 'string'
+      ? zipCodesRaw.split(',').map((z: string) => z.trim()).filter(Boolean)
+      : Array.isArray(zipCodesRaw) ? zipCodesRaw : [];
+
     return {
       contactId: buyer.fields['Contact ID'] || '',
       recordId: buyer.id,
@@ -290,6 +296,8 @@ async function handleBuyersAggregated(
       desiredBaths: buyer.fields['No. of Bath'],
       city: buyer.fields['City'],
       location: buyer.fields['Location'],
+      preferredLocation: buyer.fields['Preferred Location'] || buyer.fields['Location'],
+      preferredZipCodes,
       buyerType: buyer.fields['Buyer Type'],
       matches: buyerMatches,
       totalMatches: buyerMatches.length,

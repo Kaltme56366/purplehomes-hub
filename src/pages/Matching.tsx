@@ -533,6 +533,25 @@ export default function Matching() {
                           Down payment: ${buyer.downPayment.toLocaleString()}
                         </p>
                       )}
+                      {buyer.preferredLocation && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          Preferred: {buyer.preferredLocation}
+                        </p>
+                      )}
+                      {buyer.preferredZipCodes && buyer.preferredZipCodes.length > 0 && (
+                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                          <span className="text-sm text-muted-foreground">ZIP codes:</span>
+                          {buyer.preferredZipCodes.slice(0, 5).map((zip) => (
+                            <Badge key={zip} variant="secondary" className="text-xs">
+                              {zip}
+                            </Badge>
+                          ))}
+                          {buyer.preferredZipCodes.length > 5 && (
+                            <span className="text-xs text-muted-foreground">+{buyer.preferredZipCodes.length - 5} more</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right flex flex-col items-end gap-3">
                       <div>
