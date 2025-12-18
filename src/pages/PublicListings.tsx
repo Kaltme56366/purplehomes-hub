@@ -39,7 +39,7 @@ import { ProximityBadge } from '@/components/listings/ProximityBadge';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSubmitForm } from '@/services/ghlApi';
-import { calculateZIPDistance } from '@/lib/proximityCalculator';
+import { calculatePropertyDistance } from '@/lib/proximityCalculator';
 
 const PROPERTY_TYPES: PropertyType[] = [
   'Single Family', 'Duplex', 'Multi Family', 'Condo', 'Lot', 
@@ -206,14 +206,10 @@ export default function PublicListings() {
   };
 
   // Calculate distance from user's ZIP code to property
+  // Works with both geocoded properties (lat/lng) and ZIP-based properties
   const getPropertyDistance = (property: Property): number | null => {
     if (!zipCode) return null;
-
-    // Extract ZIP from property city (if it contains one)
-    const propertyZip = property.city.match(/\d{5}/)?.[0];
-    if (!propertyZip) return null;
-
-    return calculateZIPDistance(zipCode, propertyZip);
+    return calculatePropertyDistance(property, zipCode);
   };
 
   const PropertyCard = ({ property, compact = false }: { property: Property; compact?: boolean }) => {

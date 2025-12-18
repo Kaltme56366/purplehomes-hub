@@ -140,12 +140,72 @@ export const ZIP_COORDINATES: Record<string, Coordinates> = {
   '90001': { latitude: 33.9731, longitude: -118.2479 }, // Los Angeles, CA
   '60601': { latitude: 41.8858, longitude: -87.6234 }, // Chicago, IL
   '77001': { latitude: 29.7604, longitude: -95.3698 }, // Houston, TX
-  '85001': { latitude: 33.4484, longitude: -112.0740 }, // Phoenix, AZ
   '19019': { latitude: 39.9526, longitude: -75.1652 }, // Philadelphia, PA
   '78201': { latitude: 29.4241, longitude: -98.4936 }, // San Antonio, TX
   '92101': { latitude: 32.7157, longitude: -117.1611 }, // San Diego, CA
   '75201': { latitude: 32.7767, longitude: -96.7970 }, // Dallas, TX
   '95101': { latitude: 37.3382, longitude: -121.8863 }, // San Jose, CA
+
+  // Phoenix Metro Area (for testing proximity)
+  '85001': { latitude: 33.4484, longitude: -112.0740 }, // Downtown Phoenix
+  '85003': { latitude: 33.4500, longitude: -112.0733 }, // Phoenix (2 mi from 85001)
+  '85004': { latitude: 33.4483, longitude: -112.0713 }, // Phoenix (0.5 mi from 85001)
+  '85006': { latitude: 33.4652, longitude: -112.0503 }, // Phoenix (3 mi from 85001)
+  '85007': { latitude: 33.4519, longitude: -112.0950 }, // Phoenix (1.5 mi from 85001)
+  '85008': { latitude: 33.4669, longitude: -112.0436 }, // Phoenix (4 mi from 85001)
+  '85013': { latitude: 33.5053, longitude: -112.0739 }, // Phoenix (4 mi from 85001)
+  '85014': { latitude: 33.5095, longitude: -112.0448 }, // Phoenix (5 mi from 85001)
+  '85015': { latitude: 33.5053, longitude: -112.1017 }, // Phoenix (5 mi from 85001)
+  '85016': { latitude: 33.5095, longitude: -111.9989 }, // Phoenix (6 mi from 85001)
+  '85020': { latitude: 33.5795, longitude: -112.0314 }, // Phoenix (10 mi from 85001)
+  '85028': { latitude: 33.6331, longitude: -112.0292 }, // Phoenix (13 mi from 85001)
+  '85032': { latitude: 33.6331, longitude: -112.0031 }, // Phoenix (14 mi from 85001)
+  '85050': { latitude: 33.6795, longitude: -111.9714 }, // Phoenix (18 mi from 85001)
+
+  // Scottsdale
+  '85250': { latitude: 33.4942, longitude: -111.9261 }, // Scottsdale (12 mi from Phoenix 85001)
+  '85251': { latitude: 33.4942, longitude: -111.9261 }, // Scottsdale (12 mi from Phoenix 85001)
+  '85254': { latitude: 33.6331, longitude: -111.8992 }, // Scottsdale (16 mi from Phoenix 85001)
+  '85255': { latitude: 33.7181, longitude: -111.8875 }, // Scottsdale (22 mi from Phoenix 85001)
+  '85257': { latitude: 33.4942, longitude: -111.8714 }, // Scottsdale (14 mi from Phoenix 85001)
+
+  // Mesa
+  '85201': { latitude: 33.4152, longitude: -111.8315 }, // Mesa (15 mi from Phoenix 85001)
+  '85202': { latitude: 33.4255, longitude: -111.8167 }, // Mesa (16 mi from Phoenix 85001)
+  '85203': { latitude: 33.4269, longitude: -111.7539 }, // Mesa (18 mi from Phoenix 85001)
+  '85204': { latitude: 33.3895, longitude: -111.7539 }, // Mesa (19 mi from Phoenix 85001)
+  '85205': { latitude: 33.3895, longitude: -111.7219 }, // Mesa (21 mi from Phoenix 85001)
+  '85206': { latitude: 33.3789, longitude: -111.6772 }, // Mesa (23 mi from Phoenix 85001)
+
+  // Tempe
+  '85281': { latitude: 33.4255, longitude: -111.9400 }, // Tempe (10 mi from Phoenix 85001)
+  '85282': { latitude: 33.3895, longitude: -111.9089 }, // Tempe (12 mi from Phoenix 85001)
+  '85283': { latitude: 33.3789, longitude: -111.8950 }, // Tempe (13 mi from Phoenix 85001)
+  '85284': { latitude: 33.3628, longitude: -111.9400 }, // Tempe (11 mi from Phoenix 85001)
+
+  // Gilbert
+  '85233': { latitude: 33.3528, longitude: -111.7890 }, // Gilbert (17 mi from Phoenix 85001)
+  '85234': { latitude: 33.3106, longitude: -111.7481 }, // Gilbert (20 mi from Phoenix 85001)
+  '85295': { latitude: 33.2728, longitude: -111.7481 }, // Gilbert (23 mi from Phoenix 85001)
+  '85296': { latitude: 33.2728, longitude: -111.6772 }, // Gilbert (25 mi from Phoenix 85001)
+
+  // Chandler
+  '85224': { latitude: 33.3062, longitude: -111.8413 }, // Chandler (15 mi from Phoenix 85001)
+  '85225': { latitude: 33.2728, longitude: -111.8717 }, // Chandler (17 mi from Phoenix 85001)
+  '85226': { latitude: 33.2439, longitude: -111.8950 }, // Chandler (19 mi from Phoenix 85001)
+  '85286': { latitude: 33.2439, longitude: -111.7219 }, // Chandler (23 mi from Phoenix 85001)
+
+  // Glendale
+  '85301': { latitude: 33.5387, longitude: -112.1859 }, // Glendale (12 mi from Phoenix 85001)
+  '85302': { latitude: 33.5795, longitude: -112.2231 }, // Glendale (15 mi from Phoenix 85001)
+  '85303': { latitude: 33.6331, longitude: -112.2450 }, // Glendale (18 mi from Phoenix 85001)
+  '85304': { latitude: 33.6795, longitude: -112.1859 }, // Glendale (19 mi from Phoenix 85001)
+
+  // Peoria
+  '85345': { latitude: 33.5795, longitude: -112.2450 }, // Peoria (16 mi from Phoenix 85001)
+  '85381': { latitude: 33.6331, longitude: -112.2859 }, // Peoria (20 mi from Phoenix 85001)
+  '85382': { latitude: 33.6795, longitude: -112.2450 }, // Peoria (22 mi from Phoenix 85001)
+  '85383': { latitude: 33.7181, longitude: -112.2859 }, // Peoria (26 mi from Phoenix 85001)
 
   // Add more ZIP codes as needed
   // For production, use a comprehensive ZIP code database or geocoding API
@@ -175,6 +235,46 @@ export function calculateZIPDistance(zip1: string, zip2: string): number | null 
   if (!coord1 || !coord2) return null;
 
   return calculateDistance(coord1, coord2);
+}
+
+/**
+ * Calculate distance between coordinates and a ZIP code
+ * @param coords Coordinates (from geocoded address)
+ * @param zip ZIP code to compare against
+ * @returns Distance in miles, or null if ZIP not found
+ */
+export function calculateDistanceFromCoords(coords: Coordinates, zip: string): number | null {
+  const zipCoords = getZIPCoordinates(zip);
+
+  if (!zipCoords) return null;
+
+  return calculateDistance(coords, zipCoords);
+}
+
+/**
+ * Calculate distance from property to user's ZIP code
+ * Works with both ZIP-based properties and geocoded properties
+ * @param property Property with either ZIP or lat/lng
+ * @param userZip User's search ZIP code
+ * @returns Distance in miles, or null if cannot calculate
+ */
+export function calculatePropertyDistance(
+  property: { city: string; lat?: number; lng?: number },
+  userZip: string
+): number | null {
+  // If property has coordinates, use them (more accurate)
+  if (typeof property.lat === 'number' && typeof property.lng === 'number') {
+    return calculateDistanceFromCoords(
+      { latitude: property.lat, longitude: property.lng },
+      userZip
+    );
+  }
+
+  // Otherwise fall back to ZIP-based calculation
+  const propertyZip = property.city.match(/\d{5}/)?.[0];
+  if (!propertyZip) return null;
+
+  return calculateZIPDistance(userZip, propertyZip);
 }
 
 /**
