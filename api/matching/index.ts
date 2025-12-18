@@ -435,10 +435,25 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
     const matchesToCreate: any[] = [];
     const matchesToUpdate: any[] = [];
 
+    // Log sample data for debugging
+    if (buyers.length > 0 && properties.length > 0) {
+      console.log('[Matching] Sample buyer data:', {
+        id: buyers[0].id,
+        hasFields: !!buyers[0].fields,
+        fields: buyers[0].fields ? Object.keys(buyers[0].fields).slice(0, 10) : 'NO FIELDS!'
+      });
+      console.log('[Matching] Sample property data:', {
+        id: properties[0].id,
+        hasFields: !!properties[0].fields,
+        fields: properties[0].fields ? Object.keys(properties[0].fields).slice(0, 10) : 'NO FIELDS!'
+      });
+    }
+
     // Process each buyer
     console.log('[Matching] Starting matching loop...');
     const totalCombinations = buyers.length * properties.length;
     let processed = 0;
+    let scoredMatches = 0;
     const progressInterval = Math.max(1, Math.floor(totalCombinations / 10)); // Log every 10%
 
     for (const buyer of buyers) {
@@ -449,7 +464,7 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
         if (processed % progressInterval === 0 || processed === totalCombinations) {
           const elapsed = Date.now() - startTime;
           const progress = (processed / totalCombinations * 100).toFixed(1);
-          console.log(`[Matching] Progress: ${progress}% (${processed}/${totalCombinations}) - ${elapsed}ms elapsed`);
+          console.log(`[Matching] Progress: ${progress}% (${processed}/${totalCombinations}) - ${elapsed}ms elapsed - ${scoredMatches} matches above threshold`);
         }
 
         // Check skip set
@@ -461,6 +476,19 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
 
         // Generate match score
         const score = generateMatchScore(buyer, property);
+
+        // Log first match for debugging
+        if (scoredMatches === 0 && score.score >= minScore) {
+          console.log('[Matching] First match found:', {
+            buyerId: buyer.id,
+            propertyId: property.id,
+            score: score.score,
+            reasoning: score.reasoning,
+            highlights: score.highlights
+          });
+        }
+
+        scoredMatches++;
 
         if (score.score >= minScore) {
           // Build match notes
