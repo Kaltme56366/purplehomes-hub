@@ -62,6 +62,24 @@ A comprehensive AI-powered property matching system that connects buyers with su
   - Property details (beds, baths, sqft, price)
   - Search and filter capabilities
   - Mobile-responsive design
+  - Make Offer form submission (triggers HighLevel workflow)
+
+### 4.5. Email Notification System (NEW!)
+- **Property PDF Generation** ([src/lib/propertyPdfGenerator.ts](src/lib/propertyPdfGenerator.ts)):
+  - Professional property listing PDFs with buyer personalization
+  - Match score breakdown and insights
+  - Property images, details, and features
+  - **Data isolation guarantee**: Each PDF generated fresh per buyer-property pair
+  - Bulk PDF generation for multiple matches
+- **Email Sending** ([src/services/emailApi.ts](src/services/emailApi.ts)):
+  - Send property PDFs via HighLevel Conversations API
+  - Beautiful HTML email templates
+  - Support for individual and bulk email sending
+  - Attachment upload and URL management
+- **UI Components** ([src/components/EmailPropertyButton.tsx](src/components/EmailPropertyButton.tsx)):
+  - `EmailPropertyButton` - Send individual property emails
+  - `BulkEmailButton` - Send multiple emails with progress tracking
+  - Toast notifications for success/failure feedback
 
 ### 5. API Architecture
 - **RESTful API Endpoints**:
@@ -77,9 +95,12 @@ A comprehensive AI-powered property matching system that connects buyers with su
     - `?action=batch-get` - Batch fetch multiple records
     - `?action=get-buyer-matches` - Get matches for buyer
     - `?action=bulk-matches` - Get matches for multiple buyers
-  - `/api/ghl` - HighLevel CRM integration
-    - `?action=opportunities` - Fetch buyer opportunities
-    - `?action=contact` - Get contact details
+  - `/api/ghl` - HighLevel CRM integration (Consolidated - 1 serverless function)
+    - `?resource=contacts` - Contact CRUD operations
+    - `?resource=opportunities` - Buyer opportunities
+    - `?resource=messages&action=upload` - Upload PDF attachments
+    - `?resource=messages&action=send` - Send emails with PDFs
+    - `?resource=forms&action=submit` - Submit forms (triggers workflows)
 
 ### 6. Type Safety & Developer Experience
 - **TypeScript Throughout**: Strongly typed interfaces for all entities

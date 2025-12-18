@@ -802,10 +802,14 @@ if (resource === 'opportunities') {
         // Store additional form data in customFields or tags
         const customFields: Array<{ key: string; field_value: string }> = [];
         const tags: string[] = [];
-        
-        // Add "offer made" tag when offer is submitted (exact GHL tag name)
+
+        // Add "website app" tag for all form submissions (indicates source)
+        tags.push('website app'); // GHL Tag ID: 2GVgv9cfpX0AVP5SRpdt
+
+        // Add "offer made" tag when offer is submitted (triggers workflow)
         if (body.offer_amount) {
           tags.push('offer made'); // GHL Tag ID: AvpDImBY9o6NZam9VCrq
+          // Workflow ID: 46fa1e6c-601e-4d65-a85e-32adae4158ac
         }
         
         // Add property info as custom fields
