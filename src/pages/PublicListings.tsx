@@ -373,70 +373,78 @@ export default function PublicListings() {
             </div>
           </div>
 
-          {/* Search */}
-          <div className="flex-1 max-w-md">
-            <div className="relative">
+          {/* Primary Filters - Always Visible */}
+          <div className="flex-1 flex items-center gap-2 max-w-4xl">
+            {/* ZIP Code - Most Important for Proximity */}
+            <div className="relative w-28">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="ZIP"
+                value={zipCode}
+                onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                className="pl-9 bg-muted/50 border-0 focus-visible:ring-purple-500"
+                maxLength={5}
+              />
+            </div>
+
+            {/* Search */}
+            <div className="relative flex-1 min-w-[180px] max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search address, city, zip..."
+                placeholder="Search address, city..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-10 bg-muted/50 border-0 focus-visible:ring-purple-500"
               />
             </div>
-          </div>
 
-          {/* Desktop Filters */}
-          <div className="hidden lg:flex items-center gap-2">
-            <Select value={beds} onValueChange={setBeds}>
-              <SelectTrigger className="w-24 bg-muted/50 border-0">
-                <SelectValue placeholder="Beds" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Beds</SelectItem>
-                <SelectItem value="1">1+</SelectItem>
-                <SelectItem value="2">2+</SelectItem>
-                <SelectItem value="3">3+</SelectItem>
-                <SelectItem value="4">4+</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Quick Filters - Desktop Only */}
+            <div className="hidden lg:flex items-center gap-2">
+              <Select value={beds} onValueChange={setBeds}>
+                <SelectTrigger className="w-24 bg-muted/50 border-0">
+                  <SelectValue placeholder="Beds" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any</SelectItem>
+                  <SelectItem value="1">1+</SelectItem>
+                  <SelectItem value="2">2+</SelectItem>
+                  <SelectItem value="3">3+</SelectItem>
+                  <SelectItem value="4">4+</SelectItem>
+                  <SelectItem value="5">5+</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Select value={baths} onValueChange={setBaths}>
-              <SelectTrigger className="w-24 bg-muted/50 border-0">
-                <SelectValue placeholder="Baths" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="any">Baths</SelectItem>
-                <SelectItem value="1">1+</SelectItem>
-                <SelectItem value="2">2+</SelectItem>
-                <SelectItem value="3">3+</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={baths} onValueChange={setBaths}>
+                <SelectTrigger className="w-24 bg-muted/50 border-0">
+                  <SelectValue placeholder="Baths" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any</SelectItem>
+                  <SelectItem value="1">1+</SelectItem>
+                  <SelectItem value="2">2+</SelectItem>
+                  <SelectItem value="3">3+</SelectItem>
+                  <SelectItem value="4">4+</SelectItem>
+                </SelectContent>
+              </Select>
 
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" className="gap-2 bg-muted/50 hover:bg-muted">
-                  ${(priceRange[0]/1000).toFixed(0)}K - ${priceRange[1] >= 1000000 ? '1M+' : (priceRange[1]/1000).toFixed(0) + 'K'}
-                  <ChevronDown className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <div className="space-y-4">
-                  <Label>Price Range</Label>
-                  <Slider
-                    value={priceRange}
-                    min={0}
-                    max={1000000}
-                    step={25000}
-                    onValueChange={(value) => setPriceRange(value as [number, number])}
-                  />
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>${priceRange[0].toLocaleString()}</span>
-                    <span>{priceRange[1] >= 1000000 ? '$1M+' : `$${priceRange[1].toLocaleString()}`}</span>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+              <Select value={`${priceRange[0]}-${priceRange[1]}`} onValueChange={(value) => {
+                const [min, max] = value.split('-').map(Number);
+                setPriceRange([min, max]);
+              }}>
+                <SelectTrigger className="w-36 bg-muted/50 border-0">
+                  <DollarSign className="h-4 w-4" />
+                  <SelectValue placeholder="Price" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0-1000000">Any Price</SelectItem>
+                  <SelectItem value="0-200000">Under $200K</SelectItem>
+                  <SelectItem value="200000-400000">$200K - $400K</SelectItem>
+                  <SelectItem value="400000-600000">$400K - $600K</SelectItem>
+                  <SelectItem value="600000-800000">$600K - $800K</SelectItem>
+                  <SelectItem value="800000-1000000">$800K+</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* More Filters */}
@@ -488,17 +496,6 @@ export default function PublicListings() {
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-
-                  <div>
-                    <Label className="text-xs text-muted-foreground">Zip Code</Label>
-                    <Input
-                      placeholder="Enter zip code"
-                      value={zipCode}
-                      onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                      className="mt-1"
-                      maxLength={5}
-                    />
                   </div>
 
                   <div>
