@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Database, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
+import { MatchTags } from '@/components/matching/MatchTags';
 import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
@@ -757,11 +758,13 @@ export default function Matching() {
                               </div>
                             )}
 
-                            {match.reasoning && (
-                              <p className="text-xs text-muted-foreground mt-1 line-clamp-1" title={match.reasoning}>
-                                {match.reasoning}
-                              </p>
-                            )}
+                            <MatchTags
+                              highlights={match.highlights}
+                              concerns={match.concerns}
+                              reasoning={match.reasoning}
+                              maxVisible={4}
+                              className="mt-1.5"
+                            />
                           </div>
 
                           <div className="flex flex-col items-end gap-2 flex-shrink-0">
@@ -995,9 +998,13 @@ export default function Matching() {
                                 {match.distance.toFixed(1)} miles from buyer
                               </div>
                             )}
-                            <div className="text-sm text-muted-foreground line-clamp-1 mt-1">
-                              {match.reasoning}
-                            </div>
+                            <MatchTags
+                              highlights={match.highlights}
+                              concerns={match.concerns}
+                              reasoning={match.reasoning}
+                              maxVisible={3}
+                              className="mt-1.5"
+                            />
                           </div>
                           <MatchScoreBadge score={match.score} size="sm" />
                         </div>
