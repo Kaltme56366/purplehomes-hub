@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home, Moon, Sun } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home, Moon, Sun, ArrowLeft } from 'lucide-react';
 import type { PropertyCondition, PropertyType, Property } from '@/types';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
@@ -54,6 +55,7 @@ const allProperties = [...demoProperties, ...mockProperties];
 type SortOption = 'price-high' | 'price-low' | 'newest' | 'beds' | 'sqft';
 
 export default function PublicListings() {
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [search, setSearch] = useState('');
@@ -382,6 +384,16 @@ export default function PublicListings() {
         isDarkMode ? "bg-card/95 border-border/50" : "bg-white/95 border-gray-200"
       )}>
         <div className="flex items-center gap-3 px-4 py-3">
+          {/* Back Button */}
+          <Button
+            onClick={() => navigate(-1)}
+            className="flex-shrink-0 bg-purple-600 hover:bg-purple-700 text-white gap-2"
+            title="Go back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Back</span>
+          </Button>
+
           {/* Logo */}
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="w-9 h-9 bg-gradient-to-br from-purple-600 to-purple-700 rounded-lg flex items-center justify-center shadow-lg shadow-purple-500/20">
