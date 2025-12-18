@@ -37,6 +37,7 @@ export interface PropertyDetails {
   sqft?: number;
   stage?: string;
   heroImage?: string;
+  notes?: string;
 }
 
 export interface MatchScore {

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Database, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
+import { Search, Loader2, Users, Home, Send, ChevronDown, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { MatchTags } from '@/components/matching/MatchTags';
@@ -620,8 +620,7 @@ export default function Matching() {
                         )}
                         {buyer.downPayment && (
                           <span className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3 flex-shrink-0" />
-                            ${buyer.downPayment.toLocaleString()} down
+                            Down payment: ${buyer.downPayment.toLocaleString()}
                           </span>
                         )}
                       </div>
@@ -707,7 +706,8 @@ export default function Matching() {
                                 <>
                                   <button
                                     onClick={() => setSelectedProperty(match.property)}
-                                    className="font-medium text-left hover:text-purple-600 transition-colors truncate max-w-[200px] sm:max-w-none"
+                                    className="font-medium text-left text-purple-600 hover:text-purple-700 underline underline-offset-2 decoration-purple-300 hover:decoration-purple-500 transition-colors truncate max-w-[200px] sm:max-w-none"
+                                    title="Click to view property details"
                                   >
                                     {match.property.address}
                                   </button>
@@ -1075,9 +1075,20 @@ export default function Matching() {
 
       {/* Property Detail Modal */}
       <Dialog open={!!selectedProperty} onOpenChange={() => setSelectedProperty(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           {selectedProperty && (
             <div className="space-y-4">
+              {/* Hero Image */}
+              {selectedProperty.heroImage && (
+                <div className="relative -mx-6 -mt-6 mb-4">
+                  <img
+                    src={selectedProperty.heroImage}
+                    alt={selectedProperty.address}
+                    className="w-full h-48 object-cover rounded-t-lg"
+                  />
+                </div>
+              )}
+
               <div>
                 <h2 className="text-xl font-semibold">{selectedProperty.address}</h2>
                 <p className="text-muted-foreground">
@@ -1120,8 +1131,16 @@ export default function Matching() {
                 </div>
               )}
 
+              {/* Notes Section */}
+              {selectedProperty.notes && (
+                <div className="pt-3 border-t">
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-2">Notes</h3>
+                  <p className="text-sm whitespace-pre-wrap">{selectedProperty.notes}</p>
+                </div>
+              )}
+
               {selectedProperty.propertyCode && (
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground pt-2 border-t">
                   Property Code: {selectedProperty.propertyCode}
                 </div>
               )}
