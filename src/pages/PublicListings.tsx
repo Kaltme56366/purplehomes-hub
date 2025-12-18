@@ -709,6 +709,7 @@ export default function PublicListings() {
             properties={filteredProperties}
             onPropertySelect={setSelectedProperty}
             hoveredPropertyId={hoveredPropertyId}
+            zipCode={zipCode}
           />
         </div>
 

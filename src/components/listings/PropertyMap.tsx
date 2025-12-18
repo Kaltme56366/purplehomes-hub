@@ -4,14 +4,16 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { Card, CardContent } from '@/components/ui/card';
 import { Bed, Bath, AlertCircle, Loader2 } from 'lucide-react';
 import type { Property } from '@/types';
+import { ZIP_COORDINATES } from '@/lib/proximityCalculator';
 
 interface PropertyMapProps {
   properties: Property[];
   onPropertySelect: (property: Property) => void;
   hoveredPropertyId?: string | null;
+  zipCode?: string;
 }
 
-export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId }: PropertyMapProps) {
+export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -266,6 +268,21 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId }:
       source.setData(getGeoJSON());
     }
   }, [properties, mapLoaded, getGeoJSON]);
+
+  // Pan to ZIP code when searched
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !zipCode || zipCode.length !== 5) return;
+
+    const coords = ZIP_COORDINATES[zipCode];
+    if (coords) {
+      map.current.flyTo({
+        center: [coords.longitude, coords.latitude],
+        zoom: 12,
+        duration: 1500,
+        essential: true
+      });
+    }
+  }, [zipCode, mapLoaded]);
 
   if (error) {
     return (
