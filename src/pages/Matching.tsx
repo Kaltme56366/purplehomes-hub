@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Database, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Search, Loader2, Users, Home, Send, ChevronDown, DollarSign, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Database, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { useMatchingData } from '@/hooks/useCache';
@@ -14,6 +15,7 @@ import { Card } from '@/components/ui/card';
 import { useProperties } from '@/services/ghlApi';
 import { sendPropertyEmail } from '@/services/emailService';
 import { SELLER_ACQUISITION_PIPELINE_ID } from '@/services/ghlApi';
+import type { PropertyDetails } from '@/types/matching';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +41,7 @@ export default function Matching() {
   const [forceRematch, setForceRematch] = useState(false);
   const [expandedBuyers, setExpandedBuyers] = useState<Set<string>>(new Set());
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
+  const [selectedProperty, setSelectedProperty] = useState<PropertyDetails | null>(null);
 
   // Filter state - start with no filters to show all matches
   const [filters, setFilters] = useState({
@@ -640,7 +643,7 @@ export default function Matching() {
                       <h4 className="text-sm font-semibold text-muted-foreground">
                         Matched Properties:
                       </h4>
-                      {buyer.matches.slice(0, 3).map((match) => (
+                      {(expandedBuyers.has(buyer.recordId) ? buyer.matches : buyer.matches.slice(0, 3)).map((match) => (
                         <div
                           key={match.id}
                           className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
@@ -649,11 +652,14 @@ export default function Matching() {
                             <div className="flex items-center gap-2 flex-wrap">
                               {match.property ? (
                                 <>
-                                  <div className="font-medium">
+                                  <button
+                                    onClick={() => setSelectedProperty(match.property)}
+                                    className="font-medium text-left hover:text-purple-600 hover:underline transition-colors"
+                                  >
                                     {match.property.address}
                                     {match.property.city && `, ${match.property.city}`}
                                     {match.property.state && `, ${match.property.state}`}
-                                  </div>
+                                  </button>
                                   {match.isPriority && (
                                     <Badge variant="secondary" className="text-xs bg-purple-500/20 text-purple-700 border-purple-500/30">
                                       Priority
@@ -675,6 +681,7 @@ export default function Matching() {
                               <div className="text-xs text-muted-foreground mt-1">
                                 {match.property.beds} bed • {match.property.baths} bath
                                 {match.property.sqft && ` • ${match.property.sqft.toLocaleString()} sqft`}
+                                {match.property.zipCode && ` • ${match.property.zipCode}`}
                                 {match.property.price && ` • $${match.property.price.toLocaleString()}`}
                               </div>
                             )}
@@ -688,13 +695,43 @@ export default function Matching() {
                               {match.reasoning}
                             </div>
                           </div>
-                          <MatchScoreBadge score={match.score} size="sm" />
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSendSingleProperty(buyer, match)}
+                              disabled={sendingSingleProperty.has(`${buyer.contactId}-${match.propertyRecordId}`)}
+                              className="h-8 px-2"
+                            >
+                              {sendingSingleProperty.has(`${buyer.contactId}-${match.propertyRecordId}`) ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Send className="h-3 w-3" />
+                              )}
+                            </Button>
+                            <MatchScoreBadge score={match.score} size="sm" />
+                          </div>
                         </div>
                       ))}
                       {buyer.matches.length > 3 && (
-                        <p className="text-sm text-muted-foreground text-center">
-                          + {buyer.matches.length - 3} more {buyer.matches.length - 3 === 1 ? 'match' : 'matches'}
-                        </p>
+                        <button
+                          onClick={() => {
+                            setExpandedBuyers(prev => {
+                              const next = new Set(prev);
+                              if (next.has(buyer.recordId)) {
+                                next.delete(buyer.recordId);
+                              } else {
+                                next.add(buyer.recordId);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="w-full text-sm text-purple-600 hover:text-purple-700 font-medium text-center py-2 hover:bg-purple-50 rounded-md transition-colors"
+                        >
+                          {expandedBuyers.has(buyer.recordId)
+                            ? 'Show less'
+                            : `+ ${buyer.matches.length - 3} more ${buyer.matches.length - 3 === 1 ? 'match' : 'matches'}`}
+                        </button>
                       )}
                     </div>
                   )}
@@ -757,6 +794,7 @@ export default function Matching() {
                       <p className="text-sm text-muted-foreground">
                         {property.beds} bed • {property.baths} bath
                         {property.sqft && ` • ${property.sqft.toLocaleString()} sqft`}
+                        {property.zipCode && ` • ${property.zipCode}`}
                       </p>
                     </div>
                     <div className="text-right">
@@ -774,7 +812,7 @@ export default function Matching() {
                       <h4 className="text-sm font-semibold text-muted-foreground">
                         Matched Buyers:
                       </h4>
-                      {property.matches.slice(0, 3).map((match) => (
+                      {(expandedProperties.has(property.recordId) ? property.matches : property.matches.slice(0, 3)).map((match) => (
                         <div
                           key={match.id}
                           className="flex items-center justify-between p-3 bg-muted/30 rounded-lg"
@@ -824,9 +862,24 @@ export default function Matching() {
                         </div>
                       ))}
                       {property.matches.length > 3 && (
-                        <p className="text-sm text-muted-foreground text-center">
-                          + {property.matches.length - 3} more {property.matches.length - 3 === 1 ? 'match' : 'matches'}
-                        </p>
+                        <button
+                          onClick={() => {
+                            setExpandedProperties(prev => {
+                              const next = new Set(prev);
+                              if (next.has(property.recordId)) {
+                                next.delete(property.recordId);
+                              } else {
+                                next.add(property.recordId);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="w-full text-sm text-purple-600 hover:text-purple-700 font-medium text-center py-2 hover:bg-purple-50 rounded-md transition-colors"
+                        >
+                          {expandedProperties.has(property.recordId)
+                            ? 'Show less'
+                            : `+ ${property.matches.length - 3} more ${property.matches.length - 3 === 1 ? 'match' : 'matches'}`}
+                        </button>
                       )}
                     </div>
                   )}
@@ -871,6 +924,63 @@ export default function Matching() {
         </TabsContent>
         </Tabs>
       </div>
+
+      {/* Property Detail Modal */}
+      <Dialog open={!!selectedProperty} onOpenChange={() => setSelectedProperty(null)}>
+        <DialogContent className="max-w-lg">
+          {selectedProperty && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold">{selectedProperty.address}</h2>
+                <p className="text-muted-foreground">
+                  {selectedProperty.city}
+                  {selectedProperty.state && `, ${selectedProperty.state}`}
+                  {selectedProperty.zipCode && ` ${selectedProperty.zipCode}`}
+                </p>
+              </div>
+
+              {selectedProperty.price && (
+                <div className="text-2xl font-bold text-purple-600">
+                  ${selectedProperty.price.toLocaleString()}
+                </div>
+              )}
+
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex flex-col items-center p-3 bg-muted/50 rounded-lg">
+                  <Bed className="h-5 w-5 text-muted-foreground mb-1" />
+                  <p className="text-xl font-bold">{selectedProperty.beds}</p>
+                  <p className="text-xs text-muted-foreground">Beds</p>
+                </div>
+                <div className="flex flex-col items-center p-3 bg-muted/50 rounded-lg">
+                  <Bath className="h-5 w-5 text-muted-foreground mb-1" />
+                  <p className="text-xl font-bold">{selectedProperty.baths}</p>
+                  <p className="text-xs text-muted-foreground">Baths</p>
+                </div>
+                {selectedProperty.sqft && (
+                  <div className="flex flex-col items-center p-3 bg-muted/50 rounded-lg">
+                    <Square className="h-5 w-5 text-muted-foreground mb-1" />
+                    <p className="text-xl font-bold">{selectedProperty.sqft.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Sqft</p>
+                  </div>
+                )}
+              </div>
+
+              {selectedProperty.stage && (
+                <div className="flex items-center gap-2">
+                  <Building className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">Stage: <Badge variant="secondary">{selectedProperty.stage}</Badge></span>
+                </div>
+              )}
+
+              {selectedProperty.propertyCode && (
+                <div className="text-xs text-muted-foreground">
+                  Property Code: {selectedProperty.propertyCode}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

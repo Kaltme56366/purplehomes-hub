@@ -163,7 +163,7 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
       return;
     }
 
-    // Wait for properties to be available
+    // Wait for properties to be available (first render might have empty array)
     if (properties.length === 0) {
       console.log('Waiting for properties to load...');
       return;
@@ -382,14 +382,20 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, i
       map.current?.remove();
       mapInitialized.current = false;
     };
-  }, [mapboxToken, properties.length, isDarkMode]);
+  }, [mapboxToken]);
 
   // Update data when properties change
   useEffect(() => {
     if (!map.current || !mapLoaded) return;
+
+    console.log('Updating map data, properties count:', properties.length);
     const source = map.current.getSource('properties') as mapboxgl.GeoJSONSource;
     if (source) {
-      source.setData(getGeoJSON());
+      const geoJSON = getGeoJSON();
+      console.log('GeoJSON features count:', geoJSON.features.length);
+      source.setData(geoJSON);
+    } else {
+      console.warn('Properties source not found!');
     }
   }, [properties, mapLoaded, getGeoJSON]);
 
