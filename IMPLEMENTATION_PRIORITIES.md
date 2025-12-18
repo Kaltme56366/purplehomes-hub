@@ -26,8 +26,7 @@ All P0 and P1 items have been resolved. The system is fully functional and stabl
 
 ---
 
-## P0 (Critical) - RESOLVED ✅
-
+## P0a
 ### ~~1. Rate Limiting Errors (429)~~ ✅ FIXED
 **Status**: Resolved
 **Impact**: System was failing to create matches due to API rate limits
@@ -137,7 +136,59 @@ Send property match emails to buyers with PDF attachments via HighLevel Conversa
 
 ## P2 (Medium) - Future Enhancements
 
-### 1. Buyer Preferences Management 🎯
+### 1. UI/UX Improvements - Property Modal & Proximity Discovery 🎨
+**Status**: In Progress
+**Priority**: P2
+**Estimated Effort**: Medium (1 week)
+
+**Description**:
+Redesign property modal with Purple Homes branding and implement Zillow-style proximity-based property discovery.
+
+**Requirements**:
+
+**Part A: Property Modal Redesign**
+- Purple Homes brand colors (#667eea to #764ba2 gradient)
+- Enhanced visual hierarchy with hero images
+- Micro-interactions (hover effects, smooth animations)
+- Floating labels for form inputs
+- Gradient submit button with shadow effects
+- Mobile-first responsive design
+- Property image gallery with swipe gestures
+
+**Part B: Proximity-Based Discovery**
+- Distance calculation for all properties (Haversine formula)
+- Proximity tier badges (📍 Your Area, 🎯 Nearby, 📌 Close, 🚗 Far)
+- Smart sorting (proximity + relevance + price)
+- Section dividers between proximity tiers
+- Radius filter slider (10-100 miles)
+- Commute time estimates
+- "Your Search Area" indicator
+
+**Files to Create/Modify**:
+- `src/components/listings/PropertyModal.tsx` - Redesigned modal
+- `src/lib/proximityCalculator.ts` - Distance calculations
+- `src/components/listings/ProximityBadge.tsx` - Badge component
+- `src/pages/PublicListings.tsx` - Updated with proximity features
+- `src/styles/purple-branding.css` - Brand color system
+
+**Dependencies**:
+- ZIP code geolocation data (can use free APIs)
+- Design system documentation (UI_UX_IMPROVEMENTS.md already created)
+
+**Success Metrics**:
+- Users discover 3-5x more relevant properties
+- Average time on site increases 40-60%
+- Mobile responsiveness score > 95
+- Visual consistency with Purple Homes brand
+
+**References**:
+- [docs/UI_UX_IMPROVEMENTS.md](docs/UI_UX_IMPROVEMENTS.md) - Complete design specs
+- [Real Estate UI/UX Trends 2024](https://medium.com/@emilyanderson51691/top-12-ux-ui-design-trends-for-real-estate-apps-in-2025-37a5b70aef21)
+- [Zillow-Like Modal Design](https://wpresidence.net/zillow-like-modal/)
+
+---
+
+### 2. Buyer Preferences Management 🎯
 **Status**: Not Started
 **Priority**: P2
 **Estimated Effort**: Medium (1 week)

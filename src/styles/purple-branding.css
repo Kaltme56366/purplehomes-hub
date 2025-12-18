@@ -1,0 +1,344 @@
+/* Purple Homes Brand Colors & Components */
+
+:root {
+  /* Purple Homes Primary Colors */
+  --purple-primary: #667eea;
+  --purple-secondary: #764ba2;
+  --purple-light: #a78bfa;
+  --purple-dark: #5b21b6;
+
+  /* Gradient Definitions */
+  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --gradient-subtle: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  --gradient-overlay: linear-gradient(180deg, rgba(102, 126, 234, 0) 0%, rgba(118, 75, 162, 0.8) 100%);
+
+  /* Shadow Definitions */
+  --shadow-purple-sm: 0 2px 8px 0 rgba(102, 126, 234, 0.2);
+  --shadow-purple-md: 0 4px 14px 0 rgba(102, 126, 234, 0.3);
+  --shadow-purple-lg: 0 6px 20px 0 rgba(102, 126, 234, 0.4);
+  --shadow-purple-xl: 0 10px 30px 0 rgba(102, 126, 234, 0.5);
+}
+
+/* Purple Gradient Button */
+.btn-purple-gradient {
+  background: var(--gradient-primary);
+  color: white;
+  border: none;
+  box-shadow: var(--shadow-purple-md);
+  transition: all 0.3s ease;
+}
+
+.btn-purple-gradient:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-purple-lg);
+  background: linear-gradient(135deg, #5568d3 0%, #653a8b 100%);
+}
+
+.btn-purple-gradient:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-purple-sm);
+}
+
+/* Glassmorphism Effect */
+.glass-purple {
+  background: rgba(102, 126, 234, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.glass-purple-dark {
+  background: rgba(118, 75, 162, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(118, 75, 162, 0.25);
+}
+
+/* Floating Label Animation */
+.floating-label-container {
+  position: relative;
+}
+
+.floating-label {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: hsl(var(--muted-foreground));
+  transition: all 0.2s ease;
+  pointer-events: none;
+  font-size: 0.875rem;
+}
+
+.floating-label-input:focus ~ .floating-label,
+.floating-label-input:not(:placeholder-shown) ~ .floating-label {
+  top: 0;
+  font-size: 0.75rem;
+  background: white;
+  padding: 0 4px;
+  color: var(--purple-primary);
+}
+
+/* Purple Accent Underline */
+.purple-underline {
+  position: relative;
+  padding-bottom: 8px;
+}
+
+.purple-underline::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: var(--gradient-primary);
+  border-radius: 2px;
+}
+
+/* Card Hover Effects */
+.card-hover-purple {
+  transition: all 0.3s ease;
+  border: 1px solid hsl(var(--border));
+}
+
+.card-hover-purple:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-purple-md);
+  border-color: var(--purple-primary);
+}
+
+/* Shimmer Loading Effect */
+.shimmer-purple {
+  background: linear-gradient(
+    90deg,
+    rgba(102, 126, 234, 0.1) 0%,
+    rgba(118, 75, 162, 0.2) 50%,
+    rgba(102, 126, 234, 0.1) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Pulse Animation for CTAs */
+.pulse-purple {
+  animation: pulse-purple 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-purple {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(102, 126, 234, 0);
+  }
+}
+
+/* Badge Styles */
+.badge-purple {
+  background: var(--gradient-subtle);
+  color: var(--purple-dark);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  font-weight: 500;
+}
+
+.badge-purple-solid {
+  background: var(--gradient-primary);
+  color: white;
+  font-weight: 500;
+  box-shadow: var(--shadow-purple-sm);
+}
+
+/* Image Overlay Gradient */
+.image-overlay-purple {
+  position: absolute;
+  inset: 0;
+  background: var(--gradient-overlay);
+}
+
+/* Section Divider */
+.section-divider-purple {
+  border-top: 2px solid;
+  border-image: var(--gradient-primary) 1;
+  margin: 2rem 0;
+}
+
+/* Micro-interaction: Scale on Hover */
+.scale-hover {
+  transition: transform 0.2s ease;
+}
+
+.scale-hover:hover {
+  transform: scale(1.05);
+}
+
+/* Micro-interaction: Icon Bounce */
+.icon-bounce {
+  animation: icon-bounce 0.5s ease;
+}
+
+@keyframes icon-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+/* Progress Bar */
+.progress-purple {
+  background: hsl(var(--secondary));
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-purple-fill {
+  background: var(--gradient-primary);
+  height: 100%;
+  transition: width 0.3s ease;
+  box-shadow: var(--shadow-purple-sm);
+}
+
+/* Skeleton Loading */
+.skeleton-purple {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    rgba(102, 126, 234, 0.1) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Tooltip */
+.tooltip-purple {
+  background: var(--purple-dark);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  box-shadow: var(--shadow-purple-md);
+  position: relative;
+}
+
+.tooltip-purple::before {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 4px solid var(--purple-dark);
+}
+
+/* Notification Dot */
+.notification-dot-purple {
+  width: 8px;
+  height: 8px;
+  background: var(--purple-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px white, 0 0 6px rgba(102, 126, 234, 0.6);
+  animation: notification-pulse 2s infinite;
+}
+
+@keyframes notification-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Property Card Enhancement */
+.property-card-purple {
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  background: white;
+  border: 1px solid hsl(var(--border));
+}
+
+.property-card-purple:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-purple-md);
+}
+
+.property-card-purple:hover .property-card-image {
+  transform: scale(1.05);
+}
+
+.property-card-image {
+  transition: transform 0.5s ease;
+}
+
+/* Modal Enhancement */
+.modal-purple-header {
+  background: var(--gradient-primary);
+  color: white;
+  padding: 2rem;
+}
+
+/* Form Input Focus */
+.input-purple-focus:focus {
+  border-color: var(--purple-primary);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  outline: none;
+}
+
+/* Fade In Animation */
+.fade-in-purple {
+  animation: fade-in 0.5s ease-in-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Slide Up Animation */
+.slide-up-purple {
+  animation: slide-up 0.4s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

@@ -35,9 +35,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { demoProperties, mockProperties } from '@/data/mockData';
 import { toast } from 'sonner';
 import { PropertyMap } from '@/components/listings/PropertyMap';
+import { ProximityBadge } from '@/components/listings/ProximityBadge';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSubmitForm } from '@/services/ghlApi';
+import { calculateZIPDistance } from '@/lib/proximityCalculator';
 
 const PROPERTY_TYPES: PropertyType[] = [
   'Single Family', 'Duplex', 'Multi Family', 'Condo', 'Lot', 
@@ -203,9 +205,21 @@ export default function PublicListings() {
     return isNaN(num) ? '' : num;
   };
 
+  // Calculate distance from user's ZIP code to property
+  const getPropertyDistance = (property: Property): number | null => {
+    if (!zipCode) return null;
+
+    // Extract ZIP from property city (if it contains one)
+    const propertyZip = property.city.match(/\d{5}/)?.[0];
+    if (!propertyZip) return null;
+
+    return calculateZIPDistance(zipCode, propertyZip);
+  };
+
   const PropertyCard = ({ property, compact = false }: { property: Property; compact?: boolean }) => {
     const isHovered = hoveredPropertyId === property.id;
     const isSaved = savedProperties.has(property.id);
+    const distance = getPropertyDistance(property);
 
     return (
       <div 
@@ -234,6 +248,15 @@ export default function PublicListings() {
           
           {!compact && (
             <>
+              {distance !== null && distance >= 0 && (
+                <div className="absolute top-3 left-3">
+                  <ProximityBadge
+                    distance={distance}
+                    variant="compact"
+                    className="bg-white/90 backdrop-blur-sm shadow-md"
+                  />
+                </div>
+              )}
               <button
                 onClick={(e) => toggleSaved(property.id, e)}
                 className={cn(
@@ -613,27 +636,37 @@ export default function PublicListings() {
                   alt={selectedProperty.address}
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent image-overlay-purple" />
+                {getPropertyDistance(selectedProperty) !== null && getPropertyDistance(selectedProperty)! >= 0 && (
+                  <div className="absolute top-4 left-4 z-10">
+                    <ProximityBadge
+                      distance={getPropertyDistance(selectedProperty)!}
+                      variant="detailed"
+                      showCommute
+                      className="bg-white/95 backdrop-blur-sm shadow-lg fade-in-purple"
+                    />
+                  </div>
+                )}
                 <button
                   onClick={() => setSelectedProperty(null)}
-                  className="absolute top-4 right-4 p-2 rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-colors"
+                  className="absolute top-4 right-4 p-2 rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-colors scale-hover"
                 >
                   <X className="h-5 w-5" />
                 </button>
                 <button
                   onClick={(e) => toggleSaved(selectedProperty.id, e)}
                   className={cn(
-                    "absolute top-4 right-14 p-2 rounded-full transition-colors",
+                    "absolute top-4 right-14 p-2 rounded-full transition-all scale-hover",
                     savedProperties.has(selectedProperty.id)
-                      ? "bg-purple-500 text-white"
+                      ? "bg-purple-500 text-white shadow-purple-md"
                       : "bg-black/30 backdrop-blur-sm text-white hover:bg-black/50"
                   )}
                 >
                   <Heart className={cn("h-5 w-5", savedProperties.has(selectedProperty.id) && "fill-current")} />
                 </button>
-                <div className="absolute bottom-0 left-0 right-0 p-6">
+                <div className="absolute bottom-0 left-0 right-0 p-6 slide-up-purple">
                   <div className="flex items-baseline gap-3 mb-2">
-                    <p className="text-3xl sm:text-4xl font-bold text-white">
+                    <p className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg">
                       ${selectedProperty.price.toLocaleString()}
                     </p>
                     {selectedProperty.monthlyPayment !== undefined && (
@@ -642,8 +675,8 @@ export default function PublicListings() {
                       </p>
                     )}
                   </div>
-                  <h2 className="text-xl sm:text-2xl font-semibold text-white">{selectedProperty.address}</h2>
-                  <p className="text-purple-200 flex items-center gap-1 mt-1">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-white purple-underline inline-block">{selectedProperty.address}</h2>
+                  <p className="text-purple-200 flex items-center gap-1 mt-2">
                     <MapPin className="h-4 w-4" />
                     {selectedProperty.city}
                   </p>
@@ -725,14 +758,14 @@ export default function PublicListings() {
 
                 {!showOfferForm ? (
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Button 
+                    <Button
                       size="lg"
-                      className="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white shadow-lg shadow-purple-500/20"
+                      className="flex-1 btn-purple-gradient pulse-purple"
                       onClick={() => setShowOfferForm(true)}
                     >
                       Make an Offer
                     </Button>
-                    <Button variant="outline" size="lg" className="flex-1" asChild>
+                    <Button variant="outline" size="lg" className="flex-1 scale-hover" asChild>
                       <a href="tel:+1234567890">
                         <Phone className="h-4 w-4 mr-2" />
                         Call Us
@@ -808,10 +841,10 @@ export default function PublicListings() {
                       />
                     </div>
                     <div className="flex gap-3">
-                      <Button type="submit" className="flex-1 bg-gradient-to-r from-purple-600 to-purple-700 text-white">
+                      <Button type="submit" className="flex-1 btn-purple-gradient">
                         Submit Offer
                       </Button>
-                      <Button type="button" variant="outline" onClick={() => setShowOfferForm(false)}>
+                      <Button type="button" variant="outline" onClick={() => setShowOfferForm(false)} className="scale-hover">
                         Cancel
                       </Button>
                     </div>
