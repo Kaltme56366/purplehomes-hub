@@ -354,6 +354,125 @@ Tested and working on:
 
 ---
 
+## Spotlight Guided Tour System
+
+**Implementation Date**: 2025-12-19
+**Status**: ✅ Completed
+
+### Overview
+
+The MapCoachMarks component provides a 9-step interactive spotlight tour that guides new users through the /listings page interface.
+
+### Tour Entry
+
+**First-Time Visitors**:
+- See a pulsing "How this works" button with tooltip after map loads
+- Tooltip offers "Start Tour" and "Dismiss" options
+- Tour does NOT auto-start - requires explicit user action
+
+**Returning Visitors**:
+- See a "Page tour" button to replay the tour
+- localStorage key: `purplehomes_listings_tour_dismissed`
+
+### Tour Steps
+
+| Step | Selector | Title | Description |
+|------|----------|-------|-------------|
+| 1 | `[data-tour="map-area"]` | Property Clusters | Explains clustered pin markers |
+| 2 | `[data-tour="zip-search"], [data-tour="locate-button"]` | ZIP Code & Location Search | ZIP input + locate button |
+| 3 | `[data-tour="address-search"]` | Address / City Search | Search input |
+| 4 | `[data-tour="quick-filters"]` | Beds, Baths, Price Filters | Quick filter dropdowns |
+| 5 | `[data-tour="theme-toggle"]` | Light / Dark Mode | Theme toggle button |
+| 6 | `[data-tour="filters-button"]` | Advanced Filters | Opens filters panel |
+| 7 | `[data-tour="filters-panel"]` | Filter Controls | Entire filters popover |
+| 8 | `[data-tour="sort-select"]` | Sort Properties | Sort dropdown |
+| 9 | `[data-tour="property-actions"]` | Property Actions | Move/See More buttons |
+
+### Technical Implementation
+
+**Spotlight Effect**:
+```tsx
+<svg className="absolute inset-0 w-full h-full">
+  <defs>
+    <mask id="spotlight-mask">
+      <rect x="0" y="0" width="100%" height="100%" fill="white" />
+      <rect
+        x={highlightRect.left}
+        y={highlightRect.top}
+        width={highlightRect.width}
+        height={highlightRect.height}
+        rx="8"
+        fill="black"
+      />
+    </mask>
+  </defs>
+  <rect fill="rgba(0, 0, 0, 0.6)" mask="url(#spotlight-mask)" />
+</svg>
+```
+
+**Purple Glow Border**:
+```tsx
+<div style={{
+  boxShadow: '0 0 0 3px rgba(147, 51, 234, 0.7), 0 0 20px rgba(147, 51, 234, 0.5)'
+}} />
+```
+
+**Multi-Element Highlighting**:
+```typescript
+// Handle multiple selectors (e.g., ZIP + locate button)
+const selectors = step.selector.split(', ');
+const elements = selectors.map(sel => document.querySelector(sel));
+// Calculate bounding box that encompasses all elements
+const combinedRect = {
+  top: Math.min(...rects.map(r => r.top)),
+  left: Math.min(...rects.map(r => r.left)),
+  right: Math.max(...rects.map(r => r.right)),
+  bottom: Math.max(...rects.map(r => r.bottom)),
+};
+```
+
+### Usage
+
+```tsx
+import { MapCoachMarks } from '@/components/listings/MapCoachMarks';
+
+<MapCoachMarks
+  mapLoaded={mapLoaded}
+  className="top-4 left-4"
+  onOpenFilters={() => setShowFilters(true)}
+  onCloseFilters={() => setShowFilters(false)}
+/>
+```
+
+### Adding data-tour Attributes
+
+To highlight an element in the tour, add a `data-tour` attribute:
+
+```tsx
+<Button data-tour="my-button">Click Me</Button>
+```
+
+Then add a step to the TOUR_STEPS array in MapCoachMarks.tsx:
+
+```typescript
+{
+  id: 10,
+  selector: '[data-tour="my-button"]',
+  title: 'My Button',
+  description: 'Click this button to do something.',
+  position: 'bottom' as const,
+}
+```
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| [src/components/listings/MapCoachMarks.tsx](src/components/listings/MapCoachMarks.tsx) | Tour component |
+| [src/pages/PublicListings.tsx](src/pages/PublicListings.tsx) | data-tour attributes |
+
+---
+
 ## Future Enhancements
 
 ### Phase 2 (Future)
@@ -419,7 +538,7 @@ For questions or issues:
 
 ---
 
-**Last Updated**: 2025-12-18
-**Implementation Time**: 4 hours
-**Lines of Code Added**: ~900 LOC
+**Last Updated**: 2025-12-19
+**Implementation Time**: ~8 hours (including spotlight tour)
+**Lines of Code Added**: ~1200 LOC
 **Status**: ✅ Production Ready

@@ -428,11 +428,102 @@ The Purple Homes Property Matching System was built incrementally over multiple 
 
 ---
 
-## Phase 5: Documentation (Current)
+## Phase 5: User Experience Enhancements (Completed)
+**Duration**: ~2 weeks
+**Status**: ✅ Complete
+
+### Story 5.1: Spotlight Guided Tour System
+**Timeframe**: 2-3 days
+**Effort**: Medium-Large
+
+**Problem**: New users arriving at /listings page don't understand how to use the map, filters, and property list together.
+
+**Solution**:
+- Create MapCoachMarks component with 9-step interactive tour
+- Implement spotlight effect using SVG mask cutout
+- Add purple glow border around highlighted elements
+- Use `data-tour` attributes for selector-based element targeting
+- Add localStorage persistence (`purplehomes_listings_tour_dismissed`)
+- First-time tooltip with pulsing "How this works" button
+- Auto-open/close filters panel during relevant tour steps
+
+**Tour Steps**:
+1. Property Clusters - Map area with clustered pins
+2. ZIP Code & Location Search - ZIP input + locate button
+3. Address / City Search - Search input
+4. Beds, Baths, Price Filters - Quick filter dropdowns
+5. Light / Dark Mode - Theme toggle button
+6. Advanced Filters - Filters button (opens panel)
+7. Filter Controls - Entire filters popover
+8. Sort Properties - Sort dropdown
+9. Property Actions - Move/See More buttons
+
+**Files Created/Modified**:
+- [src/components/listings/MapCoachMarks.tsx](src/components/listings/MapCoachMarks.tsx) - Complete tour component
+- [src/pages/PublicListings.tsx](src/pages/PublicListings.tsx) - Added data-tour attributes
+
+**Deliverables**:
+- ✅ 9-step spotlight tour with SVG mask
+- ✅ Purple glow highlighting
+- ✅ First-time tooltip experience
+- ✅ localStorage persistence
+- ✅ Auto-open/close filters integration
+
+---
+
+### Story 5.2: Filter Labels UX Fix
+**Timeframe**: 30 minutes
+**Effort**: XSmall
+
+**Problem**: Beds/Baths dropdowns showed only numbers ("Any", "1+", "2+") without context, making it unclear which filter was being used.
+
+**Solution**:
+- Changed labels to include context: "Any Beds", "1+ Bed", "2+ Beds", etc.
+- Updated both desktop quick filters and mobile filter popover
+- Increased trigger width from w-24 to w-28 to fit new labels
+
+**Files Modified**:
+- [src/pages/PublicListings.tsx](src/pages/PublicListings.tsx) - Updated SelectItem labels
+
+**Deliverables**:
+- ✅ Clear, descriptive filter labels
+- ✅ Consistent labeling across desktop and mobile
+
+---
+
+### Story 5.3: International Phone Input
+**Timeframe**: 1 day
+**Effort**: Small-Medium
+
+**Problem**: Phone input only supported US format, couldn't handle international buyers.
+
+**Solution**:
+- Integrate `react-phone-number-input` library
+- Create PhoneInput component matching shadcn/ui design
+- Support 200+ countries with flag icons
+- Output E.164 international format (+15551234567)
+- Fix message custom field mapping in GHL API
+
+**Files Created/Modified**:
+- [src/components/ui/phone-input.tsx](src/components/ui/phone-input.tsx) - Phone input component
+- [src/styles/phone-input.css](src/styles/phone-input.css) - Custom styles
+- [src/pages/PublicListings.tsx](src/pages/PublicListings.tsx) - Offer form integration
+- [src/pages/Contacts.tsx](src/pages/Contacts.tsx) - Contact form integration
+- [api/ghl/index.ts](api/ghl/index.ts) - Fixed message custom field key
+
+**Deliverables**:
+- ✅ International phone input with country picker
+- ✅ E.164 format storage
+- ✅ Form validation per country
+- ✅ GHL custom field fix
+
+---
+
+## Phase 6: Documentation (Current)
 **Duration**: ~2-3 days
 **Status**: 🔄 In Progress
 
-### Story 5.1: Project Documentation
+### Story 6.1: Project Documentation
 **Timeframe**: 2-3 days
 **Effort**: Medium
 
@@ -446,7 +537,7 @@ The Purple Homes Property Matching System was built incrementally over multiple 
 **Deliverables**:
 - ✅ IMPLEMENTATION_SUMMARY.md
 - ✅ IMPLEMENTATION_STORIES.md
-- ⏳ IMPLEMENTATION_PRIORITIES.md
+- ✅ IMPLEMENTATION_PRIORITIES.md
 - ⏳ claude.md
 
 ---
@@ -458,15 +549,17 @@ The Purple Homes Property Matching System was built incrementally over multiple 
 - **Phase 2**: ~2-3 weeks
 - **Phase 3**: ~2-3 weeks
 - **Phase 4**: ~1 week
-- **Phase 5**: ~2-3 days
-- **Total**: ~8-11 weeks (2-3 months)
+- **Phase 5**: ~2 weeks
+- **Phase 6**: ~2-3 days
+- **Total**: ~10-13 weeks (2.5-3 months)
 
 ### Effort Distribution
 - **Large Stories**: 3 (Matching algorithm, Caching system, ZIP code matching)
+- **Medium-Large Stories**: 1 (Spotlight tour system)
 - **Medium Stories**: 12
-- **Small Stories**: 4
-- **XSmall Stories**: 1
-- **Total Stories**: 20
+- **Small Stories**: 5
+- **XSmall Stories**: 2
+- **Total Stories**: 23
 
 ### Key Milestones Achieved
 1. ✅ Core matching system functional
@@ -474,6 +567,9 @@ The Purple Homes Property Matching System was built incrementally over multiple 
 3. ✅ Performance optimized with caching (80% API call reduction)
 4. ✅ User interface polished with filters and pagination
 5. ✅ System production-ready and stable
+6. ✅ Interactive guided tour for new users
+7. ✅ International phone input support
+8. ✅ Purple Homes branding and proximity discovery
 
 ---
 

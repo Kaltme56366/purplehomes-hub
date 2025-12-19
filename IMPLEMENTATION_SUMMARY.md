@@ -119,6 +119,34 @@ A comprehensive AI-powered property matching system that connects buyers with su
   - `BulkEmailButton` - Send multiple emails with progress tracking
   - Toast notifications for success/failure feedback
 
+### 4.8. Spotlight Guided Tour System (NEW!)
+- **MapCoachMarks Component** ([src/components/listings/MapCoachMarks.tsx](src/components/listings/MapCoachMarks.tsx)):
+  - 9-step interactive spotlight tour for /listings page
+  - SVG mask for spotlight cutout effect with dimmed overlay (60% black)
+  - Purple glow border around highlighted elements
+  - Dynamic element positioning using `getBoundingClientRect()`
+  - localStorage persistence (`purplehomes_listings_tour_dismissed`)
+  - Tour does NOT auto-start - requires explicit user action
+  - First-time visitors see pulsing "How this works" button with tooltip
+  - Step navigation with prev/next buttons and progress dots
+- **Tour Steps**:
+  1. Property Clusters - explains clustered pin markers on map
+  2. ZIP Code & Location Search - highlights ZIP input + locate button
+  3. Address / City Search - highlights address search input
+  4. Beds, Baths, Price Filters - highlights quick filter dropdowns
+  5. Light / Dark Mode - highlights theme toggle button
+  6. Advanced Filters - highlights filters button (opens panel)
+  7. Filter Controls - highlights entire filters popover panel
+  8. Sort Properties - highlights sort dropdown for price/newest/beds/sqft
+  9. Property Actions - highlights Move/See More buttons on property cards
+- **Integration**: Uses `data-tour` attributes on target elements for selector-based highlighting
+- **Features**:
+  - Multi-element highlighting (combines bounding boxes)
+  - Viewport-constrained tooltip positioning
+  - Auto-opens/closes filters panel for steps 6-7
+  - "Show me" action that zooms to first property
+  - Help button to replay tour after dismissal
+
 ### 5. API Architecture
 - **RESTful API Endpoints**:
   - `/api/matching` - Core matching operations

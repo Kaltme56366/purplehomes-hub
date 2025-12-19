@@ -134,12 +134,78 @@ Send property match emails to buyers with PDF attachments via HighLevel Conversa
 
 ---
 
+### ~~2. Spotlight Guided Tour System 🎯~~ ✅ IMPLEMENTED
+**Status**: Implemented
+**Priority**: P1.5
+**Actual Effort**: 2-3 days
+
+**Description**:
+Interactive spotlight tour for /listings page to help new users understand the interface.
+
+**Solution Implemented**:
+- **MapCoachMarks Component**: 9-step interactive tour
+- **Spotlight Effect**: SVG mask cutout with purple glow border
+- **Element Targeting**: `data-tour` attributes for selector-based highlighting
+- **Persistence**: localStorage prevents repeat showing
+- **Auto-Controls**: Opens/closes filters panel during relevant steps
+
+**Tour Steps**:
+1. Property Clusters - Map area with clustered pins
+2. ZIP Code & Location Search - ZIP input + locate button
+3. Address / City Search - Search input
+4. Beds, Baths, Price Filters - Quick filter dropdowns
+5. Light / Dark Mode - Theme toggle button
+6. Advanced Filters - Filters button (opens panel)
+7. Filter Controls - Entire filters popover
+8. Sort Properties - Sort dropdown
+9. Property Actions - Move/See More buttons
+
+**Files Created/Modified**:
+- [src/components/listings/MapCoachMarks.tsx](src/components/listings/MapCoachMarks.tsx) - Tour component
+- [src/pages/PublicListings.tsx](src/pages/PublicListings.tsx) - data-tour attributes
+
+**Success Metrics**:
+- ✅ 9-step spotlight tour with SVG mask
+- ✅ Purple glow highlighting effect
+- ✅ First-time tooltip with pulse animation
+- ✅ localStorage persistence
+- ✅ Auto-open/close filters integration
+
+---
+
+### ~~3. International Phone Input 📱~~ ✅ IMPLEMENTED
+**Status**: Implemented
+**Priority**: P1.5
+**Actual Effort**: 1 day
+
+**Description**:
+Support international phone numbers with country picker and E.164 format.
+
+**Solution Implemented**:
+- Integrated `react-phone-number-input` library
+- Created PhoneInput component matching shadcn/ui design
+- Support 200+ countries with flag icons
+- Output E.164 international format (+15551234567)
+- Fixed message custom field mapping in GHL API
+
+**Files Created/Modified**:
+- [src/components/ui/phone-input.tsx](src/components/ui/phone-input.tsx) - Component
+- [src/styles/phone-input.css](src/styles/phone-input.css) - Custom styles
+- [api/ghl/index.ts](api/ghl/index.ts) - Fixed message field key
+
+**Success Metrics**:
+- ✅ International phone input with country picker
+- ✅ E.164 format storage
+- ✅ Form validation per country
+
+---
+
 ## P2 (Medium) - Future Enhancements
 
-### 1. UI/UX Improvements - Property Modal & Proximity Discovery 🎨
-**Status**: In Progress
+### ~~1. UI/UX Improvements - Property Modal & Proximity Discovery 🎨~~ ✅ IMPLEMENTED
+**Status**: Implemented
 **Priority**: P2
-**Estimated Effort**: Medium (1 week)
+**Actual Effort**: 4 hours
 
 **Description**:
 Redesign property modal with Purple Homes branding and implement Zillow-style proximity-based property discovery.
@@ -520,13 +586,19 @@ Side-by-side comparison of up to 3 properties.
 4. ✅ Caching system
 5. ✅ Duplicate prevention
 
+### Recently Completed (P1.5 + P2) ✅
+1. ✅ Email notification system 📧
+2. ✅ Spotlight guided tour system 🎯
+3. ✅ International phone input 📱
+4. ✅ UI/UX improvements & proximity discovery 🎨
+5. ✅ Filter labels UX fix
+
 ### Should Do Next (P2) - Future Work
-1. 📧 Email notification system
-2. 🎯 Buyer preferences management
-3. 🏠 Property management dashboard
-4. 📊 Analytics dashboard
-5. 📱 Mobile app
-6. 🧠 Advanced matching algorithm
+1. 🎯 Buyer preferences management
+2. 🏠 Property management dashboard
+3. 📊 Analytics dashboard
+4. 📱 Mobile app
+5. 🧠 Advanced matching algorithm
 
 ### Could Do Later (P3) - Nice-to-Have
 1. 🔖 Saved searches

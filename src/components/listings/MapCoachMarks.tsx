@@ -9,6 +9,7 @@ interface MapCoachMarksProps {
   mapLoaded: boolean;
   className?: string;
   onOpenFilters?: () => void;
+  onCloseFilters?: () => void;
 }
 
 // Tour step configuration
@@ -64,6 +65,20 @@ const TOUR_STEPS = [
     position: 'left' as const,
     requiresFiltersOpen: true,
   },
+  {
+    id: 8,
+    selector: '[data-tour="sort-select"]',
+    title: 'Sort Properties',
+    description: 'Sort the property list by price, newest listings, bedrooms, or size.',
+    position: 'bottom' as const,
+  },
+  {
+    id: 9,
+    selector: '[data-tour="property-actions"]',
+    title: 'Property Actions',
+    description: 'Use "Move" to zoom the map to a property, or "See More" to view full details and make an offer.',
+    position: 'left' as const,
+  },
 ];
 
 interface HighlightRect {
@@ -77,6 +92,7 @@ export function MapCoachMarks({
   mapLoaded,
   className,
   onOpenFilters,
+  onCloseFilters,
 }: MapCoachMarksProps) {
   const [tourDismissed, setTourDismissed] = useState<boolean>(() => {
     return localStorage.getItem(TOUR_DISMISSED_KEY) === 'true';
@@ -201,6 +217,7 @@ export function MapCoachMarks({
   // Navigate steps
   const nextStep = useCallback(() => {
     const nextStepIndex = currentStep + 1;
+    const currentStepData = TOUR_STEPS[currentStep - 1];
 
     if (nextStepIndex > TOUR_STEPS.length) {
       // Tour complete
@@ -209,10 +226,19 @@ export function MapCoachMarks({
       setHighlightRect(null);
       setTourDismissed(true);
       localStorage.setItem(TOUR_DISMISSED_KEY, 'true');
+      // Close filters if they were open
+      if (currentStepData?.requiresFiltersOpen) {
+        onCloseFilters?.();
+      }
       return;
     }
 
     const nextStepData = TOUR_STEPS[nextStepIndex - 1];
+
+    // Close filters when moving away from filters panel step
+    if (currentStepData?.requiresFiltersOpen && !nextStepData?.requiresFiltersOpen) {
+      onCloseFilters?.();
+    }
 
     // Handle special actions
     if (nextStepData?.action === 'openFilters') {
@@ -228,7 +254,7 @@ export function MapCoachMarks({
     } else {
       setCurrentStep(nextStepIndex);
     }
-  }, [currentStep, onOpenFilters]);
+  }, [currentStep, onOpenFilters, onCloseFilters]);
 
   const prevStep = useCallback(() => {
     if (currentStep > 1) {
@@ -243,7 +269,9 @@ export function MapCoachMarks({
     setHighlightRect(null);
     setTourDismissed(true);
     localStorage.setItem(TOUR_DISMISSED_KEY, 'true');
-  }, []);
+    // Close filters if they were open
+    onCloseFilters?.();
+  }, [onCloseFilters]);
 
   // Trigger tour (for re-runs)
   const triggerTour = useCallback(() => {

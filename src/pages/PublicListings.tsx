@@ -368,7 +368,7 @@ export default function PublicListings() {
           )}>{property.city}</p>
 
           {/* Action Buttons */}
-          <div className={cn("flex gap-2", compact && "flex-col gap-1")}>
+          <div className={cn("flex gap-2", compact && "flex-col gap-1")} data-tour="property-actions">
             {property.lat && property.lng && (
               <Button
                 variant="outline"
@@ -422,7 +422,7 @@ export default function PublicListings() {
           <SelectTrigger className={cn(
             "w-[140px] text-xs h-8",
             isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 border-gray-300"
-          )}>
+          )} data-tour="sort-select">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -435,7 +435,7 @@ export default function PublicListings() {
         </Select>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" data-tour="property-list">
         <div className="p-4 space-y-4">
           {filteredProperties.map((property) => renderPropertyCard(property, compact))}
 
@@ -842,6 +842,7 @@ export default function PublicListings() {
             mapLoaded={mapLoaded}
             className="top-4 left-4"
             onOpenFilters={() => setShowFilters(true)}
+            onCloseFilters={() => setShowFilters(false)}
           />
         </div>
 
