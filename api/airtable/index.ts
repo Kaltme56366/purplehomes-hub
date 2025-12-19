@@ -135,6 +135,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Test connection
         return res.status(200).json({ success: true, message: 'Airtable connection OK' });
 
+      case 'update-record':
+        // Update a single record by ID
+        return handleUpdateRecord(req, res, headers, table as string);
+
       default:
         return res.status(400).json({ error: 'Unknown action', action });
     }
@@ -504,4 +508,74 @@ async function handleBulkMatches(req: VercelRequest, res: VercelResponse, header
   });
 
   return res.status(200).json({ matches });
+}
+
+async function handleUpdateRecord(
+  req: VercelRequest,
+  res: VercelResponse,
+  headers: any,
+  tableName: string
+) {
+  const { recordId } = req.query;
+  const { fields } = req.body;
+
+  if (!tableName) {
+    return res.status(400).json({ error: 'table parameter is required' });
+  }
+
+  if (!recordId) {
+    return res.status(400).json({ error: 'recordId parameter is required' });
+  }
+
+  if (!fields || typeof fields !== 'object') {
+    return res.status(400).json({ error: 'fields object is required in request body' });
+  }
+
+  console.log(`[Airtable] Updating record ${recordId} in table: ${tableName}`, { fields });
+
+  try {
+    const response = await fetchWithRetry(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}/${recordId}`,
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ fields }),
+      }
+    );
+
+    console.log(`[Airtable] Update response status: ${response.status} ${response.statusText}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Airtable] Update error response:`, errorText);
+
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch {
+        errorData = { message: errorText };
+      }
+
+      return res.status(response.status).json({
+        error: 'Airtable API error',
+        status: response.status,
+        statusText: response.statusText,
+        details: errorData,
+        table: tableName,
+        recordId,
+      });
+    }
+
+    const data = await response.json();
+    console.log(`[Airtable] Successfully updated record ${recordId} in ${tableName}`);
+    return res.status(200).json({ record: data });
+  } catch (error: any) {
+    console.error(`[Airtable] Exception in handleUpdateRecord:`, error);
+    return res.status(500).json({
+      error: 'Failed to update record',
+      message: error.message,
+      table: tableName,
+      recordId,
+    });
+  }
 }

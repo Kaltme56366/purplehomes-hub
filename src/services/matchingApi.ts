@@ -272,17 +272,18 @@ export const useUpdateMatchStage = () => {
       console.log('[Matching API] Updating match stage:', matchId, stage, { syncToGhl, contactId, propertyAddress });
 
       // 1. Update Airtable first (source of truth)
-      const response = await fetch(`${AIRTABLE_API_BASE}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table: 'Property-Buyer Matches',
-          id: matchId,
-          fields: {
-            'Match Stage': stage,
-          },
-        }),
-      });
+      const response = await fetch(
+        `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: {
+              'Match Stage': stage,
+            },
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Stage update failed' }));
@@ -317,17 +318,18 @@ export const useUpdateMatchStage = () => {
 
             // 3. Store GHL Relation ID back to Airtable for reference
             try {
-              await fetch(`${AIRTABLE_API_BASE}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  table: 'Property-Buyer Matches',
-                  id: matchId,
-                  fields: {
-                    'GHL Relation ID': relationId,
-                  },
-                }),
-              });
+              await fetch(
+                `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    fields: {
+                      'GHL Relation ID': relationId,
+                    },
+                  }),
+                }
+              );
               console.log('[Matching API] GHL Relation ID saved to Airtable');
             } catch (airtableError) {
               // Log but don't fail - the main sync succeeded
