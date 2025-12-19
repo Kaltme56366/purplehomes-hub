@@ -635,14 +635,14 @@ export default function PublicListings() {
                 )}
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80" align="end">
+            <PopoverContent className="w-80" align="end" data-tour="filters-panel">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold">All Filters</h4>
                   <Button variant="ghost" size="sm" onClick={clearFilters}>Clear</Button>
                 </div>
 
-                <div className="space-y-3" data-tour="filters-panel">
+                <div className="space-y-3">
                   <div>
                     <Label className="text-xs text-gray-600">Property Type</Label>
                     <Select value={propertyType} onValueChange={setPropertyType}>
