@@ -17,18 +17,18 @@ export function MatchScoreBadge({ score, size = 'md', showLabel = true, showProg
       ringBg: 'stroke-emerald-100',
     };
     if (score >= 60) return {
+      bg: 'bg-sky-50',
+      text: 'text-sky-700',
+      border: 'border-sky-200',
+      ring: 'stroke-sky-500',
+      ringBg: 'stroke-sky-100',
+    };
+    if (score >= 40) return {
       bg: 'bg-amber-50',
       text: 'text-amber-700',
       border: 'border-amber-200',
       ring: 'stroke-amber-500',
       ringBg: 'stroke-amber-100',
-    };
-    if (score >= 40) return {
-      bg: 'bg-orange-50',
-      text: 'text-orange-700',
-      border: 'border-orange-200',
-      ring: 'stroke-orange-500',
-      ringBg: 'stroke-orange-100',
     };
     return {
       bg: 'bg-gray-50',

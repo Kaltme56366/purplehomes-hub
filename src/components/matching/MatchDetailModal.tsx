@@ -14,7 +14,6 @@ import {
   Building,
   User,
   MapPin,
-  DollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -26,7 +25,6 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import {
-  MatchTags,
   ScoreBreakdown,
   MatchDetailsList,
   extractReasoningSummary,
@@ -236,39 +234,24 @@ export function MatchDetailModal({
               (match.highlights && match.highlights.length > 0) ||
               (match.concerns && match.concerns.length > 0)) && (
               <>
-                <div className="bg-muted/30 rounded-xl p-5 space-y-5">
-                  <h3 className="text-base font-semibold">Match Analysis</h3>
+                <div className="bg-muted/30 rounded-xl p-5 space-y-4">
+                  <h3 className="text-base font-semibold">Why This Property Matches</h3>
 
                   {/* Summary Statement */}
                   {match.reasoning && (
-                    <div>
-                      <p className="text-sm font-medium">
-                        {extractReasoningSummary(match.reasoning)}
-                      </p>
-                    </div>
+                    <p className="text-sm font-medium">
+                      {extractReasoningSummary(match.reasoning)}
+                    </p>
                   )}
 
-                  {/* Visual Score Breakdown */}
+                  {/* Score Breakdown - Clean one-line-per-category */}
                   <ScoreBreakdown reasoning={match.reasoning} />
 
-                  {/* Detailed Highlights & Concerns */}
+                  {/* Highlights & Concerns */}
                   <MatchDetailsList
                     highlights={match.highlights}
                     concerns={match.concerns}
                   />
-
-                  {/* Quick Summary Tags */}
-                  {((match.highlights && match.highlights.length > 0) ||
-                    (match.concerns && match.concerns.length > 0)) && (
-                    <div className="pt-3 border-t">
-                      <p className="text-xs text-muted-foreground mb-2">Quick Summary</p>
-                      <MatchTags
-                        highlights={match.highlights}
-                        concerns={match.concerns}
-                        maxVisible={10}
-                      />
-                    </div>
-                  )}
                 </div>
 
                 <Separator />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Info, Check, AlertTriangle } from 'lucide-react';
+import { Info, Check, AlertTriangle, MapPin, Bed, Bath, DollarSign, BarChart3 } from 'lucide-react';
 import { MatchTag, type TagVariant } from './MatchTag';
 import {
   Tooltip,
@@ -199,66 +199,34 @@ export function ScoreBreakdown({ reasoning, className }: ScoreBreakdownProps) {
 
   if (items.length === 0) return null;
 
-  const getCategoryColor = (category: string) => {
-    switch (category.toLowerCase()) {
-      case 'location':
-        return 'bg-blue-500';
-      case 'beds':
-        return 'bg-purple-500';
-      case 'baths':
-        return 'bg-indigo-500';
-      case 'budget':
-        return 'bg-emerald-500';
-      default:
-        return 'bg-gray-500';
-    }
-  };
-
   const getCategoryIcon = (category: string) => {
+    const iconClass = "h-4 w-4 text-muted-foreground";
     switch (category.toLowerCase()) {
       case 'location':
-        return '📍';
+        return <MapPin className={iconClass} />;
       case 'beds':
-        return '🛏️';
+        return <Bed className={iconClass} />;
       case 'baths':
-        return '🚿';
+        return <Bath className={iconClass} />;
       case 'budget':
-        return '💰';
+        return <DollarSign className={iconClass} />;
       default:
-        return '📊';
+        return <BarChart3 className={iconClass} />;
     }
   };
 
   return (
-    <div className={cn('space-y-3', className)}>
-      <h4 className="text-sm font-medium text-muted-foreground">Score Breakdown</h4>
-      <div className="space-y-2">
-        {items.map((item, i) => {
-          const percentage = (item.points / item.maxPoints) * 100;
-          return (
-            <div key={i} className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="flex items-center gap-1.5">
-                  <span>{getCategoryIcon(item.category)}</span>
-                  <span className="font-medium">{item.category}</span>
-                </span>
-                <span className="text-muted-foreground">
-                  {item.points}/{item.maxPoints} pts
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className={cn('h-full rounded-full transition-all', getCategoryColor(item.category))}
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">{item.explanation}</p>
-            </div>
-          );
-        })}
-      </div>
+    <div className={cn('space-y-2', className)}>
+      {items.map((item, i) => (
+        <div key={i} className="flex items-center text-sm gap-3">
+          <span className="flex-shrink-0">{getCategoryIcon(item.category)}</span>
+          <span className="font-medium w-16 flex-shrink-0">{item.category}</span>
+          <span className="text-xs bg-muted px-2 py-0.5 rounded-full flex-shrink-0">
+            {item.points}/{item.maxPoints}
+          </span>
+          <span className="text-muted-foreground text-sm">{item.explanation}</span>
+        </div>
+      ))}
     </div>
   );
 }
