@@ -491,7 +491,7 @@ export default function PublicListings() {
           {/* Primary Filters - Always Visible */}
           <div className="flex-1 flex items-center gap-2 max-w-4xl">
             {/* ZIP Code - Most Important for Proximity */}
-            <div className="relative w-28">
+            <div className="relative w-28" data-tour="zip-search">
               <MapPin className={cn(
                 "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4",
                 isDarkMode ? "text-muted-foreground" : "text-gray-400"
@@ -523,6 +523,7 @@ export default function PublicListings() {
                 userLocation && "bg-purple-100 border-purple-500 text-purple-600"
               )}
               title="Use my location"
+              data-tour="locate-button"
             >
               {isLocating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -532,7 +533,7 @@ export default function PublicListings() {
             </Button>
 
             {/* Search */}
-            <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <div className="relative flex-1 min-w-[180px] max-w-xs" data-tour="address-search">
               <Search className={cn(
                 "absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4",
                 isDarkMode ? "text-muted-foreground" : "text-gray-400"
@@ -549,7 +550,7 @@ export default function PublicListings() {
             </div>
 
             {/* Quick Filters - Desktop Only */}
-            <div className="hidden lg:flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2" data-tour="quick-filters">
               <Select value={beds} onValueChange={setBeds}>
                 <SelectTrigger className={cn(
                   "w-28 shadow-sm hover:shadow-md transition-shadow",
@@ -612,6 +613,7 @@ export default function PublicListings() {
             size="icon"
             onClick={() => setIsDarkMode(!isDarkMode)}
             className="flex-shrink-0"
+            data-tour="theme-toggle"
           >
             {isDarkMode ? (
               <Sun className="h-4 w-4" />
@@ -623,7 +625,7 @@ export default function PublicListings() {
           {/* More Filters */}
           <Popover open={showFilters} onOpenChange={setShowFilters}>
             <PopoverTrigger asChild>
-              <Button variant="outline" className="gap-2 relative">
+              <Button variant="outline" className="gap-2 relative" data-tour="filters-button">
                 <SlidersHorizontal className="h-4 w-4" />
                 <span className="hidden sm:inline">Filters</span>
                 {activeFilterCount > 0 && (
@@ -639,8 +641,8 @@ export default function PublicListings() {
                   <h4 className="font-semibold">All Filters</h4>
                   <Button variant="ghost" size="sm" onClick={clearFilters}>Clear</Button>
                 </div>
-                
-                <div className="space-y-3">
+
+                <div className="space-y-3" data-tour="filters-panel">
                   <div>
                     <Label className="text-xs text-gray-600">Property Type</Label>
                     <Select value={propertyType} onValueChange={setPropertyType}>
@@ -821,7 +823,7 @@ export default function PublicListings() {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* Map - Full screen on mobile */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative" data-tour="map-area">
           <PropertyMap
             properties={filteredProperties}
             onPropertySelect={setSelectedProperty}
@@ -839,6 +841,7 @@ export default function PublicListings() {
           <MapCoachMarks
             mapLoaded={mapLoaded}
             className="top-4 left-4"
+            onOpenFilters={() => setShowFilters(true)}
           />
         </div>
 

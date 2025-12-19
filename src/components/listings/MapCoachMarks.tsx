@@ -1,62 +1,94 @@
-import { useState, useEffect, useCallback } from 'react';
-import { X, HelpCircle, ZoomIn, MousePointerClick, List, MapPin } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { X, HelpCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const TOUR_DISMISSED_KEY = 'purplehomes_listings_tour_dismissed';
 
 interface MapCoachMarksProps {
-  /** Whether the map has loaded and is ready */
   mapLoaded: boolean;
-  /** Position class for the tour button */
   className?: string;
+  onOpenFilters?: () => void;
 }
 
-type TourStep = 0 | 1 | 2 | 3 | 4;
-
-// Tour step definitions with element selectors for highlighting
-const TOUR_STEPS: Array<{
-  title: string;
-  description: string;
-  highlightSelector?: string;
-  position: 'center' | 'top-right' | 'bottom-center' | 'top-left';
-}> = [
+// Tour step configuration
+const TOUR_STEPS = [
   {
-    title: 'Welcome to Listings',
-    description: 'This page shows all available properties on an interactive map. Let\'s take a quick tour!',
-    position: 'center',
-  },
-  {
+    id: 1,
+    selector: '[data-tour="map-area"]',
     title: 'Property Clusters',
-    description: 'Purple circles with numbers are "clusters" - they group nearby properties together. Click one to zoom in and see individual listings.',
-    position: 'center',
+    description: 'These purple circles are property clusters. Zoom in or click to see individual listings.',
+    position: 'bottom' as const,
   },
   {
-    title: 'Search by Location',
-    description: 'Enter a ZIP code or use the location button to pan the map to a specific area.',
-    highlightSelector: '[data-tour="zip-search"]',
-    position: 'top-left',
+    id: 2,
+    selector: '[data-tour="zip-search"], [data-tour="locate-button"]',
+    title: 'ZIP Code & Location Search',
+    description: 'Search by ZIP or use the location button to jump to a specific area.',
+    position: 'bottom' as const,
   },
   {
-    title: 'Property List',
-    description: 'Browse all properties in the sidebar. Use "Move" to zoom the map to any property, or "See More" to view details.',
-    highlightSelector: '[data-tour="property-list"]',
-    position: 'top-right',
+    id: 3,
+    selector: '[data-tour="address-search"]',
+    title: 'Address / City Search',
+    description: 'Search by address or city to refine your results.',
+    position: 'bottom' as const,
+  },
+  {
+    id: 4,
+    selector: '[data-tour="quick-filters"]',
+    title: 'Beds, Baths, Price Filters',
+    description: 'Use these filters to narrow listings by beds, baths, and price.',
+    position: 'bottom' as const,
+  },
+  {
+    id: 5,
+    selector: '[data-tour="theme-toggle"]',
+    title: 'Light / Dark Mode',
+    description: 'Switch between light and dark mode anytime.',
+    position: 'bottom' as const,
+  },
+  {
+    id: 6,
+    selector: '[data-tour="filters-button"]',
+    title: 'Advanced Filters',
+    description: 'Open advanced filters here.',
+    position: 'bottom' as const,
+    action: 'openFilters' as const,
+  },
+  {
+    id: 7,
+    selector: '[data-tour="filters-panel"]',
+    title: 'Filter Controls',
+    description: 'Fine-tune results using property type, condition, and down payment range.',
+    position: 'left' as const,
+    requiresFiltersOpen: true,
   },
 ];
 
+interface HighlightRect {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
 export function MapCoachMarks({
   mapLoaded,
-  className
+  className,
+  onOpenFilters,
 }: MapCoachMarksProps) {
   const [tourDismissed, setTourDismissed] = useState<boolean>(() => {
     return localStorage.getItem(TOUR_DISMISSED_KEY) === 'true';
   });
   const [showFirstTimeTooltip, setShowFirstTimeTooltip] = useState(false);
   const [tourActive, setTourActive] = useState(false);
-  const [currentStep, setCurrentStep] = useState<TourStep>(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [highlightRect, setHighlightRect] = useState<HighlightRect | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Show first-time tooltip after map loads (only if tour not dismissed)
+  // Show first-time tooltip after map loads
   useEffect(() => {
     if (mapLoaded && !tourDismissed) {
       const timer = setTimeout(() => {
@@ -66,58 +98,168 @@ export function MapCoachMarks({
     }
   }, [mapLoaded, tourDismissed]);
 
-  // Start the tour
+  // Update highlight position when step changes
+  const updateHighlight = useCallback(() => {
+    if (!tourActive || currentStep === 0) {
+      setHighlightRect(null);
+      return;
+    }
+
+    const step = TOUR_STEPS[currentStep - 1];
+    if (!step) return;
+
+    // Handle multiple selectors (e.g., ZIP + locate button)
+    const selectors = step.selector.split(', ');
+    const elements = selectors
+      .map(sel => document.querySelector(sel))
+      .filter(Boolean) as HTMLElement[];
+
+    if (elements.length === 0) {
+      // Element not found, skip this step or try again
+      if (step.requiresFiltersOpen) {
+        // Wait for filters panel to open
+        updateTimeoutRef.current = setTimeout(updateHighlight, 100);
+      }
+      return;
+    }
+
+    // Calculate bounding box that encompasses all elements
+    const rects = elements.map(el => el.getBoundingClientRect());
+    const combinedRect = {
+      top: Math.min(...rects.map(r => r.top)) - 8,
+      left: Math.min(...rects.map(r => r.left)) - 8,
+      right: Math.max(...rects.map(r => r.right)) + 8,
+      bottom: Math.max(...rects.map(r => r.bottom)) + 8,
+    };
+
+    const rect: HighlightRect = {
+      top: combinedRect.top,
+      left: combinedRect.left,
+      width: combinedRect.right - combinedRect.left,
+      height: combinedRect.bottom - combinedRect.top,
+    };
+
+    setHighlightRect(rect);
+
+    // Position tooltip
+    const padding = 16;
+    let tooltipTop = 0;
+    let tooltipLeft = 0;
+
+    switch (step.position) {
+      case 'bottom':
+        tooltipTop = combinedRect.bottom + padding;
+        tooltipLeft = combinedRect.left + (combinedRect.right - combinedRect.left) / 2;
+        break;
+      case 'left':
+        tooltipTop = combinedRect.top + (combinedRect.bottom - combinedRect.top) / 2;
+        tooltipLeft = combinedRect.left - padding;
+        break;
+      default:
+        tooltipTop = combinedRect.bottom + padding;
+        tooltipLeft = combinedRect.left;
+    }
+
+    // Keep tooltip in viewport
+    tooltipLeft = Math.max(20, Math.min(tooltipLeft, window.innerWidth - 340));
+    tooltipTop = Math.max(20, Math.min(tooltipTop, window.innerHeight - 200));
+
+    setTooltipPosition({ top: tooltipTop, left: tooltipLeft });
+  }, [tourActive, currentStep]);
+
+  // Update on step change and window resize
+  useEffect(() => {
+    updateHighlight();
+
+    const handleResize = () => updateHighlight();
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleResize, true);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleResize, true);
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [updateHighlight]);
+
+  // Start tour
   const startTour = useCallback(() => {
     setShowFirstTimeTooltip(false);
     setTourActive(true);
     setCurrentStep(1);
   }, []);
 
-  // Dismiss first-time tooltip (mark as seen)
+  // Dismiss first-time tooltip
   const dismissFirstTime = useCallback(() => {
     setShowFirstTimeTooltip(false);
     setTourDismissed(true);
     localStorage.setItem(TOUR_DISMISSED_KEY, 'true');
   }, []);
 
-  // Go to next step
+  // Navigate steps
   const nextStep = useCallback(() => {
-    if (currentStep >= TOUR_STEPS.length - 1) {
+    const nextStepIndex = currentStep + 1;
+
+    if (nextStepIndex > TOUR_STEPS.length) {
       // Tour complete
       setTourActive(false);
       setCurrentStep(0);
+      setHighlightRect(null);
       setTourDismissed(true);
       localStorage.setItem(TOUR_DISMISSED_KEY, 'true');
+      return;
+    }
+
+    const nextStepData = TOUR_STEPS[nextStepIndex - 1];
+
+    // Handle special actions
+    if (nextStepData?.action === 'openFilters') {
+      onOpenFilters?.();
+    }
+
+    if (nextStepData?.requiresFiltersOpen) {
+      onOpenFilters?.();
+      // Give time for popover to open
+      setTimeout(() => {
+        setCurrentStep(nextStepIndex);
+      }, 150);
     } else {
-      setCurrentStep((prev) => (prev + 1) as TourStep);
+      setCurrentStep(nextStepIndex);
+    }
+  }, [currentStep, onOpenFilters]);
+
+  const prevStep = useCallback(() => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
     }
   }, [currentStep]);
 
-  // Skip/exit tour
+  // Exit tour
   const exitTour = useCallback(() => {
     setTourActive(false);
     setCurrentStep(0);
+    setHighlightRect(null);
     setTourDismissed(true);
     localStorage.setItem(TOUR_DISMISSED_KEY, 'true');
   }, []);
 
-  // Manually trigger tour (for re-runs)
+  // Trigger tour (for re-runs)
   const triggerTour = useCallback(() => {
     setTourActive(true);
     setCurrentStep(1);
   }, []);
 
-  // Don't render anything until map is loaded
   if (!mapLoaded) return null;
 
-  const stepData = TOUR_STEPS[currentStep] || TOUR_STEPS[0];
+  const stepData = currentStep > 0 ? TOUR_STEPS[currentStep - 1] : null;
 
   return (
     <>
-      {/* Tour Entry Button - Always visible near map top-left */}
+      {/* Tour Entry Button */}
       <div className={cn("absolute z-30", className || "top-4 left-4")}>
         <div className="relative">
-          {/* Tour Button with first-time glow */}
           <button
             onClick={tourDismissed ? triggerTour : startTour}
             className={cn(
@@ -131,9 +273,7 @@ export function MapCoachMarks({
           >
             <HelpCircle className={cn(
               "h-4 w-4 transition-colors",
-              !tourDismissed && showFirstTimeTooltip
-                ? "text-purple-500"
-                : "text-purple-600"
+              !tourDismissed && showFirstTimeTooltip ? "text-purple-500" : "text-purple-600"
             )} />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
               {tourDismissed ? "Page tour" : "How this works"}
@@ -144,9 +284,7 @@ export function MapCoachMarks({
           {!tourDismissed && showFirstTimeTooltip && (
             <div className="absolute top-full left-0 mt-2 z-50 animate-fade-in">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-purple-300 dark:border-purple-600 p-4 w-72">
-                {/* Arrow pointing up */}
                 <div className="absolute -top-2 left-6 w-4 h-4 bg-white dark:bg-gray-800 border-l border-t border-purple-300 dark:border-purple-600 transform rotate-45" />
-
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center flex-shrink-0">
                     <HelpCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
@@ -156,7 +294,7 @@ export function MapCoachMarks({
                       New here?
                     </h4>
                     <p className="text-xs text-gray-600 dark:text-gray-300 mb-3">
-                      Get a quick tour of how listings and the map work together.
+                      Take a quick tour to learn how listings and the map work together.
                     </p>
                     <div className="flex gap-2">
                       <Button
@@ -190,118 +328,132 @@ export function MapCoachMarks({
         </div>
       </div>
 
-      {/* Tour Overlay - Active during tour */}
-      {tourActive && (
-        <div className="fixed inset-0 z-[100]">
-          {/* Dimmed overlay */}
+      {/* Tour Overlay with Spotlight */}
+      {tourActive && highlightRect && (
+        <div className="fixed inset-0 z-[9999] pointer-events-none">
+          {/* SVG overlay with cutout */}
+          <svg className="absolute inset-0 w-full h-full">
+            <defs>
+              <mask id="spotlight-mask">
+                <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                <rect
+                  x={highlightRect.left}
+                  y={highlightRect.top}
+                  width={highlightRect.width}
+                  height={highlightRect.height}
+                  rx="8"
+                  fill="black"
+                />
+              </mask>
+            </defs>
+            {/* Dimmed background */}
+            <rect
+              x="0"
+              y="0"
+              width="100%"
+              height="100%"
+              fill="rgba(0, 0, 0, 0.6)"
+              mask="url(#spotlight-mask)"
+            />
+          </svg>
+
+          {/* Purple glow border around highlighted element */}
           <div
-            className="absolute inset-0 bg-black/50 transition-opacity duration-300"
-            onClick={exitTour}
+            className="absolute rounded-lg pointer-events-none"
+            style={{
+              top: highlightRect.top,
+              left: highlightRect.left,
+              width: highlightRect.width,
+              height: highlightRect.height,
+              boxShadow: '0 0 0 3px rgba(147, 51, 234, 0.7), 0 0 20px rgba(147, 51, 234, 0.5)',
+              transition: 'all 0.3s ease-out',
+            }}
           />
 
-          {/* Tour Card */}
-          <div
-            className={cn(
-              "absolute pointer-events-auto animate-fade-in",
-              stepData.position === 'center' && "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
-              stepData.position === 'top-left' && "top-24 left-4 md:left-8",
-              stepData.position === 'top-right' && "top-24 right-4 md:right-[440px]",
-              stepData.position === 'bottom-center' && "bottom-32 left-1/2 -translate-x-1/2"
-            )}
-          >
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border-2 border-purple-500 p-5 max-w-sm">
-              {/* Step indicator and title */}
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                  {currentStep}
+          {/* Tooltip Card */}
+          {stepData && (
+            <div
+              className="absolute pointer-events-auto animate-fade-in"
+              style={{
+                top: tooltipPosition.top,
+                left: tooltipPosition.left,
+                transform: stepData.position === 'left' ? 'translateX(-100%) translateY(-50%)' : 'translateX(-50%)',
+                maxWidth: '320px',
+              }}
+            >
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border-2 border-purple-500 p-4">
+                {/* Step indicator */}
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                      {currentStep}
+                    </span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      of {TOUR_STEPS.length}
+                    </span>
+                  </div>
+                  <button
+                    onClick={exitTour}
+                    className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                    aria-label="Exit tour"
+                  >
+                    <X className="h-4 w-4 text-gray-400" />
+                  </button>
                 </div>
-                <h4 className="font-semibold text-lg text-gray-900 dark:text-white">
+
+                {/* Content */}
+                <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
                   {stepData.title}
                 </h4>
-                <button
-                  onClick={exitTour}
-                  className="ml-auto p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-                  aria-label="Exit tour"
-                >
-                  <X className="h-4 w-4 text-gray-400" />
-                </button>
-              </div>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+                  {stepData.description}
+                </p>
 
-              {/* Description */}
-              <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm leading-relaxed">
-                {stepData.description}
-              </p>
-
-              {/* Visual examples for specific steps */}
-              {currentStep === 1 && (
-                <div className="flex items-center gap-4 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                  <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                    5
+                {/* Navigation */}
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-1">
+                    {TOUR_STEPS.map((_, idx) => (
+                      <div
+                        key={idx}
+                        className={cn(
+                          "w-1.5 h-1.5 rounded-full transition-colors",
+                          currentStep > idx ? "bg-purple-600" : "bg-gray-300 dark:bg-gray-600"
+                        )}
+                      />
+                    ))}
                   </div>
-                  <span className="text-xs text-gray-700 dark:text-gray-200">
-                    This cluster contains 5 properties
-                  </span>
-                </div>
-              )}
-
-              {currentStep === 2 && (
-                <div className="flex items-center gap-3 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                  <MapPin className="h-5 w-5 text-purple-600" />
-                  <span className="text-xs text-gray-700 dark:text-gray-200">
-                    Use ZIP or the compass icon
-                  </span>
-                </div>
-              )}
-
-              {currentStep === 3 && (
-                <div className="flex items-center gap-3 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2" disabled>
-                      <ZoomIn className="h-3 w-3" />
-                      Move
+                    {currentStep > 1 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2"
+                        onClick={prevStep}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs h-7"
+                      onClick={exitTour}
+                    >
+                      Skip
                     </Button>
-                    <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2" disabled>
-                      See More
+                    <Button
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-7"
+                      onClick={nextStep}
+                    >
+                      {currentStep >= TOUR_STEPS.length ? 'Done' : 'Next'}
+                      {currentStep < TOUR_STEPS.length && <ChevronRight className="h-3 w-3 ml-1" />}
                     </Button>
                   </div>
-                </div>
-              )}
-
-              {/* Progress and navigation */}
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
-                <div className="flex gap-1.5">
-                  {TOUR_STEPS.slice(1).map((_, idx) => (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "w-2 h-2 rounded-full transition-colors",
-                        currentStep >= idx + 1
-                          ? "bg-purple-600"
-                          : "bg-gray-300 dark:bg-gray-600"
-                      )}
-                    />
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-xs h-7"
-                    onClick={exitTour}
-                  >
-                    Skip
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-7"
-                    onClick={nextStep}
-                  >
-                    {currentStep >= TOUR_STEPS.length - 1 ? "Done" : "Next"}
-                  </Button>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </>
