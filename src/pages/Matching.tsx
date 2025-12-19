@@ -3,19 +3,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Loader2, Users, Home, Send, ChevronDown, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
-import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
+import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches, useUpdateMatchStageWithActivity, useAddMatchActivity } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
-import { MatchTags, MatchDetailsList, ScoreBreakdown, extractReasoningSummary } from '@/components/matching/MatchTags';
+import { MatchTags } from '@/components/matching/MatchTags';
+import { MatchDetailModal, MatchWithDetails } from '@/components/matching/MatchDetailModal';
 import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
 import { useProperties } from '@/services/ghlApi';
 import { sendPropertyEmail } from '@/services/emailService';
 import { SELLER_ACQUISITION_PIPELINE_ID } from '@/services/ghlApi';
-import type { PropertyDetails } from '@/types/matching';
+import type { PropertyDetails, PropertyMatch, BuyerCriteria } from '@/types/matching';
+import type { MatchDealStage } from '@/types/associations';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,22 +41,20 @@ export default function Matching() {
   const [sortBy, setSortBy] = useState<SortOption>('matches-high');
   const [expandedBuyers, setExpandedBuyers] = useState<Set<string>>(new Set());
   const [expandedProperties, setExpandedProperties] = useState<Set<string>>(new Set());
-  const [selectedMatch, setSelectedMatch] = useState<{
-    property: PropertyDetails;
-    reasoning?: string;
-    highlights?: string[];
-    concerns?: string[];
-    score?: number;
-  } | null>(null);
+  const [selectedMatch, setSelectedMatch] = useState<MatchWithDetails | null>(null);
 
   // Filter state - start with no filters to show all matches
   const [filters, setFilters] = useState({
-    matchStatus: undefined as 'Active' | 'Sent' | 'Viewed' | 'Closed' | undefined,
+    matchStatus: undefined as MatchDealStage | undefined,
     minScore: 0,
     priorityOnly: false,
     matchLimit: 25,
     dateRange: 'all' as const,
   });
+
+  // Hooks for stage changes and activities
+  const updateStageWithActivity = useUpdateMatchStageWithActivity();
+  const addActivity = useAddMatchActivity();
 
   // Pagination state - track offset tokens for cursor-based pagination
   const [buyersOffset, setBuyersOffset] = useState<string | undefined>(undefined);
@@ -712,14 +711,13 @@ export default function Matching() {
                                 <>
                                   <button
                                     onClick={() => setSelectedMatch({
+                                      ...match,
                                       property: match.property!,
-                                      reasoning: match.reasoning,
-                                      highlights: match.highlights,
-                                      concerns: match.concerns,
-                                      score: match.score,
+                                      buyer: buyer,
+                                      activities: match.activities || [],
                                     })}
                                     className="font-medium text-left text-purple-600 hover:text-purple-700 underline underline-offset-2 decoration-purple-300 hover:decoration-purple-500 transition-colors truncate max-w-[200px] sm:max-w-none"
-                                    title="Click to view property details"
+                                    title="Click to view match details"
                                   >
                                     {match.property.address}
                                   </button>
@@ -1085,143 +1083,45 @@ export default function Matching() {
         </Tabs>
       </div>
 
-      {/* Property Detail Modal */}
-      <Dialog open={!!selectedMatch} onOpenChange={() => setSelectedMatch(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
-          {selectedMatch && (
-            <div>
-              {/* Hero Image with Overlay */}
-              <div className="relative h-64 sm:h-80 bg-gradient-to-br from-purple-100 to-purple-50">
-                {selectedMatch.property.heroImage ? (
-                  <img
-                    src={selectedMatch.property.heroImage}
-                    alt={selectedMatch.property.address}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Home className="h-20 w-20 text-purple-200" />
-                  </div>
-                )}
-                {/* Gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-                {/* Price and Match Score on image */}
-                <div className="absolute bottom-0 left-0 right-0 p-6">
-                  <div className="flex items-end justify-between gap-4">
-                    <div>
-                      {selectedMatch.property.price && (
-                        <div className="text-3xl sm:text-4xl font-bold text-white mb-1">
-                          ${selectedMatch.property.price.toLocaleString()}
-                        </div>
-                      )}
-                      <h2 className="text-xl sm:text-2xl font-semibold text-white">{selectedMatch.property.address}</h2>
-                      <p className="text-white/80">
-                        {selectedMatch.property.city}
-                        {selectedMatch.property.state && `, ${selectedMatch.property.state}`}
-                        {selectedMatch.property.zipCode && ` ${selectedMatch.property.zipCode}`}
-                      </p>
-                    </div>
-                    {selectedMatch.score && (
-                      <MatchScoreBadge score={selectedMatch.score} size="lg" />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Content */}
-              <div className="p-6 space-y-6">
-                {/* Property Stats Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
-                    <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
-                      <Bed className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <p className="text-2xl font-bold">{selectedMatch.property.beds}</p>
-                    <p className="text-xs text-muted-foreground">Bedrooms</p>
-                  </div>
-                  <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
-                    <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
-                      <Bath className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <p className="text-2xl font-bold">{selectedMatch.property.baths}</p>
-                    <p className="text-xs text-muted-foreground">Bathrooms</p>
-                  </div>
-                  {selectedMatch.property.sqft && (
-                    <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
-                      <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
-                        <Square className="h-5 w-5 text-purple-600" />
-                      </div>
-                      <p className="text-2xl font-bold">{selectedMatch.property.sqft.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">Sqft</p>
-                    </div>
-                  )}
-                  {selectedMatch.property.stage && (
-                    <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
-                      <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
-                        <Building className="h-5 w-5 text-purple-600" />
-                      </div>
-                      <p className="text-lg font-bold">{selectedMatch.property.stage}</p>
-                      <p className="text-xs text-muted-foreground">Stage</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Match Reasoning Section */}
-                {(selectedMatch.reasoning || (selectedMatch.highlights && selectedMatch.highlights.length > 0) || (selectedMatch.concerns && selectedMatch.concerns.length > 0)) && (
-                  <div className="bg-muted/30 rounded-xl p-5 space-y-5">
-                    {/* Summary Statement */}
-                    {selectedMatch.reasoning && (
-                      <div>
-                        <h3 className="text-base font-semibold mb-2">Why This Property Matches</h3>
-                        <p className="text-sm font-medium">
-                          {extractReasoningSummary(selectedMatch.reasoning)}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Visual Score Breakdown */}
-                    <ScoreBreakdown reasoning={selectedMatch.reasoning} />
-
-                    {/* Detailed Highlights & Concerns */}
-                    <MatchDetailsList
-                      highlights={selectedMatch.highlights}
-                      concerns={selectedMatch.concerns}
-                    />
-
-                    {/* Quick Summary Tags */}
-                    {((selectedMatch.highlights && selectedMatch.highlights.length > 0) || (selectedMatch.concerns && selectedMatch.concerns.length > 0)) && (
-                      <div className="pt-3 border-t">
-                        <p className="text-xs text-muted-foreground mb-2">Quick Summary</p>
-                        <MatchTags
-                          highlights={selectedMatch.highlights}
-                          concerns={selectedMatch.concerns}
-                          maxVisible={10}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Property Notes */}
-                {selectedMatch.property.notes && (
-                  <div>
-                    <h3 className="text-base font-semibold mb-2">Property Notes</h3>
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{selectedMatch.property.notes}</p>
-                  </div>
-                )}
-
-                {/* Footer Info */}
-                {selectedMatch.property.propertyCode && (
-                  <div className="text-xs text-muted-foreground pt-4 border-t">
-                    Property Code: {selectedMatch.property.propertyCode}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Match Detail Modal */}
+      <MatchDetailModal
+        match={selectedMatch}
+        open={!!selectedMatch}
+        onOpenChange={(open) => !open && setSelectedMatch(null)}
+        onStageChange={async (matchId, newStage) => {
+          if (!selectedMatch) return;
+          try {
+            await updateStageWithActivity.mutateAsync({
+              matchId,
+              fromStage: selectedMatch.status || 'Sent to Buyer',
+              toStage: newStage,
+            });
+            // Update local state
+            setSelectedMatch({
+              ...selectedMatch,
+              status: newStage,
+            });
+            toast.success(`Stage updated to "${newStage}"`);
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to update stage');
+          }
+        }}
+        onAddNote={async (matchId, note) => {
+          try {
+            await addActivity.mutateAsync({
+              matchId,
+              activity: {
+                type: 'note-added',
+                details: 'Note added',
+                metadata: { note },
+              },
+            });
+            toast.success('Note added');
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to add note');
+          }
+        }}
+      />
     </div>
   );
 }

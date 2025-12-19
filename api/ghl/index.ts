@@ -1417,6 +1417,97 @@ if (resource === 'opportunities') {
       }
     }
 
+    // ============ ASSOCIATIONS & CUSTOM OBJECTS ============
+    // Scopes: objects/associations.readonly, objects/relations.write
+    // Used for buyer-property matching with many-to-many relationships
+    if (resource === 'associations') {
+      if (method === 'GET') {
+        // GET /associations/ - Fetch all associations and labels for the location
+        console.log('[ASSOCIATIONS] Fetching associations for location:', GHL_LOCATION_ID);
+        const response = await fetch(
+          `${GHL_API_URL}/associations/?locationId=${GHL_LOCATION_ID}`,
+          { headers }
+        );
+        const data = await response.json();
+        console.log('[ASSOCIATIONS] Response:', response.status, JSON.stringify(data).substring(0, 500));
+        return res.status(response.ok ? 200 : response.status).json(data);
+      }
+    }
+
+    if (resource === 'objects') {
+      const objectKey = query.objectKey as string; // e.g., 'opportunity', 'contact', 'property'
+
+      if (!objectKey) {
+        return res.status(400).json({ error: 'objectKey query parameter is required' });
+      }
+
+      // GET /objects/:objectKey/relations - Get relations for an object
+      if (method === 'GET' && action === 'relations') {
+        const recordId = query.recordId as string;
+        const params = new URLSearchParams();
+        params.set('locationId', GHL_LOCATION_ID!);
+        if (recordId) params.set('recordId', recordId);
+
+        console.log('[OBJECTS] Fetching relations for:', objectKey, recordId || 'all');
+        const response = await fetch(
+          `${GHL_API_URL}/objects/${objectKey}/relations?${params}`,
+          { headers }
+        );
+        const data = await response.json();
+        console.log('[OBJECTS] Relations response:', response.status);
+        return res.status(response.ok ? 200 : response.status).json(data);
+      }
+
+      // POST /objects/:objectKey/relations - Create a relation
+      if (method === 'POST' && action === 'relations') {
+        console.log('[OBJECTS] Creating relation for:', objectKey, body);
+        const response = await fetch(
+          `${GHL_API_URL}/objects/${objectKey}/relations`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              ...body,
+              locationId: GHL_LOCATION_ID
+            })
+          }
+        );
+        const data = await response.json();
+        console.log('[OBJECTS] Create relation response:', response.status, data);
+        return res.status(response.ok ? 201 : response.status).json(data);
+      }
+
+      // PUT /objects/:objectKey/relations/:relationId - Update relation label
+      if (method === 'PUT' && action === 'relations' && id) {
+        console.log('[OBJECTS] Updating relation:', objectKey, id, body);
+        const response = await fetch(
+          `${GHL_API_URL}/objects/${objectKey}/relations/${id}`,
+          {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(body)
+          }
+        );
+        const data = await response.json();
+        console.log('[OBJECTS] Update relation response:', response.status, data);
+        return res.status(response.ok ? 200 : response.status).json(data);
+      }
+
+      // DELETE /objects/:objectKey/relations/:relationId - Delete relation
+      if (method === 'DELETE' && action === 'relations' && id) {
+        console.log('[OBJECTS] Deleting relation:', objectKey, id);
+        const response = await fetch(
+          `${GHL_API_URL}/objects/${objectKey}/relations/${id}`,
+          { method: 'DELETE', headers }
+        );
+        if (response.ok) {
+          return res.status(204).end();
+        }
+        const data = await response.json();
+        return res.status(response.status).json(data);
+      }
+    }
+
     // ============ AI CAPTION GENERATION ============
     if (resource === 'ai-caption') {
       if (method === 'POST') {

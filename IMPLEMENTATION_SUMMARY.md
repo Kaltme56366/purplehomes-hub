@@ -119,9 +119,9 @@ A comprehensive AI-powered property matching system that connects buyers with su
   - `BulkEmailButton` - Send multiple emails with progress tracking
   - Toast notifications for success/failure feedback
 
-### 4.8. Spotlight Guided Tour System (NEW!)
+### 4.8. Spotlight Guided Tour System
 - **MapCoachMarks Component** ([src/components/listings/MapCoachMarks.tsx](src/components/listings/MapCoachMarks.tsx)):
-  - 9-step interactive spotlight tour for /listings page
+  - 13-step interactive spotlight tour for /listings page
   - SVG mask for spotlight cutout effect with dimmed overlay (60% black)
   - Purple glow border around highlighted elements
   - Dynamic element positioning using `getBoundingClientRect()`
@@ -138,7 +138,11 @@ A comprehensive AI-powered property matching system that connects buyers with su
   6. Advanced Filters - highlights filters button (opens panel)
   7. Filter Controls - highlights entire filters popover panel
   8. Sort Properties - highlights sort dropdown for price/newest/beds/sqft
-  9. Property Actions - highlights Move/See More buttons on property cards
+  9. Price & Down Payment - shows pricing info on property cards
+  10. Beds, Baths & Size - highlights property specifications
+  11. Address & Location - shows location info on cards
+  12. Save Properties - heart button for favorites
+  13. Property Actions - highlights Move/See More buttons on property cards
 - **Integration**: Uses `data-tour` attributes on target elements for selector-based highlighting
 - **Features**:
   - Multi-element highlighting (combines bounding boxes)
@@ -146,6 +150,45 @@ A comprehensive AI-powered property matching system that connects buyers with su
   - Auto-opens/closes filters panel for steps 6-7
   - "Show me" action that zooms to first property
   - Help button to replay tour after dismissal
+
+### 4.9. Command Center Dashboard (NEW!)
+- **Dashboard Redesign** ([src/pages/Dashboard.tsx](src/pages/Dashboard.tsx)):
+  - Purple Homes branded Command Center with gradient header
+  - Real-time KPIs from GHL and Airtable data sources
+  - 4 primary stat widgets: Properties, Buyers, Matches, Pipeline
+  - Quick Actions panel with contextual badges
+  - System Status card showing GHL connection and sync health
+  - Recent Sync Activity timeline
+  - Navigation cards to major sections
+- **useDashboardData Hook** ([src/hooks/useDashboardData.ts](src/hooks/useDashboardData.ts)):
+  - Aggregates data from GHL contacts, opportunities, social posts
+  - Fetches matching data from Airtable via matching API
+  - Real-time stats calculation (no mock data for core metrics)
+  - Unified error handling and loading states
+  - Quick action generation based on current data state
+- **StatWidget Component** ([src/components/dashboard/StatWidget.tsx](src/components/dashboard/StatWidget.tsx)):
+  - 7 color variants including purple for brand consistency
+  - 3 size options (sm, md, lg)
+  - Optional trend indicators with up/down arrows
+  - Loading state with spinner
+  - Clickable with navigation support
+  - CompactStat variant for inline display
+
+### 4.10. Activity Logs Hybrid View (NEW!)
+- **ActivityTimeline Component** ([src/components/activity/ActivityTimeline.tsx](src/components/activity/ActivityTimeline.tsx)):
+  - Unified timeline view for all system activity
+  - Date grouping (Today, Yesterday, specific dates)
+  - Color-coded icons per activity type
+  - Status indicators (success, error, pending)
+  - Sync-specific stats (records processed, duration, created/updated counts)
+  - Click-to-navigate for property-related activities
+- **Updated ActivityLogs Page** ([src/pages/ActivityLogs.tsx](src/pages/ActivityLogs.tsx)):
+  - Timeline/Table toggle view (Timeline is default)
+  - Combined user activities and sync logs
+  - Source filter (All, User Activity, Sync Logs)
+  - Enhanced type filters including sync types
+  - Stats summary bar showing success/failure counts
+  - Mobile-friendly view toggle buttons
 
 ### 5. API Architecture
 - **RESTful API Endpoints**:
@@ -218,6 +261,13 @@ A comprehensive AI-powered property matching system that connects buyers with su
 - [src/pages/Matching.tsx](src/pages/Matching.tsx) - Complete UI overhaul with filters and pagination
 - [src/services/matchingApi.ts](src/services/matchingApi.ts) - Optimized React Query hooks
 - [src/pages/PublicListings.tsx](src/pages/PublicListings.tsx) - Bug fix for missing icon import
+
+### Dashboard & Activity Files (NEW!)
+- [src/pages/Dashboard.tsx](src/pages/Dashboard.tsx) - Command Center with real-time KPIs
+- [src/hooks/useDashboardData.ts](src/hooks/useDashboardData.ts) - Dashboard data aggregation hook
+- [src/components/dashboard/StatWidget.tsx](src/components/dashboard/StatWidget.tsx) - Enhanced stat card component
+- [src/pages/ActivityLogs.tsx](src/pages/ActivityLogs.tsx) - Hybrid Timeline/Table view
+- [src/components/activity/ActivityTimeline.tsx](src/components/activity/ActivityTimeline.tsx) - Timeline component
 
 ### Utility Files (Created)
 - [src/lib/rateLimiter.ts](src/lib/rateLimiter.ts) - Frontend rate limiting utility (ready for future use)

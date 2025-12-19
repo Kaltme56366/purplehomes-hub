@@ -2,6 +2,10 @@
  * AI Property Matching Types
  */
 
+import { MatchDealStage } from './associations';
+
+export { MatchDealStage } from './associations';
+
 export interface BuyerCriteria {
   contactId: string;
   recordId?: string;
@@ -53,6 +57,37 @@ export interface MatchScore {
   isPriority: boolean; // Within 50 miles OR in preferred ZIP
 }
 
+/**
+ * Activity types for match history tracking
+ */
+export type MatchActivityType =
+  | 'stage-change'
+  | 'email-sent'
+  | 'showing-scheduled'
+  | 'showing-completed'
+  | 'note-added'
+  | 'offer-submitted'
+  | 'match-created';
+
+/**
+ * Activity entry for match history
+ */
+export interface MatchActivity {
+  id: string;
+  type: MatchActivityType;
+  timestamp: string;
+  details: string;
+  user?: string;
+  metadata?: {
+    fromStage?: MatchDealStage;
+    toStage?: MatchDealStage;
+    showingDate?: string;
+    emailSubject?: string;
+    offerAmount?: number;
+    note?: string;
+  };
+}
+
 export interface PropertyMatch {
   id: string; // Match record ID
   buyerRecordId: string;
@@ -65,7 +100,9 @@ export interface PropertyMatch {
   highlights: string[];
   concerns?: string[];
   isPriority?: boolean; // Within 50 miles OR in preferred ZIP
-  status: 'Active' | 'Sent' | 'Viewed' | 'Closed';
+  status: MatchDealStage; // Updated to use GHL association labels
+  activities?: MatchActivity[]; // Activity history stored in Airtable JSON field
+  ghlRelationId?: string; // GHL relation ID for syncing
   createdAt?: string;
   updatedAt?: string;
 }
@@ -111,7 +148,7 @@ export interface RunMatchingResponse {
 }
 
 export interface MatchFilters {
-  matchStatus?: 'Active' | 'Sent' | 'Viewed' | 'Closed';
+  matchStatus?: MatchDealStage;
   minScore?: number;
   priorityOnly?: boolean;
   matchLimit?: number;

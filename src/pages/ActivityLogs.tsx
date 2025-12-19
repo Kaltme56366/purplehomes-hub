@@ -1,6 +1,17 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Filter, Download, ExternalLink, CheckCircle, XCircle, Clock } from 'lucide-react';
+import {
+  Search,
+  Filter,
+  Download,
+  ExternalLink,
+  CheckCircle,
+  XCircle,
+  Clock,
+  LayoutList,
+  Rows3,
+  RefreshCcw,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,10 +30,21 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  ActivityTimeline,
+  activityToTimelineItem,
+  syncLogToTimelineItem,
+  type TimelineItem,
+} from '@/components/activity/ActivityTimeline';
 import { mockActivities } from '@/data/mockData';
+import { useSyncStore } from '@/store/useSyncStore';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { ActivityType } from '@/types';
+
+type ViewMode = 'timeline' | 'table';
+type SourceFilter = 'all' | 'activities' | 'sync';
 
 const actionTypeOptions: { value: string; label: string }[] = [
   { value: 'all', label: 'All Actions' },
@@ -32,71 +54,121 @@ const actionTypeOptions: { value: string; label: string }[] = [
   { value: 'property-added', label: 'Property Added' },
   { value: 'status-changed', label: 'Status Changed' },
   { value: 'inventory-sent', label: 'Inventory Sent' },
+  { value: 'contacts', label: 'Contacts Sync' },
+  { value: 'properties', label: 'Properties Sync' },
+  { value: 'opportunities', label: 'Opportunities Sync' },
 ];
 
 const statusIcons = {
   success: CheckCircle,
   error: XCircle,
   pending: Clock,
+  failed: XCircle,
+  partial: Clock,
 };
 
 const statusColors = {
-  success: 'text-success',
-  error: 'text-error',
-  pending: 'text-warning',
+  success: 'text-emerald-600 dark:text-emerald-400',
+  error: 'text-red-600 dark:text-red-400',
+  pending: 'text-amber-600 dark:text-amber-400',
+  failed: 'text-red-600 dark:text-red-400',
+  partial: 'text-amber-600 dark:text-amber-400',
 };
 
-const actionLabels: Record<ActivityType, string> = {
-  'posted': 'Posted',
-  'scheduled': 'Scheduled',
+const actionLabels: Record<ActivityType | string, string> = {
+  posted: 'Posted',
+  scheduled: 'Scheduled',
   'caption-generated': 'Caption Generated',
   'property-added': 'Property Added',
   'status-changed': 'Status Changed',
   'buyer-added': 'Buyer Added',
   'inventory-sent': 'Inventory Sent',
+  contacts: 'Contacts Sync',
+  properties: 'Properties Sync',
+  opportunities: 'Opportunities Sync',
+  'social-accounts': 'Social Sync',
+  documents: 'Documents Sync',
 };
 
 export default function ActivityLogs() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [actionFilter, setActionFilter] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
 
-  const filteredActivities = mockActivities.filter((activity) => {
-    if (actionFilter !== 'all' && activity.type !== actionFilter) {
-      return false;
+  // Get sync logs from store
+  const { syncLog, getRecentSyncLog } = useSyncStore();
+  const recentSyncLogs = getRecentSyncLog(50);
+
+  // Combine activities and sync logs into unified timeline items
+  const allItems = useMemo((): TimelineItem[] => {
+    const activityItems = mockActivities.map(activityToTimelineItem);
+    const syncItems = recentSyncLogs.map(syncLogToTimelineItem);
+
+    // Filter by source
+    let combined: TimelineItem[] = [];
+    if (sourceFilter === 'all') {
+      combined = [...activityItems, ...syncItems];
+    } else if (sourceFilter === 'activities') {
+      combined = activityItems;
+    } else {
+      combined = syncItems;
     }
-    
-    if (search) {
-      const searchLower = search.toLowerCase();
-      return (
-        activity.propertyCode?.toLowerCase().includes(searchLower) ||
-        activity.details.toLowerCase().includes(searchLower) ||
-        activity.user?.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    return true;
-  });
+
+    // Sort by timestamp (most recent first)
+    return combined.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [recentSyncLogs, sourceFilter]);
+
+  // Apply filters
+  const filteredItems = useMemo(() => {
+    return allItems.filter((item) => {
+      // Type filter
+      if (actionFilter !== 'all' && item.type !== actionFilter) {
+        return false;
+      }
+
+      // Search filter
+      if (search) {
+        const searchLower = search.toLowerCase();
+        return (
+          item.propertyCode?.toLowerCase().includes(searchLower) ||
+          item.details.toLowerCase().includes(searchLower) ||
+          item.user?.toLowerCase().includes(searchLower) ||
+          item.type.toLowerCase().includes(searchLower)
+        );
+      }
+
+      return true;
+    });
+  }, [allItems, actionFilter, search]);
 
   const handleExport = () => {
-    // Create CSV content
-    const headers = ['Timestamp', 'Action', 'Property Code', 'Details', 'User', 'Status'];
-    const rows = filteredActivities.map(a => [
-      format(new Date(a.timestamp), 'yyyy-MM-dd HH:mm:ss'),
-      actionLabels[a.type],
-      a.propertyCode || '',
-      a.details,
-      a.user || '',
-      a.status,
+    const headers = ['Timestamp', 'Type', 'Property Code', 'Details', 'User', 'Status'];
+    const rows = filteredItems.map((item) => [
+      format(new Date(item.timestamp), 'yyyy-MM-dd HH:mm:ss'),
+      actionLabels[item.type] || item.type,
+      item.propertyCode || '',
+      item.details,
+      item.user || '',
+      item.status,
     ]);
-    
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
+
+    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `activity-logs-${format(new Date(), 'yyyy-MM-dd')}.csv`;
     a.click();
+  };
+
+  const handleItemClick = (item: TimelineItem) => {
+    if (item.propertyId) {
+      navigate(`/properties/${item.propertyId}`);
+    }
   };
 
   return (
@@ -106,13 +178,32 @@ export default function ActivityLogs() {
         <div>
           <h1 className="text-3xl font-bold">Activity Logs</h1>
           <p className="text-muted-foreground mt-1">
-            View all system activity and changes
+            Track all system activity, syncs, and changes in one place
           </p>
         </div>
-        <Button variant="outline" onClick={handleExport}>
-          <Download className="h-4 w-4 mr-2" />
-          Export to CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle */}
+          <Tabs
+            value={viewMode}
+            onValueChange={(v) => setViewMode(v as ViewMode)}
+            className="hidden sm:block"
+          >
+            <TabsList className="h-9">
+              <TabsTrigger value="timeline" className="gap-1.5 px-3">
+                <LayoutList className="h-4 w-4" />
+                Timeline
+              </TabsTrigger>
+              <TabsTrigger value="table" className="gap-1.5 px-3">
+                <Rows3 className="h-4 w-4" />
+                Table
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -126,10 +217,24 @@ export default function ActivityLogs() {
             className="pl-10"
           />
         </div>
+
+        {/* Source Filter */}
+        <Select value={sourceFilter} onValueChange={(v) => setSourceFilter(v as SourceFilter)}>
+          <SelectTrigger className="w-full sm:w-[160px]">
+            <SelectValue placeholder="Source" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            <SelectItem value="activities">User Activity</SelectItem>
+            <SelectItem value="sync">Sync Logs</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Type Filter */}
         <Select value={actionFilter} onValueChange={setActionFilter}>
-          <SelectTrigger className="w-full sm:w-[200px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <Filter className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Filter by action" />
+            <SelectValue placeholder="Filter by type" />
           </SelectTrigger>
           <SelectContent>
             {actionTypeOptions.map((option) => (
@@ -139,88 +244,153 @@ export default function ActivityLogs() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Mobile View Toggle */}
+        <div className="flex sm:hidden">
+          <Button
+            variant={viewMode === 'timeline' ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => setViewMode('timeline')}
+            className="rounded-r-none"
+          >
+            <LayoutList className="h-4 w-4" />
+          </Button>
+          <Button
+            variant={viewMode === 'table' ? 'default' : 'outline'}
+            size="icon"
+            onClick={() => setViewMode('table')}
+            className="rounded-l-none border-l-0"
+          >
+            <Rows3 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[180px]">Timestamp</TableHead>
-              <TableHead className="w-[150px]">Action</TableHead>
-              <TableHead className="w-[150px]">Property</TableHead>
-              <TableHead>Details</TableHead>
-              <TableHead className="w-[120px]">User</TableHead>
-              <TableHead className="w-[100px]">Status</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredActivities.map((activity) => {
-              const StatusIcon = statusIcons[activity.status];
-              
-              return (
-                <TableRow 
-                  key={activity.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                >
-                  <TableCell className="text-sm">
-                    {format(new Date(activity.timestamp), 'MMM d, yyyy')}
-                    <br />
-                    <span className="text-muted-foreground">
-                      {format(new Date(activity.timestamp), 'h:mm a')}
-                    </span>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {actionLabels[activity.type]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {activity.propertyCode ? (
-                      <button
-                        onClick={() => navigate(`/properties/${activity.propertyId}`)}
-                        className="text-primary hover:underline"
-                      >
-                        {activity.propertyCode}
-                      </button>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="max-w-[300px] truncate">
-                    {activity.details}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {activity.user || '—'}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <StatusIcon className={cn("h-4 w-4", statusColors[activity.status])} />
-                      <span className={cn("text-sm capitalize", statusColors[activity.status])}>
-                        {activity.status}
+      {/* Stats Summary */}
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <span>{filteredItems.length} items</span>
+        <span className="text-border">|</span>
+        <span className="flex items-center gap-1">
+          <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+          {filteredItems.filter((i) => i.status === 'success').length} success
+        </span>
+        <span className="flex items-center gap-1">
+          <XCircle className="h-3.5 w-3.5 text-red-600" />
+          {filteredItems.filter((i) => ['error', 'failed'].includes(i.status)).length} failed
+        </span>
+        {syncLog.length > 0 && (
+          <>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1">
+              <RefreshCcw className="h-3.5 w-3.5" />
+              {syncLog.length} syncs
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Content */}
+      {viewMode === 'timeline' ? (
+        <div className="border border-border rounded-lg p-4 bg-card">
+          <ActivityTimeline items={filteredItems} onItemClick={handleItemClick} />
+        </div>
+      ) : (
+        <div className="border border-border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[180px]">Timestamp</TableHead>
+                <TableHead className="w-[150px]">Type</TableHead>
+                <TableHead className="w-[120px]">Property</TableHead>
+                <TableHead>Details</TableHead>
+                <TableHead className="w-[100px]">User</TableHead>
+                <TableHead className="w-[100px]">Status</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredItems.map((item) => {
+                const StatusIcon = statusIcons[item.status] || Clock;
+
+                return (
+                  <TableRow
+                    key={item.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => handleItemClick(item)}
+                  >
+                    <TableCell className="text-sm">
+                      {format(new Date(item.timestamp), 'MMM d, yyyy')}
+                      <br />
+                      <span className="text-muted-foreground">
+                        {format(new Date(item.timestamp), 'h:mm a')}
                       </span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {activity.propertyId && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => navigate(`/properties/${activity.propertyId}`)}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary">{actionLabels[item.type] || item.type}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {item.propertyCode ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/properties/${item.propertyId}`);
+                          }}
+                          className="text-primary hover:underline"
+                        >
+                          {item.propertyCode}
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[300px]">
+                      <p className="truncate">{item.details}</p>
+                      {item.recordsProcessed !== undefined && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {item.recordsProcessed} records
+                          {item.duration !== undefined && ` • ${item.duration}ms`}
+                        </p>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{item.user || '—'}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <StatusIcon
+                          className={cn('h-4 w-4', statusColors[item.status] || 'text-muted-foreground')}
+                        />
+                        <span
+                          className={cn(
+                            'text-sm capitalize',
+                            statusColors[item.status] || 'text-muted-foreground'
+                          )}
+                        >
+                          {item.status}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {item.propertyId && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/properties/${item.propertyId}`);
+                          }}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
-      {filteredActivities.length === 0 && (
+      {filteredItems.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           No activity logs found matching your filters.
         </div>

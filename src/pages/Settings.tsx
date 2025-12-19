@@ -23,6 +23,7 @@ import { getApiConfig, setApiConfig, useTestConnection } from '@/services/ghlApi
 import { useGhlConnection } from '@/hooks/useGhlConnection';
 import { SyncHistoryLog } from '@/components/settings/SyncHistoryLog';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
+import { useTestAssociationsApi } from '@/services/ghlAssociationsApi';
 
 export default function Settings() {
   const { connectionStatus, setConnectionStatus, propertiesPerPage, setPropertiesPerPage } = useAppStore();
@@ -37,7 +38,8 @@ export default function Settings() {
   const [configSaved, setConfigSaved] = useState(false);
   
   const testConnection = useTestConnection();
-  
+  const testAssociationsApi = useTestAssociationsApi();
+
   // Load saved config on mount
   useEffect(() => {
     const config = getApiConfig();
@@ -355,6 +357,82 @@ export default function Settings() {
                   <code className="bg-muted px-1 rounded">GHL_LOCATION_ID</code> as environment variables 
                   for secure server-side API calls.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* GHL Custom Objects & Associations API Test */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-primary" />
+                Custom Objects & Associations API
+              </CardTitle>
+              <CardDescription>
+                Test the GHL Custom Objects & Associations API for buyer-property matching
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                <p className="text-sm text-muted-foreground mb-3">
+                  This tests the GHL Associations API which is used for managing buyer-property relationships.
+                  The response will show association IDs and labels that can be used for deal tracking.
+                </p>
+                <div className="flex items-center gap-4">
+                  <Button
+                    onClick={async () => {
+                      try {
+                        const data = await testAssociationsApi.mutateAsync();
+                        console.log('[Associations API Test] Response:', data);
+
+                        // Build a readable summary
+                        const associations = data.associations || [];
+                        const labels = data.labels || [];
+
+                        toast.success(
+                          `Found ${associations.length} associations and ${labels.length} labels. Check console for details.`,
+                          { duration: 5000 }
+                        );
+
+                        // Log label mapping for easy reference
+                        if (labels.length > 0) {
+                          console.log('[Associations API Test] Label IDs:');
+                          labels.forEach((label: { name: string; id: string }) => {
+                            console.log(`  "${label.name}": "${label.id}"`);
+                          });
+                        }
+                      } catch (error) {
+                        console.error('[Associations API Test] Error:', error);
+                        toast.error(error instanceof Error ? error.message : 'Failed to fetch associations');
+                      }
+                    }}
+                    disabled={testAssociationsApi.isPending}
+                  >
+                    {testAssociationsApi.isPending ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Activity className="h-4 w-4 mr-2" />
+                    )}
+                    Test Associations API
+                  </Button>
+                  <span className="text-sm text-muted-foreground">
+                    Results will be logged to browser console
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">Expected Labels:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-xs">
+                  <li>Sent to Buyer</li>
+                  <li>Interested Buyer</li>
+                  <li>Showing Scheduled</li>
+                  <li>Property Viewed</li>
+                  <li>Offer Made</li>
+                  <li>Under Contract</li>
+                  <li>Closed Deal / Won</li>
+                  <li>Not Interested</li>
+                </ul>
               </div>
             </CardContent>
           </Card>

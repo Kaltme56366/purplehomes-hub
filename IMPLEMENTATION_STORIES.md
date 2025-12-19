@@ -519,26 +519,103 @@ The Purple Homes Property Matching System was built incrementally over multiple 
 
 ---
 
-## Phase 6: Documentation (Current)
-**Duration**: ~2-3 days
+## Phase 6: Dashboard Redesign (Current)
+**Duration**: ~1-2 weeks
 **Status**: 🔄 In Progress
 
-### Story 6.1: Project Documentation
+### Story 6.1: Command Center Dashboard
 **Timeframe**: 2-3 days
+**Effort**: Medium-Large
+**Status**: ✅ Complete
+
+**Problem**: Dashboard was focused only on social media metrics with mock data.
+
+**Solution**:
+- Redesigned as "Command Center" with Purple Homes branding
+- Created `useDashboardData` hook aggregating GHL + Airtable data
+- Built enhanced `StatWidget` component with 7 color variants
+- 4 primary KPIs: Properties, Buyers, Matches, Pipeline
+- Quick Actions panel with contextual badges
+- System Status card showing connection health
+- Recent Sync Activity feed
+- Navigation cards to major sections
+
+**Files Created/Modified**:
+- [src/pages/Dashboard.tsx](src/pages/Dashboard.tsx) - Complete rewrite
+- [src/hooks/useDashboardData.ts](src/hooks/useDashboardData.ts) - Data hook
+- [src/components/dashboard/StatWidget.tsx](src/components/dashboard/StatWidget.tsx) - Widget component
+
+**Deliverables**:
+- ✅ Command Center layout with Purple gradient header
+- ✅ Real-time KPIs from GHL and Airtable
+- ✅ Quick Actions with attention indicators
+- ✅ System health monitoring
+- ✅ Navigation to all major sections
+
+---
+
+### Story 6.2: Activity Logs Hybrid View
+**Timeframe**: 1-2 days
 **Effort**: Medium
+**Status**: ✅ Complete
+
+**Problem**: Activity Logs only showed table view, Recent Activity on dashboard was redundant.
+
+**Solution**:
+- Created `ActivityTimeline` component for visual timeline display
+- Added Timeline/Table toggle (Timeline is default)
+- Combined user activities and sync logs into unified view
+- Added source filter (All, User Activity, Sync Logs)
+- Stats summary bar showing counts
+- Removed redundant Recent Activity from Dashboard
+
+**Files Created/Modified**:
+- [src/components/activity/ActivityTimeline.tsx](src/components/activity/ActivityTimeline.tsx) - Timeline component
+- [src/pages/ActivityLogs.tsx](src/pages/ActivityLogs.tsx) - Updated with toggle
+
+**Deliverables**:
+- ✅ Timeline view with date grouping
+- ✅ Table view with enhanced columns
+- ✅ Source and type filters
+- ✅ Stats summary bar
+- ✅ Mobile-friendly toggle
+
+---
+
+### Story 6.3: Sidebar Navigation Restructure
+**Timeframe**: 1 day
+**Effort**: Small-Medium
+**Status**: ⏳ Pending
+
+**Description**:
+Restructure sidebar with collapsible groups for better organization.
+
+**Proposed Groups**:
+- **Properties**: Properties, Public Listings, Seller Acquisitions
+- **Buyers**: Buyer Acquisitions, Buyers Pipeline, Property Matching, Contacts
+- **Marketing**: Social Hub, Documents
+- **System**: Settings, Activity Logs
+
+**Files to Modify**:
+- [src/components/layout/AppSidebar.tsx](src/components/layout/AppSidebar.tsx)
+- [src/store/useAppStore.ts](src/store/useAppStore.ts) - Add group expansion state
+
+---
+
+### Story 6.4: Project Documentation
+**Timeframe**: 1 day
+**Effort**: Small
+**Status**: ✅ Complete
 
 - Create IMPLEMENTATION_SUMMARY.md
 - Create IMPLEMENTATION_STORIES.md (this document)
 - Create IMPLEMENTATION_PRIORITIES.md
-- Create claude.md architecture documentation
-- Document all APIs and endpoints
-- Add inline code comments where needed
+- Keep documentation updated with new features
 
 **Deliverables**:
 - ✅ IMPLEMENTATION_SUMMARY.md
 - ✅ IMPLEMENTATION_STORIES.md
 - ✅ IMPLEMENTATION_PRIORITIES.md
-- ⏳ claude.md
 
 ---
 
@@ -550,16 +627,16 @@ The Purple Homes Property Matching System was built incrementally over multiple 
 - **Phase 3**: ~2-3 weeks
 - **Phase 4**: ~1 week
 - **Phase 5**: ~2 weeks
-- **Phase 6**: ~2-3 days
-- **Total**: ~10-13 weeks (2.5-3 months)
+- **Phase 6**: ~1-2 weeks (in progress)
+- **Total**: ~11-15 weeks (2.5-3.5 months)
 
 ### Effort Distribution
 - **Large Stories**: 3 (Matching algorithm, Caching system, ZIP code matching)
-- **Medium-Large Stories**: 1 (Spotlight tour system)
-- **Medium Stories**: 12
-- **Small Stories**: 5
+- **Medium-Large Stories**: 2 (Spotlight tour, Command Center dashboard)
+- **Medium Stories**: 13 (including Activity hybrid view)
+- **Small Stories**: 6
 - **XSmall Stories**: 2
-- **Total Stories**: 23
+- **Total Stories**: 26
 
 ### Key Milestones Achieved
 1. ✅ Core matching system functional
@@ -567,9 +644,11 @@ The Purple Homes Property Matching System was built incrementally over multiple 
 3. ✅ Performance optimized with caching (80% API call reduction)
 4. ✅ User interface polished with filters and pagination
 5. ✅ System production-ready and stable
-6. ✅ Interactive guided tour for new users
+6. ✅ Interactive guided tour for new users (13 steps)
 7. ✅ International phone input support
 8. ✅ Purple Homes branding and proximity discovery
+9. ✅ Command Center dashboard with real-time KPIs
+10. ✅ Activity Logs hybrid Timeline/Table view
 
 ---
 

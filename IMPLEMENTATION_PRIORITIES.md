@@ -200,6 +200,66 @@ Support international phone numbers with country picker and E.164 format.
 
 ---
 
+### ~~4. Command Center Dashboard 🏠~~ ✅ IMPLEMENTED
+**Status**: Implemented
+**Priority**: P2 (promoted from backlog)
+**Actual Effort**: 1-2 days
+
+**Description**:
+Redesign dashboard as Command Center with real-time KPIs from GHL and Airtable.
+
+**Solution Implemented**:
+- Purple Homes branded Command Center layout
+- `useDashboardData` hook aggregating data from multiple sources
+- `StatWidget` component with 7 color variants
+- Real-time KPIs: Properties, Buyers, Matches, Pipeline
+- Quick Actions panel with contextual attention badges
+- System Status card (GHL connection, sync health)
+- Recent Sync Activity feed
+- Navigation cards to major sections
+
+**Files Created**:
+- [src/pages/Dashboard.tsx](src/pages/Dashboard.tsx) - Complete rewrite
+- [src/hooks/useDashboardData.ts](src/hooks/useDashboardData.ts) - Data hook
+- [src/components/dashboard/StatWidget.tsx](src/components/dashboard/StatWidget.tsx) - Widget
+
+**Success Metrics**:
+- ✅ Real-time data from GHL contacts, opportunities, social posts
+- ✅ Matching data from Airtable via API
+- ✅ Purple Homes branding with gradient header
+- ✅ Quick Actions with attention indicators
+- ✅ System health monitoring
+
+---
+
+### ~~5. Activity Logs Hybrid View 📋~~ ✅ IMPLEMENTED
+**Status**: Implemented
+**Priority**: P2
+**Actual Effort**: 1 day
+
+**Description**:
+Add Timeline view option to Activity Logs and consolidate with Dashboard activity.
+
+**Solution Implemented**:
+- `ActivityTimeline` component with date grouping
+- Timeline/Table toggle (Timeline is default)
+- Combined user activities and sync logs
+- Source filter (All, User Activity, Sync Logs)
+- Enhanced type filters including sync types
+- Stats summary bar
+
+**Files Created/Modified**:
+- [src/components/activity/ActivityTimeline.tsx](src/components/activity/ActivityTimeline.tsx) - Timeline
+- [src/pages/ActivityLogs.tsx](src/pages/ActivityLogs.tsx) - Updated page
+
+**Success Metrics**:
+- ✅ Timeline view with date grouping
+- ✅ Table view preserved
+- ✅ Unified activity + sync logs
+- ✅ Mobile-friendly toggle
+
+---
+
 ## P2 (Medium) - Future Enhancements
 
 ### ~~1. UI/UX Improvements - Property Modal & Proximity Discovery 🎨~~ ✅ IMPLEMENTED
@@ -588,17 +648,22 @@ Side-by-side comparison of up to 3 properties.
 
 ### Recently Completed (P1.5 + P2) ✅
 1. ✅ Email notification system 📧
-2. ✅ Spotlight guided tour system 🎯
+2. ✅ Spotlight guided tour system 🎯 (expanded to 13 steps)
 3. ✅ International phone input 📱
 4. ✅ UI/UX improvements & proximity discovery 🎨
 5. ✅ Filter labels UX fix
+6. ✅ Command Center Dashboard 🏠 (real-time KPIs from GHL/Airtable)
+7. ✅ Activity Logs Hybrid View 📋 (Timeline + Table toggle)
+
+### Currently In Progress 🔄
+1. ⏳ Sidebar navigation restructure (collapsible groups)
 
 ### Should Do Next (P2) - Future Work
 1. 🎯 Buyer preferences management
-2. 🏠 Property management dashboard
-3. 📊 Analytics dashboard
+2. 🏠 Property detail pages (`/properties/:propertyId` for funnel tracking)
+3. 📊 UTM tracking & attribution system
 4. 📱 Mobile app
-5. 🧠 Advanced matching algorithm
+5. 🧠 AI property description generator
 
 ### Could Do Later (P3) - Nice-to-Have
 1. 🔖 Saved searches
@@ -613,20 +678,34 @@ Side-by-side comparison of up to 3 properties.
 
 ## Recommended Implementation Order
 
+### Current Sprint - Dashboard Phase (In Progress)
+1. ✅ **Command Center Dashboard** - Real-time KPIs from GHL/Airtable
+2. ✅ **Activity Logs Hybrid View** - Timeline + Table toggle
+3. ⏳ **Sidebar Navigation Restructure** - Collapsible groups for organization
+
 ### Next Sprint (2-3 weeks)
-1. **Email Notification System** (P2) - High user value
-2. **Buyer Preferences Management** (P2) - Enables self-service
+4. **Property Detail Pages** (`/properties/:propertyId`) - Funnel tracking
+5. **UTM Tracking & Attribution** - Track page views, CTA clicks, form submissions
+6. **Buyer Preferences Management** (P2) - Enables self-service
 
 ### Following Sprint (2-3 weeks)
-3. **Property Management Dashboard** (P2) - Admin efficiency
-4. **Analytics Dashboard** (P2) - Data-driven decisions
+7. **AI Property Descriptions** - Generate from property data (no financial projections)
+8. **Widget Customization** - Drag-drop dashboard widgets
 
 ### Future Consideration (3-6 months)
-5. **Mobile App** (P2) - Significant investment
-6. **Advanced Matching Algorithm** (P2) - Requires data collection first
+9. **Mobile App** (P2) - Significant investment
+10. **Advanced Matching Algorithm** (P2) - ML-based scoring
 
 ### Low Priority Backlog
-7. P3 items as time/resources permit
+11. P3 items as time/resources permit
+
+### Scope Exclusions (User Request)
+The following have been explicitly excluded from scope:
+- ❌ Revenue / deals closed tracking
+- ❌ Email analytics
+- ❌ Social post performance metrics
+- ❌ Agent performance tracking
+- ❌ Time-to-close metrics
 
 ---
 

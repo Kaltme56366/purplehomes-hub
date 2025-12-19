@@ -3,7 +3,8 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse, MatchFilters } from '@/types/matching';
+import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse, MatchFilters, MatchActivity, PropertyMatch } from '@/types/matching';
+import type { MatchDealStage } from '@/types/associations';
 
 const MATCHING_API_BASE = '/api/matching';
 const AIRTABLE_API_BASE = '/api/airtable';
@@ -237,6 +238,162 @@ export const useClearMatches = () => {
       queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
       queryClient.refetchQueries({ queryKey: ['cache-status'] });
       queryClient.refetchQueries({ queryKey: ['cache', 'matches'] });
+    },
+  });
+};
+
+/**
+ * Update match stage (deal status)
+ * Updates the match status in Airtable and optionally syncs to GHL
+ */
+export const useUpdateMatchStage = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      matchId,
+      stage,
+      syncToGhl = true,
+    }: {
+      matchId: string;
+      stage: MatchDealStage;
+      syncToGhl?: boolean;
+    }): Promise<{ success: boolean; match: PropertyMatch }> => {
+      console.log('[Matching API] Updating match stage:', matchId, stage);
+
+      const response = await fetch(`${AIRTABLE_API_BASE}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: 'Property-Buyer Matches',
+          id: matchId,
+          fields: {
+            'Match Stage': stage,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Stage update failed' }));
+        throw new Error(error.error || 'Failed to update match stage');
+      }
+
+      const result = await response.json();
+      console.log('[Matching API] Stage update result:', result);
+
+      return { success: true, match: result.record as PropertyMatch };
+    },
+    onSuccess: () => {
+      // Refresh all matching queries
+      queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
+    },
+  });
+};
+
+/**
+ * Add activity to a match
+ * Stores activity in the match's activities JSON field in Airtable
+ */
+export const useAddMatchActivity = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      matchId,
+      activity,
+    }: {
+      matchId: string;
+      activity: Omit<MatchActivity, 'id' | 'timestamp'>;
+    }): Promise<{ success: boolean; activity: MatchActivity }> => {
+      console.log('[Matching API] Adding activity to match:', matchId, activity);
+
+      // First, fetch the current activities
+      const getResponse = await fetch(`${AIRTABLE_API_BASE}?table=Property-Buyer Matches&id=${matchId}`);
+      if (!getResponse.ok) {
+        throw new Error('Failed to fetch current match data');
+      }
+
+      const currentMatch = await getResponse.json();
+      const currentActivities: MatchActivity[] = currentMatch.record?.fields?.Activities
+        ? JSON.parse(currentMatch.record.fields.Activities)
+        : [];
+
+      // Create new activity with ID and timestamp
+      const newActivity: MatchActivity = {
+        ...activity,
+        id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Append new activity
+      const updatedActivities = [...currentActivities, newActivity];
+
+      // Update Airtable
+      const response = await fetch(`${AIRTABLE_API_BASE}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          table: 'Property-Buyer Matches',
+          id: matchId,
+          fields: {
+            Activities: JSON.stringify(updatedActivities),
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Activity add failed' }));
+        throw new Error(error.error || 'Failed to add activity');
+      }
+
+      console.log('[Matching API] Activity added successfully');
+
+      return { success: true, activity: newActivity };
+    },
+    onSuccess: () => {
+      // Refresh matching queries to get updated activities
+      queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
+    },
+  });
+};
+
+/**
+ * Combined hook to update stage and add activity in one operation
+ * This is the primary hook for stage changes as it logs the change
+ */
+export const useUpdateMatchStageWithActivity = () => {
+  const updateStage = useUpdateMatchStage();
+  const addActivity = useAddMatchActivity();
+
+  return useMutation({
+    mutationFn: async ({
+      matchId,
+      fromStage,
+      toStage,
+    }: {
+      matchId: string;
+      fromStage: MatchDealStage;
+      toStage: MatchDealStage;
+    }): Promise<{ success: boolean }> => {
+      // Update the stage first
+      await updateStage.mutateAsync({ matchId, stage: toStage });
+
+      // Then log the activity
+      await addActivity.mutateAsync({
+        matchId,
+        activity: {
+          type: 'stage-change',
+          details: `Stage changed from "${fromStage}" to "${toStage}"`,
+          metadata: {
+            fromStage,
+            toStage,
+          },
+        },
+      });
+
+      return { success: true };
     },
   });
 };
