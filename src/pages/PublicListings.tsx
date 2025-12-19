@@ -315,10 +315,11 @@ export default function PublicListings() {
                     ? "bg-purple-500 text-white"
                     : "bg-black/30 backdrop-blur-sm text-white hover:bg-black/50"
                 )}
+                data-tour="card-save"
               >
                 <Heart className={cn("h-4 w-4", isSaved && "fill-current")} />
               </button>
-              <div className="absolute bottom-3 left-3 space-y-1">
+              <div className="absolute bottom-3 left-3 space-y-1" data-tour="card-pricing">
                 <span className="block text-2xl font-bold text-white drop-shadow-lg">
                   ${property.price.toLocaleString()}
                 </span>
@@ -342,7 +343,7 @@ export default function PublicListings() {
             "flex items-center gap-3 text-sm mb-2",
             isDarkMode ? "text-muted-foreground" : "text-gray-600",
             compact && "gap-2 text-xs mb-1"
-          )}>
+          )} data-tour="card-specs">
             <span className="flex items-center gap-1 font-medium">
               <Bed className="h-4 w-4" /> {property.beds}
             </span>
@@ -356,16 +357,18 @@ export default function PublicListings() {
             )}
           </div>
 
-          <h3 className={cn(
-            "font-semibold truncate",
-            isDarkMode ? "text-foreground" : "text-gray-900",
-            compact && "text-sm"
-          )}>{property.address}</h3>
-          <p className={cn(
-            "text-sm truncate mb-3",
-            isDarkMode ? "text-muted-foreground" : "text-gray-600",
-            compact && "text-xs mb-2"
-          )}>{property.city}</p>
+          <div data-tour="card-location">
+            <h3 className={cn(
+              "font-semibold truncate",
+              isDarkMode ? "text-foreground" : "text-gray-900",
+              compact && "text-sm"
+            )}>{property.address}</h3>
+            <p className={cn(
+              "text-sm truncate mb-3",
+              isDarkMode ? "text-muted-foreground" : "text-gray-600",
+              compact && "text-xs mb-2"
+            )}>{property.city}</p>
+          </div>
 
           {/* Action Buttons */}
           <div className={cn("flex gap-2", compact && "flex-col gap-1")} data-tour="property-actions">
