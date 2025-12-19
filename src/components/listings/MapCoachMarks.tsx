@@ -1,286 +1,281 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Lightbulb, ZoomIn, MousePointer, HelpCircle } from 'lucide-react';
+import { X, HelpCircle, ZoomIn, MousePointerClick, List, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const TOUR_SEEN_KEY = 'purplehomes_map_tour_seen';
+const TOUR_DISMISSED_KEY = 'purplehomes_listings_tour_dismissed';
 
 interface MapCoachMarksProps {
   /** Whether the map has loaded and is ready */
   mapLoaded: boolean;
-  /** Whether a ZIP code search was just performed */
-  hasSearchedZip: boolean;
-  /** Current zoom level of the map (to detect cluster view) */
-  currentZoom?: number;
-  /** Whether there are clusters visible (zoom < 14) */
-  showingClusters: boolean;
-  /** Callback when user clicks "Show me" to demonstrate zoom */
-  onShowMeClick?: () => void;
-  /** Position class for the tip pill */
+  /** Position class for the tour button */
   className?: string;
 }
 
-type CoachMarkLayer = 'tip' | 'contextual' | 'spotlight' | 'none';
+type TourStep = 0 | 1 | 2 | 3 | 4;
+
+// Tour step definitions with element selectors for highlighting
+const TOUR_STEPS: Array<{
+  title: string;
+  description: string;
+  highlightSelector?: string;
+  position: 'center' | 'top-right' | 'bottom-center' | 'top-left';
+}> = [
+  {
+    title: 'Welcome to Listings',
+    description: 'This page shows all available properties on an interactive map. Let\'s take a quick tour!',
+    position: 'center',
+  },
+  {
+    title: 'Property Clusters',
+    description: 'Purple circles with numbers are "clusters" - they group nearby properties together. Click one to zoom in and see individual listings.',
+    position: 'center',
+  },
+  {
+    title: 'Search by Location',
+    description: 'Enter a ZIP code or use the location button to pan the map to a specific area.',
+    highlightSelector: '[data-tour="zip-search"]',
+    position: 'top-left',
+  },
+  {
+    title: 'Property List',
+    description: 'Browse all properties in the sidebar. Use "Move" to zoom the map to any property, or "See More" to view details.',
+    highlightSelector: '[data-tour="property-list"]',
+    position: 'top-right',
+  },
+];
 
 export function MapCoachMarks({
   mapLoaded,
-  hasSearchedZip,
-  showingClusters,
-  onShowMeClick,
   className
 }: MapCoachMarksProps) {
-  const [activeLayer, setActiveLayer] = useState<CoachMarkLayer>('none');
-  const [tourSeen, setTourSeen] = useState<boolean>(() => {
-    return localStorage.getItem(TOUR_SEEN_KEY) === 'true';
+  const [tourDismissed, setTourDismissed] = useState<boolean>(() => {
+    return localStorage.getItem(TOUR_DISMISSED_KEY) === 'true';
   });
-  const [showHelp, setShowHelp] = useState(false);
-  const [contextualTimerId, setContextualTimerId] = useState<NodeJS.Timeout | null>(null);
-  const [spotlightStep, setSpotlightStep] = useState(0);
+  const [showFirstTimeTooltip, setShowFirstTimeTooltip] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
+  const [currentStep, setCurrentStep] = useState<TourStep>(0);
 
-  // Layer 1: Always-on tip pill - show after map loads
+  // Show first-time tooltip after map loads (only if tour not dismissed)
   useEffect(() => {
-    if (mapLoaded && !tourSeen && activeLayer === 'none') {
-      // Small delay to let map render first
+    if (mapLoaded && !tourDismissed) {
       const timer = setTimeout(() => {
-        setActiveLayer('tip');
-      }, 1500);
+        setShowFirstTimeTooltip(true);
+      }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [mapLoaded, tourSeen, activeLayer]);
+  }, [mapLoaded, tourDismissed]);
 
-  // Layer 2: Contextual tooltip - trigger after ZIP search when showing clusters
-  useEffect(() => {
-    if (hasSearchedZip && showingClusters && !tourSeen) {
-      // Clear any existing timer
-      if (contextualTimerId) {
-        clearTimeout(contextualTimerId);
-      }
-
-      // Show contextual tooltip after 3-5 seconds
-      const timer = setTimeout(() => {
-        setActiveLayer('contextual');
-      }, 4000);
-
-      setContextualTimerId(timer);
-
-      return () => {
-        clearTimeout(timer);
-      };
-    }
-  }, [hasSearchedZip, showingClusters, tourSeen]);
-
-  // Dismiss tip pill
-  const dismissTip = useCallback(() => {
-    setActiveLayer('none');
+  // Start the tour
+  const startTour = useCallback(() => {
+    setShowFirstTimeTooltip(false);
+    setTourActive(true);
+    setCurrentStep(1);
   }, []);
 
-  // Handle "Show me" click - trigger spotlight
-  const handleShowMe = useCallback(() => {
-    setActiveLayer('spotlight');
-    setSpotlightStep(1);
-    onShowMeClick?.();
-  }, [onShowMeClick]);
-
-  // Complete the tour
-  const completeTour = useCallback(() => {
-    setActiveLayer('none');
-    setTourSeen(true);
-    localStorage.setItem(TOUR_SEEN_KEY, 'true');
+  // Dismiss first-time tooltip (mark as seen)
+  const dismissFirstTime = useCallback(() => {
+    setShowFirstTimeTooltip(false);
+    setTourDismissed(true);
+    localStorage.setItem(TOUR_DISMISSED_KEY, 'true');
   }, []);
 
-  // Reset tour (for help button)
-  const resetTour = useCallback(() => {
-    setTourSeen(false);
-    localStorage.removeItem(TOUR_SEEN_KEY);
-    setShowHelp(false);
-    setActiveLayer('tip');
-  }, []);
-
-  // Advance spotlight step
-  const advanceSpotlight = useCallback(() => {
-    if (spotlightStep >= 3) {
-      completeTour();
+  // Go to next step
+  const nextStep = useCallback(() => {
+    if (currentStep >= TOUR_STEPS.length - 1) {
+      // Tour complete
+      setTourActive(false);
+      setCurrentStep(0);
+      setTourDismissed(true);
+      localStorage.setItem(TOUR_DISMISSED_KEY, 'true');
     } else {
-      setSpotlightStep(prev => prev + 1);
+      setCurrentStep((prev) => (prev + 1) as TourStep);
     }
-  }, [spotlightStep, completeTour]);
+  }, [currentStep]);
 
-  // Skip spotlight
-  const skipSpotlight = useCallback(() => {
-    completeTour();
-  }, [completeTour]);
+  // Skip/exit tour
+  const exitTour = useCallback(() => {
+    setTourActive(false);
+    setCurrentStep(0);
+    setTourDismissed(true);
+    localStorage.setItem(TOUR_DISMISSED_KEY, 'true');
+  }, []);
+
+  // Manually trigger tour (for re-runs)
+  const triggerTour = useCallback(() => {
+    setTourActive(true);
+    setCurrentStep(1);
+  }, []);
 
   // Don't render anything until map is loaded
   if (!mapLoaded) return null;
 
+  const stepData = TOUR_STEPS[currentStep] || TOUR_STEPS[0];
+
   return (
     <>
-      {/* Layer 1: Always-on Tip Pill */}
-      {activeLayer === 'tip' && (
-        <div
-          className={cn(
-            "absolute z-30 animate-fade-in",
-            className || "top-4 left-4"
-          )}
-        >
-          <div className="flex items-center gap-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-full px-3 py-2 shadow-lg border border-purple-200 dark:border-purple-700">
-            <Lightbulb className="h-4 w-4 text-amber-500 flex-shrink-0" />
-            <span className="text-sm text-gray-700 dark:text-gray-200">
-              Tip: Zoom in to see more pins
+      {/* Tour Entry Button - Always visible near map top-left */}
+      <div className={cn("absolute z-30", className || "top-4 left-4")}>
+        <div className="relative">
+          {/* Tour Button with first-time glow */}
+          <button
+            onClick={tourDismissed ? triggerTour : startTour}
+            className={cn(
+              "flex items-center gap-2 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm rounded-full px-3 py-2 shadow-lg border transition-all duration-300",
+              "hover:shadow-xl hover:scale-105",
+              !tourDismissed && showFirstTimeTooltip
+                ? "border-purple-400 ring-2 ring-purple-400/50 animate-pulse"
+                : "border-gray-200 dark:border-gray-700 hover:border-purple-400"
+            )}
+            aria-label="Take a tour of this page"
+          >
+            <HelpCircle className={cn(
+              "h-4 w-4 transition-colors",
+              !tourDismissed && showFirstTimeTooltip
+                ? "text-purple-500"
+                : "text-purple-600"
+            )} />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+              {tourDismissed ? "Page tour" : "How this works"}
             </span>
-            <button
-              onClick={dismissTip}
-              className="p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-              aria-label="Dismiss tip"
-            >
-              <X className="h-3.5 w-3.5 text-gray-400" />
-            </button>
-          </div>
-        </div>
-      )}
+          </button>
 
-      {/* Layer 2: Contextual Tooltip (appears after ZIP search) */}
-      {activeLayer === 'contextual' && (
-        <div className="absolute z-40 inset-0 pointer-events-none">
-          {/* Semi-transparent overlay */}
-          <div className="absolute inset-0 bg-black/20" />
+          {/* First-time Tooltip */}
+          {!tourDismissed && showFirstTimeTooltip && (
+            <div className="absolute top-full left-0 mt-2 z-50 animate-fade-in">
+              <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-purple-300 dark:border-purple-600 p-4 w-72">
+                {/* Arrow pointing up */}
+                <div className="absolute -top-2 left-6 w-4 h-4 bg-white dark:bg-gray-800 border-l border-t border-purple-300 dark:border-purple-600 transform rotate-45" />
 
-          {/* Tooltip positioned near center-bottom */}
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 pointer-events-auto animate-fade-in">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-purple-300 dark:border-purple-600 p-4 max-w-sm">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center flex-shrink-0">
-                  <ZoomIn className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-1">
-                    See Individual Listings
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                    The purple circles show grouped properties. Zoom in or click them to see individual listings!
-                  </p>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      className="bg-purple-600 hover:bg-purple-700 text-white"
-                      onClick={handleShowMe}
-                    >
-                      <MousePointer className="h-3.5 w-3.5 mr-1" />
-                      Show me
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={completeTour}
-                    >
-                      Got it
-                    </Button>
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center flex-shrink-0">
+                    <HelpCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-gray-900 dark:text-white text-sm mb-1">
+                      New here?
+                    </h4>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 mb-3">
+                      Get a quick tour of how listings and the map work together.
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-7"
+                        onClick={startTour}
+                      >
+                        Start Tour
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-xs h-7"
+                        onClick={dismissFirstTime}
+                      >
+                        Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                  <button
+                    onClick={dismissFirstTime}
+                    className="p-0.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors flex-shrink-0"
+                    aria-label="Dismiss"
+                  >
+                    <X className="h-3.5 w-3.5 text-gray-400" />
+                  </button>
                 </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tour Overlay - Active during tour */}
+      {tourActive && (
+        <div className="fixed inset-0 z-[100]">
+          {/* Dimmed overlay */}
+          <div
+            className="absolute inset-0 bg-black/50 transition-opacity duration-300"
+            onClick={exitTour}
+          />
+
+          {/* Tour Card */}
+          <div
+            className={cn(
+              "absolute pointer-events-auto animate-fade-in",
+              stepData.position === 'center' && "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
+              stepData.position === 'top-left' && "top-24 left-4 md:left-8",
+              stepData.position === 'top-right' && "top-24 right-4 md:right-[440px]",
+              stepData.position === 'bottom-center' && "bottom-32 left-1/2 -translate-x-1/2"
+            )}
+          >
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border-2 border-purple-500 p-5 max-w-sm">
+              {/* Step indicator and title */}
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                  {currentStep}
+                </div>
+                <h4 className="font-semibold text-lg text-gray-900 dark:text-white">
+                  {stepData.title}
+                </h4>
                 <button
-                  onClick={completeTour}
-                  className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-                  aria-label="Close"
+                  onClick={exitTour}
+                  className="ml-auto p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                  aria-label="Exit tour"
                 >
                   <X className="h-4 w-4 text-gray-400" />
                 </button>
               </div>
-            </div>
-            {/* Arrow pointing up */}
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white dark:bg-gray-800 border-l border-t border-purple-300 dark:border-purple-600 transform rotate-45" />
-          </div>
-        </div>
-      )}
 
-      {/* Layer 3: Spotlight Coach Mark */}
-      {activeLayer === 'spotlight' && (
-        <div className="absolute z-50 inset-0">
-          {/* Dark overlay with spotlight hole */}
-          <div className="absolute inset-0 bg-black/60" />
+              {/* Description */}
+              <p className="text-gray-600 dark:text-gray-300 mb-4 text-sm leading-relaxed">
+                {stepData.description}
+              </p>
 
-          {/* Spotlight instruction card */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto animate-fade-in">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border-2 border-purple-500 p-5 max-w-md">
-              {spotlightStep === 1 && (
-                <>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                      1
-                    </div>
-                    <h4 className="font-semibold text-lg text-gray-900 dark:text-white">
-                      Click on a Cluster
-                    </h4>
+              {/* Visual examples for specific steps */}
+              {currentStep === 1 && (
+                <div className="flex items-center gap-4 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                  <div className="w-10 h-10 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    5
                   </div>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Those purple circles with numbers are "clusters" - they group nearby properties together. Click one to zoom in and see what's inside!
-                  </p>
-                  <div className="flex items-center gap-4 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                    <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                      5
-                    </div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200">← This means 5 properties are grouped here</span>
-                  </div>
-                </>
+                  <span className="text-xs text-gray-700 dark:text-gray-200">
+                    This cluster contains 5 properties
+                  </span>
+                </div>
               )}
 
-              {spotlightStep === 2 && (
-                <>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                      2
-                    </div>
-                    <h4 className="font-semibold text-lg text-gray-900 dark:text-white">
-                      Zoom Reveals Individual Pins
-                    </h4>
-                  </div>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    As you zoom in, clusters break apart into individual property pins showing their prices. Each pin is a single listing you can click to learn more.
-                  </p>
-                  <div className="flex items-center gap-3 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                    <div className="flex flex-col items-center">
-                      <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">$285K</span>
-                      <div className="w-5 h-5 bg-purple-600 rounded-full" />
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-xs text-purple-600 dark:text-purple-400 font-medium">$320K</span>
-                      <div className="w-5 h-5 bg-purple-600 rounded-full" />
-                    </div>
-                    <span className="text-sm text-gray-700 dark:text-gray-200">← Individual property pins with prices</span>
-                  </div>
-                </>
+              {currentStep === 2 && (
+                <div className="flex items-center gap-3 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                  <MapPin className="h-5 w-5 text-purple-600" />
+                  <span className="text-xs text-gray-700 dark:text-gray-200">
+                    Use ZIP or the compass icon
+                  </span>
+                </div>
               )}
 
-              {spotlightStep === 3 && (
-                <>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                      3
-                    </div>
-                    <h4 className="font-semibold text-lg text-gray-900 dark:text-white">
-                      Quick Actions
-                    </h4>
-                  </div>
-                  <p className="text-gray-600 dark:text-gray-300 mb-4">
-                    Use the "Move" button on any property card to instantly zoom the map to that location, or hover over pins to preview property details.
-                  </p>
-                  <div className="flex items-center gap-3 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
-                    <Button size="sm" variant="outline" className="gap-1 text-xs" disabled>
+              {currentStep === 3 && (
+                <div className="flex items-center gap-3 mb-4 p-3 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2" disabled>
                       <ZoomIn className="h-3 w-3" />
                       Move
                     </Button>
-                    <span className="text-sm text-gray-700 dark:text-gray-200">← Zooms map to property</span>
+                    <Button size="sm" variant="outline" className="gap-1 text-xs h-6 px-2" disabled>
+                      See More
+                    </Button>
                   </div>
-                </>
+                </div>
               )}
 
-              <div className="flex items-center justify-between">
+              {/* Progress and navigation */}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-gray-700">
                 <div className="flex gap-1.5">
-                  {[1, 2, 3].map((step) => (
+                  {TOUR_STEPS.slice(1).map((_, idx) => (
                     <div
-                      key={step}
+                      key={idx}
                       className={cn(
                         "w-2 h-2 rounded-full transition-colors",
-                        spotlightStep >= step
+                        currentStep >= idx + 1
                           ? "bg-purple-600"
                           : "bg-gray-300 dark:bg-gray-600"
                       )}
@@ -291,51 +286,22 @@ export function MapCoachMarks({
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={skipSpotlight}
+                    className="text-xs h-7"
+                    onClick={exitTour}
                   >
                     Skip
                   </Button>
                   <Button
                     size="sm"
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
-                    onClick={advanceSpotlight}
+                    className="bg-purple-600 hover:bg-purple-700 text-white text-xs h-7"
+                    onClick={nextStep}
                   >
-                    {spotlightStep >= 3 ? "Done" : "Next"}
+                    {currentStep >= TOUR_STEPS.length - 1 ? "Done" : "Next"}
                   </Button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Help Button (shows after tour is completed) */}
-      {tourSeen && activeLayer === 'none' && (
-        <div className={cn("absolute z-20", className || "top-4 left-4")}>
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-8 w-8 rounded-full bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-md hover:bg-white dark:hover:bg-gray-800"
-            onClick={() => setShowHelp(!showHelp)}
-            aria-label="Map help"
-          >
-            <HelpCircle className="h-4 w-4 text-purple-600" />
-          </Button>
-
-          {showHelp && (
-            <div className="absolute top-10 left-0 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 min-w-[200px] animate-fade-in">
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                Need help navigating the map?
-              </p>
-              <Button
-                size="sm"
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={resetTour}
-              >
-                Replay Tour
-              </Button>
-            </div>
-          )}
         </div>
       )}
     </>

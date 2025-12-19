@@ -65,7 +65,6 @@ export default function PublicListings() {
   const [isLocating, setIsLocating] = useState(false);
   const [zoomTarget, setZoomTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [hasSearchedZip, setHasSearchedZip] = useState(false);
   const [currentMapZoom, setCurrentMapZoom] = useState(10);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
   const [downPaymentRange, setDownPaymentRange] = useState<[number, number]>([0, 1000000]);
@@ -504,10 +503,6 @@ export default function PublicListings() {
                   const newZip = e.target.value.replace(/\D/g, '').slice(0, 5);
                   setZipCode(newZip);
                   setUserLocation(null); // Clear location when typing ZIP
-                  // Mark as searched when ZIP is complete
-                  if (newZip.length === 5) {
-                    setHasSearchedZip(true);
-                  }
                 }}
                 className={cn(
                   "pl-9 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent",
@@ -843,16 +838,6 @@ export default function PublicListings() {
           {/* Map Coach Marks - Guided Tutorial */}
           <MapCoachMarks
             mapLoaded={mapLoaded}
-            hasSearchedZip={hasSearchedZip}
-            showingClusters={currentMapZoom < 14}
-            onShowMeClick={() => {
-              // Optionally zoom in when user clicks "Show me"
-              // This could zoom to the first property or a cluster
-              const firstProperty = filteredProperties.find(p => p.lat && p.lng);
-              if (firstProperty && firstProperty.lat && firstProperty.lng) {
-                setZoomTarget({ lat: firstProperty.lat, lng: firstProperty.lng });
-              }
-            }}
             className="top-4 left-4"
           />
         </div>
