@@ -826,7 +826,9 @@ if (resource === 'opportunities') {
           customFields.push({ key: 'offer_amount', field_value: body.offer_amount });
         }
         if (body.listing_message || body.message) {
-          customFields.push({ key: 'contact.listing_message', field_value: body.listing_message || body.message });
+          // Use 'message' as the custom field key to match GHL_CUSTOM_FIELDS_SETUP.md
+          // This is accessible as {{contact.message}} in GHL workflows
+          customFields.push({ key: 'message', field_value: body.listing_message || body.message });
         }
         
         if (tags.length > 0) contactData.tags = tags;

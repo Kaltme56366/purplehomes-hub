@@ -35,6 +35,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { demoProperties, mockProperties } from '@/data/mockData';
 import { toast } from 'sonner';
 import { PropertyMap } from '@/components/listings/PropertyMap';
+import { MapCoachMarks } from '@/components/listings/MapCoachMarks';
 import { ProximityBadge } from '@/components/listings/ProximityBadge';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -63,6 +64,9 @@ export default function PublicListings() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [zoomTarget, setZoomTarget] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [hasSearchedZip, setHasSearchedZip] = useState(false);
+  const [currentMapZoom, setCurrentMapZoom] = useState(10);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
   const [downPaymentRange, setDownPaymentRange] = useState<[number, number]>([0, 1000000]);
   const [beds, setBeds] = useState('any');
@@ -497,8 +501,13 @@ export default function PublicListings() {
                 placeholder="ZIP"
                 value={zipCode}
                 onChange={(e) => {
-                  setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5));
+                  const newZip = e.target.value.replace(/\D/g, '').slice(0, 5);
+                  setZipCode(newZip);
                   setUserLocation(null); // Clear location when typing ZIP
+                  // Mark as searched when ZIP is complete
+                  if (newZip.length === 5) {
+                    setHasSearchedZip(true);
+                  }
                 }}
                 className={cn(
                   "pl-9 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent",
@@ -827,6 +836,24 @@ export default function PublicListings() {
             userLocation={userLocation}
             zoomTarget={zoomTarget}
             onZoomComplete={() => setZoomTarget(null)}
+            onMapLoad={() => setMapLoaded(true)}
+            onZoomChange={setCurrentMapZoom}
+          />
+
+          {/* Map Coach Marks - Guided Tutorial */}
+          <MapCoachMarks
+            mapLoaded={mapLoaded}
+            hasSearchedZip={hasSearchedZip}
+            showingClusters={currentMapZoom < 14}
+            onShowMeClick={() => {
+              // Optionally zoom in when user clicks "Show me"
+              // This could zoom to the first property or a cluster
+              const firstProperty = filteredProperties.find(p => p.lat && p.lng);
+              if (firstProperty && firstProperty.lat && firstProperty.lng) {
+                setZoomTarget({ lat: firstProperty.lat, lng: firstProperty.lng });
+              }
+            }}
+            className="top-4 left-4"
           />
         </div>
 

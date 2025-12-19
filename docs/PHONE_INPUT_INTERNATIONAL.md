@@ -10,18 +10,18 @@ This document describes the international phone input component with country pic
 
 **File**: [api/ghl/index.ts](api/ghl/index.ts:829)
 
-**Issue**: The `listing_message` field was being saved to the wrong custom field key (`notes` instead of `contact.listing_message`).
+**Issue**: The `listing_message` field was being saved to the wrong custom field key.
 
 **Fix**:
 ```typescript
-// BEFORE (Line 829):
+// BEFORE:
 customFields.push({ key: 'notes', field_value: body.listing_message || body.message });
 
-// AFTER (Line 829):
-customFields.push({ key: 'contact.listing_message', field_value: body.listing_message || body.message });
+// AFTER:
+customFields.push({ key: 'message', field_value: body.listing_message || body.message });
 ```
 
-**Result**: The listing_message now correctly appears in HighLevel workflows as `{{contact.listing_message}}`.
+**Result**: The message now correctly saves to the `message` custom field in GHL (accessible as `{{contact.message}}` in workflows). Make sure the `message` custom field exists in your GHL Contact custom fields (see GHL_CUSTOM_FIELDS_SETUP.md).
 
 ---
 
@@ -333,7 +333,7 @@ npm install react-phone-number-input
 | [src/index.css](src/index.css) | CSS imports |
 | [src/pages/PublicListings.tsx](src/pages/PublicListings.tsx:781-788) | Offer form implementation |
 | [src/pages/Contacts.tsx](src/pages/Contacts.tsx:942-947) | Contact form implementation |
-| [api/ghl/index.ts](api/ghl/index.ts:829) | Fixed listing_message field |
+| [api/ghl/index.ts](api/ghl/index.ts:829) | Fixed message custom field mapping |
 
 ---
 

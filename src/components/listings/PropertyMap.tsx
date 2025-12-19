@@ -15,9 +15,11 @@ interface PropertyMapProps {
   userLocation?: { lat: number; lng: number } | null;
   zoomTarget?: { lat: number; lng: number } | null;
   onZoomComplete?: () => void;
+  onMapLoad?: () => void;
+  onZoomChange?: (zoom: number) => void;
 }
 
-export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode, isDarkMode = false, userLocation, zoomTarget, onZoomComplete }: PropertyMapProps) {
+export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode, isDarkMode = false, userLocation, zoomTarget, onZoomComplete, onMapLoad, onZoomChange }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -240,6 +242,14 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, z
 
         setIsLoading(false);
         setMapLoaded(true);
+        onMapLoad?.();
+
+        // Listen for zoom changes
+        map.current.on('zoom', () => {
+          if (map.current) {
+            onZoomChange?.(map.current.getZoom());
+          }
+        });
 
         // Fit bounds
         const propertiesWithCoords = properties.filter(p => p.lat && p.lng);
