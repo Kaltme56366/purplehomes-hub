@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home, Moon, Sun, ArrowLeft, Navigation, Loader2 } from 'lucide-react';
+import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home, Moon, Sun, ArrowLeft, Navigation, Loader2, ZoomIn, Eye } from 'lucide-react';
 import type { PropertyCondition, PropertyType, Property } from '@/types';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
@@ -62,6 +62,7 @@ export default function PublicListings() {
   const [zipCode, setZipCode] = useState('');
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [zoomTarget, setZoomTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
   const [downPaymentRange, setDownPaymentRange] = useState<[number, number]>([0, 1000000]);
   const [beds, setBeds] = useState('any');
@@ -225,6 +226,13 @@ export default function PublicListings() {
     );
   };
 
+  const handleZoomToProperty = (property: Property, e: React.MouseEvent) => {
+    e.stopPropagation(); // Don't open modal
+    if (property.lat && property.lng) {
+      setZoomTarget({ lat: property.lat, lng: property.lng });
+    }
+  };
+
   const activeFilterCount = [
     beds !== 'any',
     baths !== 'any',
@@ -349,10 +357,43 @@ export default function PublicListings() {
             compact && "text-sm"
           )}>{property.address}</h3>
           <p className={cn(
-            "text-sm truncate",
+            "text-sm truncate mb-3",
             isDarkMode ? "text-muted-foreground" : "text-gray-600",
-            compact && "text-xs"
+            compact && "text-xs mb-2"
           )}>{property.city}</p>
+
+          {/* Action Buttons */}
+          <div className={cn("flex gap-2", compact && "flex-col gap-1")}>
+            {property.lat && property.lng && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={(e) => handleZoomToProperty(property, e)}
+                className={cn(
+                  "flex-1 gap-1 text-xs",
+                  compact && "h-7"
+                )}
+              >
+                <ZoomIn className="h-3 w-3" />
+                <span>Move</span>
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedProperty(property);
+              }}
+              className={cn(
+                "flex-1 gap-1 text-xs",
+                compact && "h-7"
+              )}
+            >
+              <Eye className="h-3 w-3" />
+              <span>See More</span>
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -783,6 +824,8 @@ export default function PublicListings() {
             zipCode={zipCode}
             isDarkMode={isDarkMode}
             userLocation={userLocation}
+            zoomTarget={zoomTarget}
+            onZoomComplete={() => setZoomTarget(null)}
           />
         </div>
 

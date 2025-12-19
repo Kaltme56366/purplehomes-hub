@@ -13,9 +13,11 @@ interface PropertyMapProps {
   zipCode?: string;
   isDarkMode?: boolean;
   userLocation?: { lat: number; lng: number } | null;
+  zoomTarget?: { lat: number; lng: number } | null;
+  onZoomComplete?: () => void;
 }
 
-export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode, isDarkMode = false, userLocation }: PropertyMapProps) {
+export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode, isDarkMode = false, userLocation, zoomTarget, onZoomComplete }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -298,6 +300,24 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, z
       essential: true
     });
   }, [userLocation, mapLoaded]);
+
+  // Zoom to specific property when "Move" button is clicked
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !zoomTarget) return;
+
+    // Zoom level 15 is high enough to break clusters and show individual markers
+    map.current.flyTo({
+      center: [zoomTarget.lng, zoomTarget.lat],
+      zoom: 15,
+      duration: 1500,
+      essential: true
+    });
+
+    // Notify parent that zoom is complete so it can clear the target
+    if (onZoomComplete) {
+      setTimeout(() => onZoomComplete(), 1600);
+    }
+  }, [zoomTarget, mapLoaded, onZoomComplete]);
 
   // Update map style when theme changes
   useEffect(() => {
