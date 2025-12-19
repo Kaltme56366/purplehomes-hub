@@ -1432,13 +1432,81 @@ if (resource === 'opportunities') {
         console.log('[ASSOCIATIONS] Response:', response.status, JSON.stringify(data).substring(0, 500));
         return res.status(response.ok ? 200 : response.status).json(data);
       }
+
+      // POST /associations/relations - Create a relation between records using association ID
+      // Used for creating buyer-property relations with specific stage associations
+      if (method === 'POST' && action === 'relations') {
+        console.log('[ASSOCIATIONS] Creating relation:', body);
+
+        const { associationId, firstRecordId, secondRecordId } = body;
+
+        if (!associationId || !firstRecordId || !secondRecordId) {
+          return res.status(400).json({
+            error: 'Missing required fields',
+            required: ['associationId', 'firstRecordId', 'secondRecordId'],
+          });
+        }
+
+        const response = await fetch(
+          `${GHL_API_URL}/associations/relations`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              locationId: GHL_LOCATION_ID,
+              associationId,
+              firstRecordId,
+              secondRecordId,
+            }),
+          }
+        );
+
+        const data = await response.json();
+        console.log('[ASSOCIATIONS] Create relation response:', response.status, JSON.stringify(data).substring(0, 500));
+        return res.status(response.ok ? 201 : response.status).json(data);
+      }
     }
 
     if (resource === 'objects') {
-      const objectKey = query.objectKey as string; // e.g., 'opportunity', 'contact', 'property'
+      const objectKey = query.objectKey as string; // e.g., 'opportunity', 'contact', 'custom_objects.properties'
 
       if (!objectKey) {
         return res.status(400).json({ error: 'objectKey query parameter is required' });
+      }
+
+      // POST /objects/:objectKey/records/search - Search for records in a custom object
+      // Used for finding Property Custom Object records by address or opportunity_id
+      if (method === 'POST' && action === 'records-search') {
+        console.log('[OBJECTS] Searching records for:', objectKey, body);
+
+        const searchBody: Record<string, any> = {
+          locationId: GHL_LOCATION_ID,
+          page: body.page || 1,
+          pageLimit: body.pageLimit || 20,
+        };
+
+        // Add query string search if provided
+        if (body.query) {
+          searchBody.query = body.query;
+        }
+
+        // Add filters if provided (for exact match search like opportunity_id)
+        if (body.filters && Array.isArray(body.filters)) {
+          searchBody.filters = body.filters;
+        }
+
+        const response = await fetch(
+          `${GHL_API_URL}/objects/${objectKey}/records/search`,
+          {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(searchBody),
+          }
+        );
+
+        const data = await response.json();
+        console.log('[OBJECTS] Records search response:', response.status, JSON.stringify(data).substring(0, 500));
+        return res.status(response.ok ? 200 : response.status).json(data);
       }
 
       // GET /objects/:objectKey/relations - Get relations for an object

@@ -351,3 +351,208 @@ export const useTestAssociationsApi = () => {
     },
   });
 };
+
+// ============ GHL STAGE SYNC HELPER FUNCTIONS ============
+
+/** Property Custom Object key in GHL */
+const PROPERTY_OBJECT_KEY = 'custom_objects.properties';
+
+/** Response type for property record search */
+interface PropertyRecordSearchResult {
+  id: string;
+  objectKey: string;
+  properties?: Record<string, unknown>;
+}
+
+/**
+ * Search for a property record in GHL by address, with fallback to Opportunity ID
+ *
+ * @param propertyAddress - Property address for search (primary method)
+ * @param opportunityId - GHL Opportunity ID for fallback search (unique identifier)
+ * @returns Property record object with id, or null if not found
+ */
+export const searchPropertyRecord = async (
+  propertyAddress: string,
+  opportunityId?: string
+): Promise<PropertyRecordSearchResult | null> => {
+  // First try: Search by property address (searchable field)
+  if (propertyAddress) {
+    console.log('[GHL Sync] Searching property by address:', propertyAddress);
+
+    try {
+      const queryResponse = await fetch(
+        `${API_BASE}?resource=objects&objectKey=${PROPERTY_OBJECT_KEY}&action=records-search`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            page: 1,
+            pageLimit: 10,
+            query: propertyAddress,
+          }),
+        }
+      );
+
+      if (queryResponse.ok) {
+        const data = await queryResponse.json();
+        if (data.records?.length > 0) {
+          console.log('[GHL Sync] Found property by address:', data.records[0].id);
+          return data.records[0];
+        }
+      }
+    } catch (error) {
+      console.error('[GHL Sync] Error searching by address:', error);
+    }
+  }
+
+  // Fallback: Search by Opportunity ID if provided (unique field)
+  if (opportunityId) {
+    console.log('[GHL Sync] Property not found by address, trying Opportunity ID:', opportunityId);
+
+    try {
+      const filterResponse = await fetch(
+        `${API_BASE}?resource=objects&objectKey=${PROPERTY_OBJECT_KEY}&action=records-search`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            page: 1,
+            pageLimit: 10,
+            filters: [
+              {
+                field: 'custom_objects.properties.opportunity_id',
+                operator: 'eq',
+                value: opportunityId,
+              },
+            ],
+          }),
+        }
+      );
+
+      if (filterResponse.ok) {
+        const data = await filterResponse.json();
+        if (data.records?.length > 0) {
+          console.log('[GHL Sync] Found property by Opportunity ID:', data.records[0].id);
+          return data.records[0];
+        }
+      }
+    } catch (error) {
+      console.error('[GHL Sync] Error searching by Opportunity ID:', error);
+    }
+  }
+
+  console.warn(
+    `[GHL Sync] Property not found in GHL: ${propertyAddress} (opportunityId: ${opportunityId || 'N/A'})`
+  );
+  return null;
+};
+
+/** Response type for creating a relation */
+interface CreateRelationResult {
+  id: string;
+  firstObjectKey: string;
+  firstRecordId: string;
+  secondObjectKey: string;
+  secondRecordId: string;
+  associationId: string;
+  locationId: string;
+}
+
+/**
+ * Create a relation between a Contact and a Property Custom Object
+ * using a specific association ID (corresponding to the deal stage)
+ *
+ * @param contactId - GHL Contact ID of the buyer (firstRecordId)
+ * @param propertyRecordId - GHL Property Custom Object record ID (secondRecordId)
+ * @param associationId - The association ID for the specific stage
+ * @returns Created relation object, or null if creation failed
+ */
+export const createContactPropertyRelation = async (params: {
+  contactId: string;
+  propertyRecordId: string;
+  associationId: string;
+}): Promise<CreateRelationResult | null> => {
+  const { contactId, propertyRecordId, associationId } = params;
+
+  console.log('[GHL Sync] Creating relation:', {
+    contactId,
+    propertyRecordId,
+    associationId,
+  });
+
+  try {
+    const response = await fetch(`${API_BASE}?resource=associations&action=relations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        associationId,
+        firstRecordId: contactId,
+        secondRecordId: propertyRecordId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[GHL Sync] Failed to create relation:', errorData);
+      return null;
+    }
+
+    const data = await response.json();
+    console.log('[GHL Sync] Relation created successfully:', data.id);
+    return data;
+  } catch (error) {
+    console.error('[GHL Sync] Exception creating relation:', error);
+    return null;
+  }
+};
+
+/**
+ * Sync a match stage change to GHL by creating a relation
+ *
+ * This function orchestrates the full GHL sync process:
+ * 1. Gets the association ID for the stage
+ * 2. Searches for the property record in GHL
+ * 3. Creates the relation between contact and property
+ *
+ * @param params - Parameters for syncing to GHL
+ * @returns The GHL relation ID if successful, or null if sync failed
+ */
+export const syncMatchStageToGhl = async (params: {
+  stage: string;
+  contactId: string;
+  propertyAddress: string;
+  opportunityId?: string;
+  stageAssociationIds: Record<string, string>;
+}): Promise<string | null> => {
+  const { stage, contactId, propertyAddress, opportunityId, stageAssociationIds } = params;
+
+  // 1. Get association ID for this stage
+  const associationId = stageAssociationIds[stage];
+  if (!associationId) {
+    console.warn(`[GHL Sync] No association ID found for stage: ${stage}`);
+    return null;
+  }
+
+  // 2. Search for property record in GHL
+  const propertyRecord = await searchPropertyRecord(propertyAddress, opportunityId);
+  if (!propertyRecord) {
+    console.warn(
+      `[GHL Sync] Property not found in GHL, skipping sync: ${propertyAddress}`
+    );
+    return null;
+  }
+
+  // 3. Create relation
+  const relation = await createContactPropertyRelation({
+    contactId,
+    propertyRecordId: propertyRecord.id,
+    associationId,
+  });
+
+  if (relation) {
+    console.log('[GHL Sync] Successfully synced to GHL, relation ID:', relation.id);
+    return relation.id;
+  }
+
+  return null;
+};

@@ -124,6 +124,22 @@ export const MATCH_EXIT_STAGES = ['Not Interested'] as const;
 export type MatchDealStage = typeof MATCH_DEAL_STAGES[number] | typeof MATCH_EXIT_STAGES[number];
 
 /**
+ * GHL Association IDs for each match stage
+ * Each stage is its own association (NOT labels within one association)
+ * Used for creating relations between Contact and Property Custom Object
+ */
+export const STAGE_ASSOCIATION_IDS: Record<MatchDealStage, string> = {
+  'Sent to Buyer': '69451ecd5fba08f5525758a6',
+  'Interested Buyer': '693944eb0c32be3d486d83c0',
+  'Showing Scheduled': '69451eb4a09d396fae2e81fb',
+  'Property Viewed': '69451ea83246701a7740063b',
+  'Offer Made': '69451e925fba087bc357502b',
+  'Under Contract': '69451e83a6d620ecd98d70d8',
+  'Closed Deal / Won': '69451e67a09d39427b2e7870',
+  'Not Interested': '69451e36a09d39271e2e7383',
+};
+
+/**
  * Stage metadata for UI rendering
  */
 export interface StageConfig {

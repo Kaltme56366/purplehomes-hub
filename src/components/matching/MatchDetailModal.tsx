@@ -164,36 +164,36 @@ export function MatchDetailModal({
             {/* Property Stats Grid */}
             {property && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
+                <div className="flex flex-col items-center p-4 bg-white border border-gray-200 rounded-xl">
                   <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
                     <Bed className="h-5 w-5 text-purple-600" />
                   </div>
-                  <p className="text-2xl font-bold">{property.beds}</p>
-                  <p className="text-xs text-muted-foreground">Bedrooms</p>
+                  <p className="text-2xl font-bold text-gray-900">{property.beds}</p>
+                  <p className="text-xs text-gray-600">Bedrooms</p>
                 </div>
-                <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
+                <div className="flex flex-col items-center p-4 bg-white border border-gray-200 rounded-xl">
                   <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
                     <Bath className="h-5 w-5 text-purple-600" />
                   </div>
-                  <p className="text-2xl font-bold">{property.baths}</p>
-                  <p className="text-xs text-muted-foreground">Bathrooms</p>
+                  <p className="text-2xl font-bold text-gray-900">{property.baths}</p>
+                  <p className="text-xs text-gray-600">Bathrooms</p>
                 </div>
                 {property.sqft && (
-                  <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
+                  <div className="flex flex-col items-center p-4 bg-white border border-gray-200 rounded-xl">
                     <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
                       <Square className="h-5 w-5 text-purple-600" />
                     </div>
-                    <p className="text-2xl font-bold">{property.sqft.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">Sqft</p>
+                    <p className="text-2xl font-bold text-gray-900">{property.sqft.toLocaleString()}</p>
+                    <p className="text-xs text-gray-600">Sqft</p>
                   </div>
                 )}
                 {property.stage && (
-                  <div className="flex flex-col items-center p-4 bg-purple-50 rounded-xl">
+                  <div className="flex flex-col items-center p-4 bg-white border border-gray-200 rounded-xl">
                     <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center mb-2">
                       <Building className="h-5 w-5 text-purple-600" />
                     </div>
-                    <p className="text-lg font-bold">{property.stage}</p>
-                    <p className="text-xs text-muted-foreground">Stage</p>
+                    <p className="text-lg font-bold text-gray-900">{property.stage}</p>
+                    <p className="text-xs text-gray-600">Stage</p>
                   </div>
                 )}
               </div>

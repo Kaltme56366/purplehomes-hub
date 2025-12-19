@@ -1091,17 +1091,23 @@ export default function Matching() {
         onStageChange={async (matchId, newStage) => {
           if (!selectedMatch) return;
           try {
-            await updateStageWithActivity.mutateAsync({
+            const result = await updateStageWithActivity.mutateAsync({
               matchId,
               fromStage: selectedMatch.status || 'Sent to Buyer',
               toStage: newStage,
+              // GHL sync params - extract from the match data
+              syncToGhl: true,
+              contactId: selectedMatch.buyer?.contactId,
+              propertyAddress: selectedMatch.property?.address,
+              opportunityId: selectedMatch.property?.opportunityId,
             });
             // Update local state
             setSelectedMatch({
               ...selectedMatch,
               status: newStage,
+              ghlRelationId: result.ghlRelationId || selectedMatch.ghlRelationId,
             });
-            toast.success(`Stage updated to "${newStage}"`);
+            toast.success(`Stage updated to "${newStage}"${result.ghlRelationId ? ' (synced to GHL)' : ''}`);
           } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Failed to update stage');
           }

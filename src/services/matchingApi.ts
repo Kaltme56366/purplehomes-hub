@@ -254,13 +254,24 @@ export const useUpdateMatchStage = () => {
       matchId,
       stage,
       syncToGhl = true,
+      // Required params for GHL sync
+      contactId,
+      propertyAddress,
+      opportunityId,
     }: {
       matchId: string;
       stage: MatchDealStage;
       syncToGhl?: boolean;
-    }): Promise<{ success: boolean; match: PropertyMatch }> => {
-      console.log('[Matching API] Updating match stage:', matchId, stage);
+      /** GHL Contact ID of the buyer - required for GHL sync */
+      contactId?: string;
+      /** Property address for searching in GHL - required for GHL sync */
+      propertyAddress?: string;
+      /** GHL Opportunity ID for fallback search */
+      opportunityId?: string;
+    }): Promise<{ success: boolean; match: PropertyMatch; ghlRelationId?: string }> => {
+      console.log('[Matching API] Updating match stage:', matchId, stage, { syncToGhl, contactId, propertyAddress });
 
+      // 1. Update Airtable first (source of truth)
       const response = await fetch(`${AIRTABLE_API_BASE}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -279,9 +290,65 @@ export const useUpdateMatchStage = () => {
       }
 
       const result = await response.json();
-      console.log('[Matching API] Stage update result:', result);
+      console.log('[Matching API] Airtable stage update result:', result);
 
-      return { success: true, match: result.record as PropertyMatch };
+      let ghlRelationId: string | undefined;
+
+      // 2. Sync to GHL if enabled and we have required data
+      if (syncToGhl && contactId && (propertyAddress || opportunityId)) {
+        try {
+          // Dynamic import to avoid circular dependencies
+          const { syncMatchStageToGhl } = await import('./ghlAssociationsApi');
+          const { STAGE_ASSOCIATION_IDS } = await import('@/types/associations');
+
+          console.log('[Matching API] Syncing to GHL...');
+
+          const relationId = await syncMatchStageToGhl({
+            stage,
+            contactId,
+            propertyAddress: propertyAddress || '',
+            opportunityId,
+            stageAssociationIds: STAGE_ASSOCIATION_IDS,
+          });
+
+          if (relationId) {
+            ghlRelationId = relationId;
+            console.log('[Matching API] GHL relation created:', relationId);
+
+            // 3. Store GHL Relation ID back to Airtable for reference
+            try {
+              await fetch(`${AIRTABLE_API_BASE}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  table: 'Property-Buyer Matches',
+                  id: matchId,
+                  fields: {
+                    'GHL Relation ID': relationId,
+                  },
+                }),
+              });
+              console.log('[Matching API] GHL Relation ID saved to Airtable');
+            } catch (airtableError) {
+              // Log but don't fail - the main sync succeeded
+              console.warn('[Matching API] Failed to save GHL Relation ID to Airtable:', airtableError);
+            }
+          } else {
+            console.warn('[Matching API] GHL sync did not return a relation ID');
+          }
+        } catch (ghlError) {
+          // Log but don't fail - Airtable update succeeded
+          console.error('[Matching API] GHL sync failed:', ghlError);
+        }
+      } else if (syncToGhl) {
+        console.warn('[Matching API] GHL sync skipped - missing required params:', {
+          hasContactId: !!contactId,
+          hasPropertyAddress: !!propertyAddress,
+          hasOpportunityId: !!opportunityId,
+        });
+      }
+
+      return { success: true, match: result.record as PropertyMatch, ghlRelationId };
     },
     onSuccess: () => {
       // Refresh all matching queries
@@ -372,13 +439,33 @@ export const useUpdateMatchStageWithActivity = () => {
       matchId,
       fromStage,
       toStage,
+      // GHL sync params - passed through to useUpdateMatchStage
+      syncToGhl = true,
+      contactId,
+      propertyAddress,
+      opportunityId,
     }: {
       matchId: string;
       fromStage: MatchDealStage;
       toStage: MatchDealStage;
-    }): Promise<{ success: boolean }> => {
-      // Update the stage first
-      await updateStage.mutateAsync({ matchId, stage: toStage });
+      /** Whether to sync to GHL (default: true) */
+      syncToGhl?: boolean;
+      /** GHL Contact ID of the buyer - required for GHL sync */
+      contactId?: string;
+      /** Property address for searching in GHL - required for GHL sync */
+      propertyAddress?: string;
+      /** GHL Opportunity ID for fallback search */
+      opportunityId?: string;
+    }): Promise<{ success: boolean; ghlRelationId?: string }> => {
+      // Update the stage first (includes GHL sync)
+      const stageResult = await updateStage.mutateAsync({
+        matchId,
+        stage: toStage,
+        syncToGhl,
+        contactId,
+        propertyAddress,
+        opportunityId,
+      });
 
       // Then log the activity
       await addActivity.mutateAsync({
@@ -393,7 +480,7 @@ export const useUpdateMatchStageWithActivity = () => {
         },
       });
 
-      return { success: true };
+      return { success: true, ghlRelationId: stageResult.ghlRelationId };
     },
   });
 };
