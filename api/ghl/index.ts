@@ -28,6 +28,10 @@ const GHL_API_KEY = process.env.GHL_API_KEY;
 const GHL_LOCATION_ID = process.env.GHL_LOCATION_ID;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// Separate API key for Custom Objects & Associations API
+// These endpoints require a different API key with object/association scopes
+const GHL_OBJECTS_API_KEY = process.env.GHL_OBJECTS_API_KEY || 'pit-373a6abb-b368-4457-b578-ba5db43affc4';
+
 // Pipeline IDs
 const SELLER_ACQUISITION_PIPELINE_ID = process.env.GHL_SELLER_ACQUISITION_PIPELINE_ID || 'U4FANAMaB1gGddRaaD9x'; // Acquisition Seller pipeline
 const BUYER_ACQUISITION_PIPELINE_ID = process.env.GHL_BUYER_ACQUISITION_PIPELINE_ID || 'FRw9XPyTSnPv8ct0cWcm';
@@ -62,6 +66,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     GHL_API_KEY_exists: !!GHL_API_KEY,
     GHL_API_KEY_length: GHL_API_KEY?.length,
     GHL_API_KEY_prefix: GHL_API_KEY?.substring(0, 15) + '...',
+    GHL_OBJECTS_API_KEY_exists: !!GHL_OBJECTS_API_KEY,
+    GHL_OBJECTS_API_KEY_prefix: GHL_OBJECTS_API_KEY?.substring(0, 15) + '...',
     GHL_LOCATION_ID_exists: !!GHL_LOCATION_ID,
     GHL_LOCATION_ID: GHL_LOCATION_ID,
     OPENAI_API_KEY_exists: !!OPENAI_API_KEY,
@@ -91,8 +97,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     'Version': '2021-07-28',
   };
 
+  // Separate headers for Custom Objects & Associations API
+  const objectsHeaders = {
+    'Authorization': `Bearer ${GHL_OBJECTS_API_KEY}`,
+    'Content-Type': 'application/json',
+    'Version': '2021-07-28',
+  };
+
   console.log('[GHL API] Headers prepared:', {
     Authorization: 'Bearer ' + GHL_API_KEY.substring(0, 15) + '...',
+    ObjectsAuth: 'Bearer ' + GHL_OBJECTS_API_KEY.substring(0, 15) + '...',
     ContentType: headers['Content-Type'],
     Version: headers['Version']
   });
@@ -1420,13 +1434,15 @@ if (resource === 'opportunities') {
     // ============ ASSOCIATIONS & CUSTOM OBJECTS ============
     // Scopes: objects/associations.readonly, objects/relations.write
     // Used for buyer-property matching with many-to-many relationships
+    // NOTE: Uses objectsHeaders with GHL_OBJECTS_API_KEY
     if (resource === 'associations') {
       if (method === 'GET') {
         // GET /associations/ - Fetch all associations and labels for the location
         console.log('[ASSOCIATIONS] Fetching associations for location:', GHL_LOCATION_ID);
+        console.log('[ASSOCIATIONS] Using Objects API Key:', GHL_OBJECTS_API_KEY?.substring(0, 15) + '...');
         const response = await fetch(
           `${GHL_API_URL}/associations/?locationId=${GHL_LOCATION_ID}`,
-          { headers }
+          { headers: objectsHeaders }
         );
         const data = await response.json();
         console.log('[ASSOCIATIONS] Response:', response.status, JSON.stringify(data).substring(0, 500));
@@ -1437,6 +1453,7 @@ if (resource === 'opportunities') {
       // Used for creating buyer-property relations with specific stage associations
       if (method === 'POST' && action === 'relations') {
         console.log('[ASSOCIATIONS] Creating relation:', body);
+        console.log('[ASSOCIATIONS] Using Objects API Key:', GHL_OBJECTS_API_KEY?.substring(0, 15) + '...');
 
         const { associationId, firstRecordId, secondRecordId } = body;
 
@@ -1451,7 +1468,7 @@ if (resource === 'opportunities') {
           `${GHL_API_URL}/associations/relations`,
           {
             method: 'POST',
-            headers,
+            headers: objectsHeaders,
             body: JSON.stringify({
               locationId: GHL_LOCATION_ID,
               associationId,
@@ -1467,12 +1484,15 @@ if (resource === 'opportunities') {
       }
     }
 
+    // NOTE: Uses objectsHeaders with GHL_OBJECTS_API_KEY for all objects operations
     if (resource === 'objects') {
       const objectKey = query.objectKey as string; // e.g., 'opportunity', 'contact', 'custom_objects.properties'
 
       if (!objectKey) {
         return res.status(400).json({ error: 'objectKey query parameter is required' });
       }
+
+      console.log('[OBJECTS] Using Objects API Key:', GHL_OBJECTS_API_KEY?.substring(0, 15) + '...');
 
       // POST /objects/:objectKey/records/search - Search for records in a custom object
       // Used for finding Property Custom Object records by address or opportunity_id
@@ -1499,7 +1519,7 @@ if (resource === 'opportunities') {
           `${GHL_API_URL}/objects/${objectKey}/records/search`,
           {
             method: 'POST',
-            headers,
+            headers: objectsHeaders,
             body: JSON.stringify(searchBody),
           }
         );
@@ -1519,7 +1539,7 @@ if (resource === 'opportunities') {
         console.log('[OBJECTS] Fetching relations for:', objectKey, recordId || 'all');
         const response = await fetch(
           `${GHL_API_URL}/objects/${objectKey}/relations?${params}`,
-          { headers }
+          { headers: objectsHeaders }
         );
         const data = await response.json();
         console.log('[OBJECTS] Relations response:', response.status);
@@ -1533,7 +1553,7 @@ if (resource === 'opportunities') {
           `${GHL_API_URL}/objects/${objectKey}/relations`,
           {
             method: 'POST',
-            headers,
+            headers: objectsHeaders,
             body: JSON.stringify({
               ...body,
               locationId: GHL_LOCATION_ID
@@ -1552,7 +1572,7 @@ if (resource === 'opportunities') {
           `${GHL_API_URL}/objects/${objectKey}/relations/${id}`,
           {
             method: 'PUT',
-            headers,
+            headers: objectsHeaders,
             body: JSON.stringify(body)
           }
         );
@@ -1566,7 +1586,7 @@ if (resource === 'opportunities') {
         console.log('[OBJECTS] Deleting relation:', objectKey, id);
         const response = await fetch(
           `${GHL_API_URL}/objects/${objectKey}/relations/${id}`,
-          { method: 'DELETE', headers }
+          { method: 'DELETE', headers: objectsHeaders }
         );
         if (response.ok) {
           return res.status(204).end();

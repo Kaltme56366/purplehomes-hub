@@ -1091,6 +1091,17 @@ export default function Matching() {
         onStageChange={async (matchId, newStage) => {
           if (!selectedMatch) return;
           try {
+            // Debug: Log the GHL sync params being passed
+            console.log('[Matching Page] Stage change params:', {
+              matchId,
+              newStage,
+              contactId: selectedMatch.buyer?.contactId,
+              propertyAddress: selectedMatch.property?.address,
+              opportunityId: selectedMatch.property?.opportunityId,
+              buyer: selectedMatch.buyer,
+              property: selectedMatch.property,
+            });
+
             const result = await updateStageWithActivity.mutateAsync({
               matchId,
               fromStage: selectedMatch.status || 'Sent to Buyer',
