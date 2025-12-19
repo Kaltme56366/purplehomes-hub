@@ -381,7 +381,9 @@ export const useAddMatchActivity = () => {
       console.log('[Matching API] Adding activity to match:', matchId, activity);
 
       // First, fetch the current activities
-      const getResponse = await fetch(`${AIRTABLE_API_BASE}?table=Property-Buyer Matches&id=${matchId}`);
+      const getResponse = await fetch(
+        `${AIRTABLE_API_BASE}?action=get-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`
+      );
       if (!getResponse.ok) {
         throw new Error('Failed to fetch current match data');
       }
@@ -401,18 +403,19 @@ export const useAddMatchActivity = () => {
       // Append new activity
       const updatedActivities = [...currentActivities, newActivity];
 
-      // Update Airtable
-      const response = await fetch(`${AIRTABLE_API_BASE}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          table: 'Property-Buyer Matches',
-          id: matchId,
-          fields: {
-            Activities: JSON.stringify(updatedActivities),
-          },
-        }),
-      });
+      // Update Airtable using update-record action
+      const response = await fetch(
+        `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: {
+              Activities: JSON.stringify(updatedActivities),
+            },
+          }),
+        }
+      );
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Activity add failed' }));
