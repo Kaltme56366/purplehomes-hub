@@ -259,13 +259,15 @@ export default function PublicListings() {
     return calculatePropertyDistance(property, zipCode);
   };
 
-  const PropertyCard = ({ property, compact = false }: { property: Property; compact?: boolean }) => {
+  // Render a property card - inline function to avoid component recreation
+  const renderPropertyCard = (property: Property, compact: boolean = false) => {
     const isHovered = hoveredPropertyId === property.id;
     const isSaved = savedProperties.has(property.id);
     const distance = getPropertyDistance(property);
 
     return (
       <div
+        key={property.id}
         className={cn(
           "group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300",
           isDarkMode
@@ -285,12 +287,12 @@ export default function PublicListings() {
           "relative overflow-hidden",
           compact ? "w-28 h-28 flex-shrink-0" : "aspect-[4/3]"
         )}>
-          <img 
-            src={property.heroImage} 
+          <img
+            src={property.heroImage}
             alt={property.address}
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
-          
+
           {!compact && (
             <>
               {distance !== null && distance >= 0 && (
@@ -399,8 +401,9 @@ export default function PublicListings() {
     );
   };
 
-  const PropertyListPanel = () => (
-    <div className="flex flex-col h-full">
+  // Render the property list content - inline to preserve scroll position
+  const renderPropertyListContent = (compact: boolean = false) => (
+    <>
       <div className={cn(
         "flex items-center justify-between p-4 border-b",
         isDarkMode ? "border-border/50 bg-card/50" : "border-gray-200 bg-white"
@@ -431,9 +434,7 @@ export default function PublicListings() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="p-4 space-y-4">
-          {filteredProperties.map((property) => (
-            <PropertyCard key={property.id} property={property} compact={isMobile} />
-          ))}
+          {filteredProperties.map((property) => renderPropertyCard(property, compact))}
 
           {filteredProperties.length === 0 && (
             <div className="text-center py-12">
@@ -448,7 +449,7 @@ export default function PublicListings() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 
   return (
@@ -834,7 +835,7 @@ export default function PublicListings() {
           "hidden md:flex w-[420px] lg:w-[480px] flex-shrink-0 border-l flex-col",
           isDarkMode ? "border-border bg-card" : "border-gray-200 bg-white"
         )}>
-          <PropertyListPanel />
+          {renderPropertyListContent(false)}
         </div>
 
         {/* Mobile Drawer */}
@@ -854,7 +855,9 @@ export default function PublicListings() {
               <DrawerHeader className="sr-only">
                 <DrawerTitle>Property Listings</DrawerTitle>
               </DrawerHeader>
-              <PropertyListPanel />
+              <div className="flex flex-col h-full">
+                {renderPropertyListContent(true)}
+              </div>
             </DrawerContent>
           </Drawer>
         )}
