@@ -552,34 +552,34 @@ export default function PublicListings() {
             <div className="hidden lg:flex items-center gap-2">
               <Select value={beds} onValueChange={setBeds}>
                 <SelectTrigger className={cn(
-                  "w-24 shadow-sm hover:shadow-md transition-shadow",
+                  "w-28 shadow-sm hover:shadow-md transition-shadow",
                   isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 border-gray-300"
                 )}>
                   <SelectValue placeholder="Beds" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="any">Any</SelectItem>
-                  <SelectItem value="1">1+</SelectItem>
-                  <SelectItem value="2">2+</SelectItem>
-                  <SelectItem value="3">3+</SelectItem>
-                  <SelectItem value="4">4+</SelectItem>
-                  <SelectItem value="5">5+</SelectItem>
+                  <SelectItem value="any">Any Beds</SelectItem>
+                  <SelectItem value="1">1+ Bed</SelectItem>
+                  <SelectItem value="2">2+ Beds</SelectItem>
+                  <SelectItem value="3">3+ Beds</SelectItem>
+                  <SelectItem value="4">4+ Beds</SelectItem>
+                  <SelectItem value="5">5+ Beds</SelectItem>
                 </SelectContent>
               </Select>
 
               <Select value={baths} onValueChange={setBaths}>
                 <SelectTrigger className={cn(
-                  "w-24 shadow-sm hover:shadow-md transition-shadow",
+                  "w-28 shadow-sm hover:shadow-md transition-shadow",
                   isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 border-gray-300"
                 )}>
                   <SelectValue placeholder="Baths" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="any">Any</SelectItem>
-                  <SelectItem value="1">1+</SelectItem>
-                  <SelectItem value="2">2+</SelectItem>
-                  <SelectItem value="3">3+</SelectItem>
-                  <SelectItem value="4">4+</SelectItem>
+                  <SelectItem value="any">Any Baths</SelectItem>
+                  <SelectItem value="1">1+ Bath</SelectItem>
+                  <SelectItem value="2">2+ Baths</SelectItem>
+                  <SelectItem value="3">3+ Baths</SelectItem>
+                  <SelectItem value="4">4+ Baths</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -709,14 +709,14 @@ export default function PublicListings() {
                       <Label className="text-xs text-gray-600">Bedrooms</Label>
                       <Select value={beds} onValueChange={setBeds}>
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Any" />
+                          <SelectValue placeholder="Any Beds" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="any">Any</SelectItem>
-                          <SelectItem value="1">1+</SelectItem>
-                          <SelectItem value="2">2+</SelectItem>
-                          <SelectItem value="3">3+</SelectItem>
-                          <SelectItem value="4">4+</SelectItem>
+                          <SelectItem value="any">Any Beds</SelectItem>
+                          <SelectItem value="1">1+ Bed</SelectItem>
+                          <SelectItem value="2">2+ Beds</SelectItem>
+                          <SelectItem value="3">3+ Beds</SelectItem>
+                          <SelectItem value="4">4+ Beds</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -725,13 +725,13 @@ export default function PublicListings() {
                       <Label className="text-xs text-gray-600">Bathrooms</Label>
                       <Select value={baths} onValueChange={setBaths}>
                         <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Any" />
+                          <SelectValue placeholder="Any Baths" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="any">Any</SelectItem>
-                          <SelectItem value="1">1+</SelectItem>
-                          <SelectItem value="2">2+</SelectItem>
-                          <SelectItem value="3">3+</SelectItem>
+                          <SelectItem value="any">Any Baths</SelectItem>
+                          <SelectItem value="1">1+ Bath</SelectItem>
+                          <SelectItem value="2">2+ Baths</SelectItem>
+                          <SelectItem value="3">3+ Baths</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
