@@ -122,7 +122,7 @@ function parseConcernToTag(concern: string): ParsedTag {
 
 /**
  * Extract just the summary portion from reasoning text
- * Removes redundant "Highlights:" and "Concerns:" sections
+ * Now handles the new multi-line format with score breakdown
  */
 export function extractReasoningSummary(reasoning: string | undefined): string {
   if (!reasoning) return '';
@@ -130,17 +130,137 @@ export function extractReasoningSummary(reasoning: string | undefined): string {
   // Remove [PRIORITY] prefix if present
   let cleaned = reasoning.replace(/^\[PRIORITY\]\s*/i, '');
 
-  // Find where "Highlights:" or "Concerns:" starts and cut there
+  // New format: first line is "Good Match (Score: 75/100)"
+  // Extract just this first line for the summary
+  const firstLine = cleaned.split('\n')[0].trim();
+
+  // Check if it's the new format (contains "Score:")
+  if (firstLine.includes('Score:')) {
+    return firstLine;
+  }
+
+  // Fallback for old format - find where "Highlights:" or "Concerns:" starts
   const highlightsIndex = cleaned.toLowerCase().indexOf('highlights:');
   const concernsIndex = cleaned.toLowerCase().indexOf('concerns:');
+  const breakdownIndex = cleaned.toLowerCase().indexOf('score breakdown:');
 
   // Get the earliest cutoff point
   let cutoffIndex = cleaned.length;
   if (highlightsIndex > 0) cutoffIndex = Math.min(cutoffIndex, highlightsIndex);
   if (concernsIndex > 0) cutoffIndex = Math.min(cutoffIndex, concernsIndex);
+  if (breakdownIndex > 0) cutoffIndex = Math.min(cutoffIndex, breakdownIndex);
 
   // Extract just the summary
   return cleaned.substring(0, cutoffIndex).trim();
+}
+
+/**
+ * Parse score breakdown from reasoning text
+ */
+export interface ScoreBreakdownItem {
+  category: string;
+  points: number;
+  maxPoints: number;
+  explanation: string;
+}
+
+export function parseScoreBreakdown(reasoning: string | undefined): ScoreBreakdownItem[] {
+  if (!reasoning) return [];
+
+  const items: ScoreBreakdownItem[] = [];
+  const lines = reasoning.split('\n');
+
+  for (const line of lines) {
+    // Match pattern like "• Location: 40/40 pts (in preferred ZIP)"
+    const match = line.match(/[•\-]\s*(\w+):\s*(\d+)\/(\d+)\s*pts?\s*\(([^)]+)\)/i);
+    if (match) {
+      items.push({
+        category: match[1],
+        points: parseInt(match[2]),
+        maxPoints: parseInt(match[3]),
+        explanation: match[4]
+      });
+    }
+  }
+
+  return items;
+}
+
+/**
+ * Visual score breakdown component for modals
+ */
+export interface ScoreBreakdownProps {
+  reasoning?: string;
+  className?: string;
+}
+
+export function ScoreBreakdown({ reasoning, className }: ScoreBreakdownProps) {
+  const items = parseScoreBreakdown(reasoning);
+
+  if (items.length === 0) return null;
+
+  const getCategoryColor = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'location':
+        return 'bg-blue-500';
+      case 'beds':
+        return 'bg-purple-500';
+      case 'baths':
+        return 'bg-indigo-500';
+      case 'budget':
+        return 'bg-emerald-500';
+      default:
+        return 'bg-gray-500';
+    }
+  };
+
+  const getCategoryIcon = (category: string) => {
+    switch (category.toLowerCase()) {
+      case 'location':
+        return '📍';
+      case 'beds':
+        return '🛏️';
+      case 'baths':
+        return '🚿';
+      case 'budget':
+        return '💰';
+      default:
+        return '📊';
+    }
+  };
+
+  return (
+    <div className={cn('space-y-3', className)}>
+      <h4 className="text-sm font-medium text-muted-foreground">Score Breakdown</h4>
+      <div className="space-y-2">
+        {items.map((item, i) => {
+          const percentage = (item.points / item.maxPoints) * 100;
+          return (
+            <div key={i} className="space-y-1">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-1.5">
+                  <span>{getCategoryIcon(item.category)}</span>
+                  <span className="font-medium">{item.category}</span>
+                </span>
+                <span className="text-muted-foreground">
+                  {item.points}/{item.maxPoints} pts
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={cn('h-full rounded-full transition-all', getCategoryColor(item.category))}
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">{item.explanation}</p>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /**

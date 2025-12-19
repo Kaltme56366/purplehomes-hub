@@ -12,9 +12,10 @@ interface PropertyMapProps {
   hoveredPropertyId?: string | null;
   zipCode?: string;
   isDarkMode?: boolean;
+  userLocation?: { lat: number; lng: number } | null;
 }
 
-export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode, isDarkMode = false }: PropertyMapProps) {
+export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, zipCode, isDarkMode = false, userLocation }: PropertyMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -285,6 +286,18 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, z
       });
     }
   }, [zipCode, mapLoaded]);
+
+  // Pan to user location when "Locate Me" is used
+  useEffect(() => {
+    if (!map.current || !mapLoaded || !userLocation) return;
+
+    map.current.flyTo({
+      center: [userLocation.lng, userLocation.lat],
+      zoom: 12,
+      duration: 1500,
+      essential: true
+    });
+  }, [userLocation, mapLoaded]);
 
   // Update map style when theme changes
   useEffect(() => {

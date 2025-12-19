@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home, Moon, Sun, ArrowLeft } from 'lucide-react';
+import { Search, Bed, Bath, Maximize2, Phone, MapPin, X, Wrench, Heart, ChevronDown, SlidersHorizontal, ChevronUp, List as ListIcon, DollarSign, Home, Moon, Sun, ArrowLeft, Navigation, Loader2 } from 'lucide-react';
 import type { PropertyCondition, PropertyType, Property } from '@/types';
 import { Input } from '@/components/ui/input';
 import { PhoneInput } from '@/components/ui/phone-input';
@@ -60,6 +60,8 @@ export default function PublicListings() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [search, setSearch] = useState('');
   const [zipCode, setZipCode] = useState('');
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, 1000000]);
   const [downPaymentRange, setDownPaymentRange] = useState<[number, number]>([0, 1000000]);
   const [beds, setBeds] = useState('any');
@@ -186,6 +188,41 @@ export default function PublicListings() {
     setPropertyType('any');
     setPriceRange([0, 1000000]);
     setDownPaymentRange([0, 1000000]);
+  };
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lng: longitude });
+        setZipCode(''); // Clear ZIP when using location
+        setIsLocating(false);
+        toast.success('Found your location!');
+      },
+      (error) => {
+        setIsLocating(false);
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            toast.error('Location access denied. Please enable location permissions.');
+            break;
+          case error.POSITION_UNAVAILABLE:
+            toast.error('Location information unavailable.');
+            break;
+          case error.TIMEOUT:
+            toast.error('Location request timed out.');
+            break;
+          default:
+            toast.error('Failed to get your location.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   const activeFilterCount = [
@@ -417,7 +454,10 @@ export default function PublicListings() {
               <Input
                 placeholder="ZIP"
                 value={zipCode}
-                onChange={(e) => setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                onChange={(e) => {
+                  setZipCode(e.target.value.replace(/\D/g, '').slice(0, 5));
+                  setUserLocation(null); // Clear location when typing ZIP
+                }}
                 className={cn(
                   "pl-9 shadow-sm hover:shadow-md transition-shadow focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:border-transparent",
                   isDarkMode ? "bg-background text-foreground border-border" : "bg-white text-gray-900 placeholder:text-gray-400 border-gray-300"
@@ -425,6 +465,25 @@ export default function PublicListings() {
                 maxLength={5}
               />
             </div>
+
+            {/* Locate Me Button */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleLocateMe}
+              disabled={isLocating}
+              className={cn(
+                "flex-shrink-0",
+                userLocation && "bg-purple-100 border-purple-500 text-purple-600"
+              )}
+              title="Use my location"
+            >
+              {isLocating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Navigation className={cn("h-4 w-4", userLocation && "fill-purple-500")} />
+              )}
+            </Button>
 
             {/* Search */}
             <div className="relative flex-1 min-w-[180px] max-w-xs">
@@ -723,6 +782,7 @@ export default function PublicListings() {
             hoveredPropertyId={hoveredPropertyId}
             zipCode={zipCode}
             isDarkMode={isDarkMode}
+            userLocation={userLocation}
           />
         </div>
 

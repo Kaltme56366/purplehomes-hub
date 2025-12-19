@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Loader2, Users, Home, Send, ChevronDown, MapPin, ChevronLeft, ChevronRight, RefreshCw, AlertTriangle, CheckCircle, Trash2, Bed, Bath, Square, Building } from 'lucide-react';
 import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunBuyerMatching, useRunPropertyMatching, useClearMatches } from '@/services/matchingApi';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
-import { MatchTags, MatchDetailsList, extractReasoningSummary } from '@/components/matching/MatchTags';
+import { MatchTags, MatchDetailsList, ScoreBreakdown, extractReasoningSummary } from '@/components/matching/MatchTags';
 import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
@@ -1169,16 +1169,19 @@ export default function Matching() {
 
                 {/* Match Reasoning Section */}
                 {(selectedMatch.reasoning || (selectedMatch.highlights && selectedMatch.highlights.length > 0) || (selectedMatch.concerns && selectedMatch.concerns.length > 0)) && (
-                  <div className="bg-muted/30 rounded-xl p-5 space-y-4">
+                  <div className="bg-muted/30 rounded-xl p-5 space-y-5">
                     {/* Summary Statement */}
                     {selectedMatch.reasoning && (
                       <div>
                         <h3 className="text-base font-semibold mb-2">Why This Property Matches</h3>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-sm font-medium">
                           {extractReasoningSummary(selectedMatch.reasoning)}
                         </p>
                       </div>
                     )}
+
+                    {/* Visual Score Breakdown */}
+                    <ScoreBreakdown reasoning={selectedMatch.reasoning} />
 
                     {/* Detailed Highlights & Concerns */}
                     <MatchDetailsList

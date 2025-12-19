@@ -162,22 +162,69 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
   const totalScore = Math.min(100, locationScore + bedsScore + bathsScore + budgetScore);
 
   // ====================
-  // REASONING
+  // REASONING - Explain the score
   // ====================
 
-  let reasoning = '';
-
+  // Determine match quality label
+  let matchQuality = '';
   if (totalScore >= 80) {
-    reasoning = `Excellent match! ${highlights.slice(0, 2).join('. ')}.`;
+    matchQuality = 'Excellent Match';
   } else if (totalScore >= 60) {
-    reasoning = `Good match. ${highlights[0] || 'Meets most criteria'}.`;
+    matchQuality = 'Good Match';
   } else if (totalScore >= 40) {
-    reasoning = `Fair match with some considerations. ${concerns[0] || 'Worth reviewing'}.`;
+    matchQuality = 'Fair Match';
   } else {
-    reasoning = `Limited match. ${concerns.slice(0, 2).join('. ') || 'May not meet key criteria'}.`;
+    matchQuality = 'Limited Match';
   }
 
-  // Add score range context
+  // Build score explanation
+  const scoreBreakdown: string[] = [];
+
+  // Location explanation
+  if (isPriority) {
+    scoreBreakdown.push(`Location: ${locationScore}/40 pts (in preferred ZIP)`);
+  } else if (hasZipCodes) {
+    scoreBreakdown.push(`Location: ${locationScore}/40 pts (outside preferred ZIPs)`);
+  } else {
+    scoreBreakdown.push(`Location: ${locationScore}/40 pts (no ZIP preference set)`);
+  }
+
+  // Beds explanation
+  if (desiredBeds && propertyBeds) {
+    if (propertyBeds === desiredBeds) {
+      scoreBreakdown.push(`Beds: ${bedsScore}/25 pts (exact match: ${propertyBeds} beds)`);
+    } else {
+      const diff = propertyBeds - desiredBeds;
+      scoreBreakdown.push(`Beds: ${bedsScore}/25 pts (${propertyBeds} beds, ${diff > 0 ? '+' : ''}${diff} vs desired)`);
+    }
+  } else {
+    scoreBreakdown.push(`Beds: ${bedsScore}/25 pts`);
+  }
+
+  // Baths explanation
+  if (desiredBaths && propertyBaths) {
+    if (propertyBaths >= desiredBaths) {
+      scoreBreakdown.push(`Baths: ${bathsScore}/15 pts (meets requirement: ${propertyBaths} baths)`);
+    } else {
+      scoreBreakdown.push(`Baths: ${bathsScore}/15 pts (${propertyBaths} baths, needs ${desiredBaths})`);
+    }
+  } else {
+    scoreBreakdown.push(`Baths: ${bathsScore}/15 pts`);
+  }
+
+  // Budget explanation
+  if (downPayment && propertyPrice) {
+    const ratio = ((downPayment / propertyPrice) * 100).toFixed(0);
+    scoreBreakdown.push(`Budget: ${budgetScore}/20 pts (${ratio}% down payment ratio)`);
+  } else {
+    scoreBreakdown.push(`Budget: ${budgetScore}/20 pts`);
+  }
+
+  // Compose full reasoning
+  let reasoning = `${matchQuality} (Score: ${Math.round(totalScore)}/100)\n\n`;
+  reasoning += `Score Breakdown:\n${scoreBreakdown.map(s => `• ${s}`).join('\n')}`;
+
+  // Add priority flag
   if (isPriority) {
     reasoning = `[PRIORITY] ${reasoning}`;
   }
