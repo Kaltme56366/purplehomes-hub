@@ -356,6 +356,9 @@ export const useUpdateMatchStage = () => {
       // Refresh all matching queries
       queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
       queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
+      // Also invalidate the server-side cache queries so counts/status update
+      queryClient.invalidateQueries({ queryKey: ['cache', 'matches'] });
+      queryClient.invalidateQueries({ queryKey: ['cache-status'] });
     },
   });
 };
