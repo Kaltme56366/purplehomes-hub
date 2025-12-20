@@ -59,8 +59,8 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
   const buyerCity = buyerFields['City'] || buyerFields['Preferred Location'] || '';
 
   // Buyer coordinates (from Airtable, pre-geocoded)
-  const buyerLat = buyerFields['Location Lat'];
-  const buyerLng = buyerFields['Location Lng'];
+  const buyerLat = buyerFields['Lat'];
+  const buyerLng = buyerFields['Lng'];
 
   // Extract property data
   const propertyFields = property.fields;
@@ -72,8 +72,8 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
   const propertyZipCode = propertyFields['Zip Code'] || propertyFields['ZIP Code'];
 
   // Property coordinates (from Airtable, pre-geocoded)
-  const propertyLat = propertyFields['Property Lat'];
-  const propertyLng = propertyFields['Property Lng'];
+  const propertyLat = propertyFields['Lat'];
+  const propertyLng = propertyFields['Lng'];
 
   // ====================
   // HYBRID LOCATION SCORE (0-40 points)

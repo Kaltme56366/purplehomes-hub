@@ -99,7 +99,7 @@ async function geocodeRecordsWithMissingCoordinates(
 
   // Geocode buyers without coordinates
   const buyersToGeocode = buyers.filter(
-    (b) => !b.fields['Location Lat'] || !b.fields['Location Lng']
+    (b) => !b.fields['Lat'] || !b.fields['Lng']
   );
 
   if (buyersToGeocode.length > 0) {
@@ -120,17 +120,15 @@ async function geocodeRecordsWithMissingCoordinates(
             'Buyers',
             buyer.id,
             {
-              'Location Lat': result.lat,
-              'Location Lng': result.lng,
-              'Location Source': result.source,
+              'Lat': result.lat,
+              'Lng': result.lng,
             },
             headers
           );
 
           // Update the in-memory buyer object
-          buyer.fields['Location Lat'] = result.lat;
-          buyer.fields['Location Lng'] = result.lng;
-          buyer.fields['Location Source'] = result.source;
+          buyer.fields['Lat'] = result.lat;
+          buyer.fields['Lng'] = result.lng;
 
           geocodedBuyers++;
         }
@@ -145,7 +143,7 @@ async function geocodeRecordsWithMissingCoordinates(
 
   // Geocode properties without coordinates
   const propertiesToGeocode = properties.filter(
-    (p) => !p.fields['Property Lat'] || !p.fields['Property Lng']
+    (p) => !p.fields['Lat'] || !p.fields['Lng']
   );
 
   if (propertiesToGeocode.length > 0) {
@@ -166,15 +164,15 @@ async function geocodeRecordsWithMissingCoordinates(
             'Properties',
             property.id,
             {
-              'Property Lat': result.lat,
-              'Property Lng': result.lng,
+              'Lat': result.lat,
+              'Lng': result.lng,
             },
             headers
           );
 
           // Update the in-memory property object
-          property.fields['Property Lat'] = result.lat;
-          property.fields['Property Lng'] = result.lng;
+          property.fields['Lat'] = result.lat;
+          property.fields['Lng'] = result.lng;
 
           geocodedProperties++;
         }
