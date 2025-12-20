@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
@@ -8,6 +12,12 @@
   "functions": {
     "api/matching/index.ts": {
       "maxDuration": 60
+    },
+    "api/matching/buyer-properties.ts": {
+      "maxDuration": 60
+    },
+    "api/geocode/index.ts": {
+      "maxDuration": 30
     }
   }
 }
