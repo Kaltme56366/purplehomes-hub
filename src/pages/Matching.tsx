@@ -541,7 +541,7 @@ export default function Matching() {
       {/* Content Area */}
       <div className="px-6">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'buyers' | 'properties' | 'buyer-properties')}>
-          <TabsList className="grid w-full max-w-2xl grid-cols-3">
+          <TabsList className="grid w-full max-w-2xl grid-cols-3" data-tabs="3">
             <TabsTrigger value="buyers" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Buyers ({buyers?.length || 0})
