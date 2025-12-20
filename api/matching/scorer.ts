@@ -1,9 +1,10 @@
 /**
  * Property Match Scoring Module
- * Implements field-based and ZIP code matching (no geocoding)
+ * Implements hybrid location matching: ZIP codes + distance-based scoring
  */
 
 import { matchPropertyZip } from './zipMatcher';
+import { calculateDistance } from './distanceCalculator';
 
 export interface MatchScore {
   score: number;
@@ -14,12 +15,23 @@ export interface MatchScore {
   reasoning: string;
   highlights: string[];
   concerns: string[];
-  isPriority: boolean; // In preferred ZIP code
+  isPriority: boolean; // In preferred ZIP code OR within 50 miles
+  distanceMiles: number | null;
+  locationReason: string;
 }
 
 /**
  * Generates a comprehensive match score between a buyer and property
- * Uses field-based matching with ZIP code priority (no geocoding)
+ * Uses hybrid location matching: ZIP codes + distance-based scoring
+ *
+ * Location Scoring (0-40 points):
+ * - ZIP match:      40 pts (isPriority = true)
+ * - Within 5 mi:    38 pts (isPriority = true)
+ * - Within 10 mi:   35 pts (isPriority = true)
+ * - Within 25 mi:   28 pts (isPriority = true)
+ * - Within 50 mi:   20 pts (isPriority = true)
+ * - Beyond 50 mi:   5-15 pts (isPriority = false)
+ * - No location:    20 pts (neutral)
  *
  * @param buyer - Buyer record from Airtable
  * @param property - Property record from Airtable
@@ -44,39 +56,75 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
   const desiredBeds = buyerFields['No. of Bedrooms'];
   const desiredBaths = buyerFields['No. of Bath'];
   const downPayment = buyerFields['Downpayment'];
+  const buyerCity = buyerFields['City'] || buyerFields['Preferred Location'] || '';
+
+  // Buyer coordinates (from Airtable, pre-geocoded)
+  const buyerLat = buyerFields['Location Lat'];
+  const buyerLng = buyerFields['Location Lng'];
 
   // Extract property data
   const propertyFields = property.fields;
   const propertyAddress = propertyFields['Address'] || '';
+  const propertyCity = propertyFields['City'] || '';
   const propertyPrice = propertyFields['Property Total Price'] || propertyFields['Price'];
   const propertyBeds = propertyFields['Beds'];
   const propertyBaths = propertyFields['Baths'];
   const propertyZipCode = propertyFields['Zip Code'] || propertyFields['ZIP Code'];
 
+  // Property coordinates (from Airtable, pre-geocoded)
+  const propertyLat = propertyFields['Property Lat'];
+  const propertyLng = propertyFields['Property Lng'];
+
   // ====================
-  // ZIP CODE PRIORITY SCORE (0-40 points)
+  // HYBRID LOCATION SCORE (0-40 points)
+  // Priority: ZIP match > Distance-based > No location data
   // ====================
 
   let locationScore = 0;
   let isPriority = false;
+  let distanceMiles: number | null = null;
+  let locationReason = '';
 
   const hasZipCodes = Array.isArray(preferredZipCodes) && preferredZipCodes.length > 0;
+  const hasCoordinates = isValidCoordinate(buyerLat) && isValidCoordinate(buyerLng) &&
+                         isValidCoordinate(propertyLat) && isValidCoordinate(propertyLng);
 
   // Check ZIP match - Use dedicated Zip Code field first, fallback to extracting from Address
   const inPreferredZip = hasZipCodes && matchPropertyZip(propertyZipCode, propertyAddress, preferredZipCodes);
 
+  // Calculate distance if coordinates are available
+  if (hasCoordinates) {
+    distanceMiles = calculateDistance(buyerLat, buyerLng, propertyLat, propertyLng);
+  }
+
   if (inPreferredZip) {
-    // PRIORITY MATCH - in preferred ZIP code
+    // HIGHEST PRIORITY - Exact ZIP code match
     locationScore = 40;
     isPriority = true;
+    locationReason = `In preferred ZIP ${propertyZipCode}`;
     highlights.push('In preferred ZIP code');
+  } else if (distanceMiles !== null) {
+    // Distance-based scoring
+    const { score, reason, priority } = calculateDistanceScore(distanceMiles, buyerCity);
+    locationScore = score;
+    isPriority = priority;
+    locationReason = reason;
+
+    if (priority) {
+      highlights.push(reason);
+    } else {
+      concerns.push(reason);
+    }
   } else if (hasZipCodes) {
-    // Has ZIP preference but doesn't match
+    // Has ZIP preference but no match and no coordinates
     locationScore = 10;
+    isPriority = false;
+    locationReason = 'Not in preferred ZIP codes';
     concerns.push('Not in preferred ZIP codes');
   } else {
-    // No ZIP preference specified
+    // No location preference specified
     locationScore = 20; // Neutral score
+    locationReason = 'No location preference specified';
   }
 
   // ====================
@@ -181,12 +229,14 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
   const scoreBreakdown: string[] = [];
 
   // Location explanation
-  if (isPriority) {
+  if (distanceMiles !== null) {
+    scoreBreakdown.push(`Location: ${locationScore}/40 pts (${locationReason})`);
+  } else if (isPriority) {
     scoreBreakdown.push(`Location: ${locationScore}/40 pts (in preferred ZIP)`);
   } else if (hasZipCodes) {
     scoreBreakdown.push(`Location: ${locationScore}/40 pts (outside preferred ZIPs)`);
   } else {
-    scoreBreakdown.push(`Location: ${locationScore}/40 pts (no ZIP preference set)`);
+    scoreBreakdown.push(`Location: ${locationScore}/40 pts (no location preference set)`);
   }
 
   // Beds explanation
@@ -239,6 +289,8 @@ export function generateMatchScore(buyer: any, property: any): MatchScore {
     highlights,
     concerns,
     isPriority,
+    distanceMiles,
+    locationReason,
   };
 }
 
@@ -256,4 +308,65 @@ Total Score: ${score.score}/100 ${score.isPriority ? '(PRIORITY)' : ''}
 Highlights: ${score.highlights.join(', ')}
 ${score.concerns.length > 0 ? `Concerns: ${score.concerns.join(', ')}` : ''}
 `.trim();
+}
+
+/**
+ * Check if a coordinate value is valid
+ */
+function isValidCoordinate(value: any): value is number {
+  return typeof value === 'number' && !isNaN(value) && isFinite(value);
+}
+
+/**
+ * Calculate location score based on distance
+ * Returns score, reason string, and priority flag
+ */
+function calculateDistanceScore(distanceMiles: number, buyerCity: string): {
+  score: number;
+  reason: string;
+  priority: boolean;
+} {
+  const locationLabel = buyerCity || 'preferred area';
+
+  if (distanceMiles <= 5) {
+    return {
+      score: 38,
+      reason: `${distanceMiles.toFixed(1)} mi from ${locationLabel}`,
+      priority: true,
+    };
+  }
+
+  if (distanceMiles <= 10) {
+    return {
+      score: 35,
+      reason: `${distanceMiles.toFixed(1)} mi from ${locationLabel}`,
+      priority: true,
+    };
+  }
+
+  if (distanceMiles <= 25) {
+    return {
+      score: 28,
+      reason: `${distanceMiles.toFixed(1)} mi from ${locationLabel}`,
+      priority: true,
+    };
+  }
+
+  if (distanceMiles <= 50) {
+    return {
+      score: 20,
+      reason: `${distanceMiles.toFixed(1)} mi from ${locationLabel}`,
+      priority: true,
+    };
+  }
+
+  // Beyond 50 miles - lower score, not priority
+  // Score decreases as distance increases: 15 at 50mi, down to 5 at 200+ mi
+  const score = Math.max(5, 15 - Math.floor(distanceMiles / 20));
+
+  return {
+    score,
+    reason: `${distanceMiles.toFixed(0)} mi away`,
+    priority: false,
+  };
 }

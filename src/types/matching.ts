@@ -23,6 +23,9 @@ export interface BuyerCriteria {
   buyerType?: string;
   lat?: number;
   lng?: number;
+  locationLat?: number; // Geocoded latitude
+  locationLng?: number; // Geocoded longitude
+  locationSource?: 'city' | 'zip' | 'address'; // Source of geocoded location
   preferredLocation?: string;
   preferredZipCodes?: string[];
 }
@@ -42,16 +45,20 @@ export interface PropertyDetails {
   stage?: string;
   heroImage?: string;
   notes?: string;
+  propertyLat?: number; // Geocoded latitude
+  propertyLng?: number; // Geocoded longitude
 }
 
 export interface MatchScore {
   score: number; // 0-100
-  distance?: number; // Distance in miles
+  distance?: number; // Distance in miles (legacy, use distanceMiles)
+  distanceMiles: number | null; // Distance in miles (null if no coordinates)
   locationScore: number; // 0-40 points
   bedsScore: number; // 0-25 points
   bathsScore: number; // 0-15 points
   budgetScore: number; // 0-20 points
   reasoning: string;
+  locationReason: string; // Human-readable location explanation
   highlights: string[];
   concerns: string[];
   isPriority: boolean; // Within 50 miles OR in preferred ZIP
@@ -153,4 +160,27 @@ export interface MatchFilters {
   priorityOnly?: boolean;
   matchLimit?: number;
   dateRange?: '7days' | '30days' | 'all';
+}
+
+/**
+ * Scored property for buyer-properties endpoint
+ */
+export interface ScoredProperty {
+  property: PropertyDetails;
+  score: MatchScore;
+}
+
+/**
+ * Response from buyer-properties endpoint
+ */
+export interface BuyerPropertiesResponse {
+  buyer: BuyerCriteria;
+  priorityMatches: ScoredProperty[]; // Within 50mi or ZIP match
+  exploreMatches: ScoredProperty[];  // Beyond 50mi
+  totalCount: number;
+  stats: {
+    priorityCount: number;
+    exploreCount: number;
+    timeMs: number;
+  };
 }

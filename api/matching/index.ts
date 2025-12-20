@@ -1,12 +1,17 @@
 /**
  * Property Matching API
  * Handles running matching between buyers and properties
- * Uses field-based scoring with ZIP code matching
+ * Uses hybrid location scoring: ZIP codes + Mapbox geocoding
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { generateMatchScore } from './scorer';
 import type { MatchScore } from './scorer';
+import {
+  geocodeBuyerLocation,
+  geocodePropertyLocation,
+  isMapboxConfigured,
+} from '../lib/mapbox';
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -75,7 +80,162 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 }
 
-// Geocoding removed - using ZIP code matching only
+/**
+ * Geocode buyers and properties that are missing coordinates
+ * Updates Airtable records with geocoded coordinates
+ */
+async function geocodeRecordsWithMissingCoordinates(
+  buyers: any[],
+  properties: any[],
+  headers: any
+): Promise<{ geocodedBuyers: number; geocodedProperties: number }> {
+  if (!isMapboxConfigured()) {
+    console.log('[Matching] Mapbox not configured, skipping geocoding');
+    return { geocodedBuyers: 0, geocodedProperties: 0 };
+  }
+
+  let geocodedBuyers = 0;
+  let geocodedProperties = 0;
+
+  // Geocode buyers without coordinates
+  const buyersToGeocode = buyers.filter(
+    (b) => !b.fields['Location Lat'] || !b.fields['Location Lng']
+  );
+
+  if (buyersToGeocode.length > 0) {
+    console.log(`[Matching] Geocoding ${buyersToGeocode.length} buyers without coordinates`);
+
+    for (const buyer of buyersToGeocode) {
+      try {
+        const result = await geocodeBuyerLocation({
+          city: buyer.fields['City'],
+          preferredLocation: buyer.fields['Preferred Location'],
+          state: buyer.fields['State'],
+          preferredZipCodes: parseZipCodes(buyer.fields['Preferred Zip Codes']),
+        });
+
+        if (result) {
+          // Update buyer record with coordinates
+          await updateRecordCoordinates(
+            'Buyers',
+            buyer.id,
+            {
+              'Location Lat': result.lat,
+              'Location Lng': result.lng,
+              'Location Source': result.source,
+            },
+            headers
+          );
+
+          // Update the in-memory buyer object
+          buyer.fields['Location Lat'] = result.lat;
+          buyer.fields['Location Lng'] = result.lng;
+          buyer.fields['Location Source'] = result.source;
+
+          geocodedBuyers++;
+        }
+
+        // Rate limit: 10 requests per second
+        await delay(100);
+      } catch (error) {
+        console.error(`[Matching] Error geocoding buyer ${buyer.id}:`, error);
+      }
+    }
+  }
+
+  // Geocode properties without coordinates
+  const propertiesToGeocode = properties.filter(
+    (p) => !p.fields['Property Lat'] || !p.fields['Property Lng']
+  );
+
+  if (propertiesToGeocode.length > 0) {
+    console.log(`[Matching] Geocoding ${propertiesToGeocode.length} properties without coordinates`);
+
+    for (const property of propertiesToGeocode) {
+      try {
+        const result = await geocodePropertyLocation({
+          address: property.fields['Address'],
+          city: property.fields['City'],
+          state: property.fields['State'],
+          zipCode: property.fields['Zip Code'] || property.fields['ZIP Code'],
+        });
+
+        if (result) {
+          // Update property record with coordinates
+          await updateRecordCoordinates(
+            'Properties',
+            property.id,
+            {
+              'Property Lat': result.lat,
+              'Property Lng': result.lng,
+            },
+            headers
+          );
+
+          // Update the in-memory property object
+          property.fields['Property Lat'] = result.lat;
+          property.fields['Property Lng'] = result.lng;
+
+          geocodedProperties++;
+        }
+
+        // Rate limit: 10 requests per second
+        await delay(100);
+      } catch (error) {
+        console.error(`[Matching] Error geocoding property ${property.id}:`, error);
+      }
+    }
+  }
+
+  console.log(`[Matching] Geocoding complete: ${geocodedBuyers} buyers, ${geocodedProperties} properties`);
+  return { geocodedBuyers, geocodedProperties };
+}
+
+/**
+ * Update a record's coordinates in Airtable
+ */
+async function updateRecordCoordinates(
+  table: string,
+  recordId: string,
+  fields: Record<string, any>,
+  headers: any
+): Promise<void> {
+  try {
+    const response = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(table)}/${recordId}`,
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ fields }),
+      }
+    );
+
+    if (!response.ok) {
+      console.warn(`[Matching] Failed to update ${table}/${recordId} coordinates: ${response.status}`);
+    }
+  } catch (error) {
+    console.error(`[Matching] Error updating ${table}/${recordId} coordinates:`, error);
+  }
+}
+
+/**
+ * Parse ZIP codes from string or array
+ */
+function parseZipCodes(value: any): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    return value.split(',').map((z) => z.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+/**
+ * Simple delay helper
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
  * Fetches cached data from System Cache table
@@ -419,9 +579,14 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
       return res.status(200).json({
         success: true,
         message: 'No buyers or properties found to match',
-        stats: { buyersProcessed: 0, propertiesProcessed: 0, matchesCreated: 0, matchesUpdated: 0, duplicatesSkipped: 0, withinRadius: 0 },
+        stats: { buyersProcessed: 0, propertiesProcessed: 0, matchesCreated: 0, matchesUpdated: 0, duplicatesSkipped: 0, withinRadius: 0, geocodedBuyers: 0, geocodedProperties: 0 },
       });
     }
+
+    // Geocode buyers and properties that are missing coordinates
+    console.log('[Matching] Starting geocoding for records without coordinates...');
+    const geocodingResult = await geocodeRecordsWithMissingCoordinates(buyers, properties, headers);
+    console.log(`[Matching] Geocoding complete in ${Date.now() - startTime}ms`);
 
     console.log(`[Matching] Processing ${buyers.length} buyers × ${properties.length} properties = ${buyers.length * properties.length} combinations`);
 
@@ -504,6 +669,7 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
             'Match Notes': matchNotes,
             'Match Status': 'Active',
             'Is Priority': score.isPriority,
+            'Distance (miles)': score.distanceMiles,
           };
 
           // Check if this is an update or create
@@ -601,7 +767,7 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
 
     return res.status(200).json({
       success: true,
-      message: `Matching complete! Created ${matchesCreated} new matches, updated ${matchesUpdated}, skipped ${duplicatesSkipped} duplicates.`,
+      message: `Matching complete! Created ${matchesCreated} new matches, updated ${matchesUpdated}, skipped ${duplicatesSkipped} duplicates. Geocoded ${geocodingResult.geocodedBuyers} buyers and ${geocodingResult.geocodedProperties} properties.`,
       stats: {
         buyersProcessed: buyers.length,
         propertiesProcessed: properties.length,
@@ -609,6 +775,8 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
         matchesUpdated,
         duplicatesSkipped,
         withinRadius,
+        geocodedBuyers: geocodingResult.geocodedBuyers,
+        geocodedProperties: geocodingResult.geocodedProperties,
         timeMs: totalTime,
       },
     });
@@ -695,6 +863,7 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
         'Match Notes': matchNotes,
         'Match Status': 'Active',
         'Is Priority': score.isPriority,
+        'Distance (miles)': score.distanceMiles,
       };
 
       const pairKey = `${buyer.id}:${property.id}`;
@@ -854,6 +1023,7 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
         'Match Notes': matchNotes,
         'Match Status': 'Active',
         'Is Priority': score.isPriority,
+        'Distance (miles)': score.distanceMiles,
       };
 
       const pairKey = `${buyer.id}:${property.id}`;

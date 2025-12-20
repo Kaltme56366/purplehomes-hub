@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse, MatchFilters, MatchActivity, PropertyMatch } from '@/types/matching';
+import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse, MatchFilters, MatchActivity, PropertyMatch, BuyerPropertiesResponse } from '@/types/matching';
 import type { MatchDealStage } from '@/types/associations';
 
 const MATCHING_API_BASE = '/api/matching';
@@ -490,5 +490,79 @@ export const useUpdateMatchStageWithActivity = () => {
 
       return { success: true, ghlRelationId: stageResult.ghlRelationId };
     },
+  });
+};
+
+/**
+ * Fetch all properties for a specific buyer (Zillow-style)
+ * Returns ALL properties scored and sorted by relevance,
+ * split into priority (within 50mi/ZIP) and explore (beyond 50mi) sections.
+ */
+export const useBuyerProperties = (buyerId: string | null) => {
+  return useQuery({
+    queryKey: ['buyer-properties', buyerId],
+    queryFn: async (): Promise<BuyerPropertiesResponse> => {
+      if (!buyerId) {
+        throw new Error('Buyer ID is required');
+      }
+
+      console.log('[Matching API] Fetching all properties for buyer:', buyerId);
+
+      const response = await fetch(`${MATCHING_API_BASE}/buyer-properties?buyerId=${buyerId}`);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to fetch properties' }));
+        throw new Error(error.error || 'Failed to fetch buyer properties');
+      }
+
+      const result = await response.json();
+
+      console.log('[Matching API] Buyer properties fetched:', {
+        buyer: `${result.buyer?.firstName} ${result.buyer?.lastName}`,
+        priorityCount: result.priorityMatches?.length || 0,
+        exploreCount: result.exploreMatches?.length || 0,
+        totalCount: result.totalCount,
+        timeMs: result.stats?.timeMs,
+      });
+
+      return result;
+    },
+    enabled: !!buyerId, // Only run when buyerId is provided
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+/**
+ * Fetch list of all buyers for buyer selector dropdown
+ */
+export const useBuyersList = () => {
+  return useQuery({
+    queryKey: ['buyers-list'],
+    queryFn: async (): Promise<Array<{ recordId: string; contactId: string; firstName: string; lastName: string; email: string }>> => {
+      console.log('[Matching API] Fetching buyers list');
+
+      const response = await fetch(`${MATCHING_API_BASE}/aggregated?type=buyers&limit=100`);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to fetch buyers' }));
+        throw new Error(error.error || 'Failed to fetch buyers list');
+      }
+
+      const result = await response.json();
+
+      // Extract just the fields we need for the dropdown
+      const buyers = (result.data || []).map((buyer: BuyerWithMatches) => ({
+        recordId: buyer.recordId || '',
+        contactId: buyer.contactId,
+        firstName: buyer.firstName,
+        lastName: buyer.lastName,
+        email: buyer.email,
+      }));
+
+      console.log('[Matching API] Buyers list fetched:', buyers.length);
+
+      return buyers;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
