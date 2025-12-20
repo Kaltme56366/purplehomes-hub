@@ -11,6 +11,7 @@ import {
   geocodeBuyerLocation,
   geocodePropertyLocation,
   isMapboxConfigured,
+  geocode,
 } from '../lib/mapbox';
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -67,6 +68,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       case 'run-property':
         return await handleRunPropertyMatching(req, res, headers);
+
+      case 'debug-geocode':
+        return await handleDebugGeocode(req, res, headers);
 
       default:
         return res.status(400).json({ error: 'Unknown action', action });
@@ -1102,6 +1106,77 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
       matchesUpdated,
       withinRadius,
     },
+  });
+}
+
+/**
+ * Debug endpoint to check geocoding configuration
+ */
+async function handleDebugGeocode(req: VercelRequest, res: VercelResponse, headers: any) {
+  const mapboxConfigured = isMapboxConfigured();
+  const mapboxTokenLength = process.env.MAPBOX_ACCESS_TOKEN?.length || 0;
+
+  // Test geocoding with a known location
+  let geocodeTest = null;
+  if (mapboxConfigured) {
+    try {
+      geocodeTest = await geocode('New Orleans, LA');
+    } catch (error: any) {
+      geocodeTest = { error: error.message };
+    }
+  }
+
+  // Check a sample buyer and property for Lat/Lng
+  let sampleData = null;
+  try {
+    const [buyersRes, propertiesRes] = await Promise.all([
+      fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?maxRecords=2`, { headers }),
+      fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties?maxRecords=2`, { headers }),
+    ]);
+
+    const buyersData = await buyersRes.json();
+    const propertiesData = await propertiesRes.json();
+
+    sampleData = {
+      buyers: (buyersData.records || []).map((b: any) => ({
+        id: b.id,
+        name: `${b.fields['First Name']} ${b.fields['Last Name']}`,
+        preferredLocation: b.fields['Preferred Location'],
+        city: b.fields['City'],
+        state: b.fields['State'],
+        lat: b.fields['Lat'],
+        lng: b.fields['Lng'],
+        hasCoordinates: !!(b.fields['Lat'] && b.fields['Lng']),
+      })),
+      properties: (propertiesData.records || []).map((p: any) => ({
+        id: p.id,
+        address: p.fields['Address'],
+        city: p.fields['City'],
+        state: p.fields['State'],
+        lat: p.fields['Lat'],
+        lng: p.fields['Lng'],
+        hasCoordinates: !!(p.fields['Lat'] && p.fields['Lng']),
+      })),
+    };
+  } catch (error: any) {
+    sampleData = { error: error.message };
+  }
+
+  return res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    configuration: {
+      mapboxConfigured,
+      mapboxTokenLength,
+      mapboxTokenPrefix: process.env.MAPBOX_ACCESS_TOKEN?.substring(0, 10) + '...',
+    },
+    geocodeTest,
+    sampleData,
+    diagnosis: !mapboxConfigured
+      ? '❌ MAPBOX_ACCESS_TOKEN is not set in Vercel environment variables'
+      : geocodeTest && typeof geocodeTest === 'object' && 'error' in geocodeTest
+      ? '❌ Mapbox token is invalid or API error'
+      : '✅ Geocoding is configured and working',
   });
 }
 
