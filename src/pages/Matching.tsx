@@ -9,7 +9,6 @@ import { useBuyersWithMatches, usePropertiesWithMatches, useRunMatching, useRunB
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { MatchTags } from '@/components/matching/MatchTags';
 import { MatchDetailModal, MatchWithDetails } from '@/components/matching/MatchDetailModal';
-import { BuyerPropertiesView } from '@/components/matching/BuyerPropertiesView';
 import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
@@ -36,7 +35,7 @@ type SortOption = 'matches-high' | 'matches-low' | 'name-az' | 'name-za';
 
 export default function Matching() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'buyers' | 'properties' | 'buyer-properties'>('buyers');
+  const [activeTab, setActiveTab] = useState<'buyers' | 'properties'>('buyers');
   const [sendingEmails, setSendingEmails] = useState<Set<string>>(new Set());
   const [sendingSingleProperty, setSendingSingleProperty] = useState<Set<string>>(new Set());
   const [sortBy, setSortBy] = useState<SortOption>('matches-high');
@@ -540,8 +539,8 @@ export default function Matching() {
 
       {/* Content Area */}
       <div className="px-6">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'buyers' | 'properties' | 'buyer-properties')}>
-          <TabsList className="grid w-full max-w-lg grid-cols-3">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'buyers' | 'properties')}>
+          <TabsList className="grid w-full max-w-md grid-cols-2">
             <TabsTrigger value="buyers" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Buyers ({buyers?.length || 0})
@@ -549,10 +548,6 @@ export default function Matching() {
             <TabsTrigger value="properties" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Properties ({properties?.length || 0})
-            </TabsTrigger>
-            <TabsTrigger value="buyer-properties" className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              Buyer Properties
             </TabsTrigger>
           </TabsList>
 
@@ -1086,10 +1081,6 @@ export default function Matching() {
           )}
         </TabsContent>
 
-        {/* Buyer Properties View - Zillow-style all properties for a buyer */}
-        <TabsContent value="buyer-properties" className="mt-6">
-          <BuyerPropertiesView />
-        </TabsContent>
         </Tabs>
       </div>
 
