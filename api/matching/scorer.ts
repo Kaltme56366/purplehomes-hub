@@ -1,10 +1,15 @@
 /**
  * Property Match Scoring Module
  * Implements hybrid location matching: ZIP codes + distance-based scoring
+ *
+ * Supports two modes:
+ * 1. Sync (generateMatchScore) - Uses pre-geocoded coordinates from Airtable
+ * 2. Async (generateMatchScoreAsync) - Falls back to live geocoding if coords missing
  */
 
 import { matchPropertyZip } from './zipMatcher';
 import { calculateDistance } from './distanceCalculator';
+import { getOrGeocodeLocation, extractCityFromAddress } from './geocache';
 
 export interface MatchScore {
   score: number;
@@ -369,4 +374,81 @@ function calculateDistanceScore(distanceMiles: number, buyerCity: string): {
     reason: `${distanceMiles.toFixed(0)} mi away`,
     priority: false,
   };
+}
+
+/**
+ * Async version of generateMatchScore with live geocoding fallback
+ *
+ * If buyer or property coordinates are missing in Airtable,
+ * this function will attempt to geocode them using Mapbox.
+ *
+ * Use this version when scoring ALL properties for a buyer (Zillow-style view)
+ * where real-time distance calculation is important.
+ *
+ * @param buyer - Buyer record from Airtable
+ * @param property - Property record from Airtable
+ * @returns Promise<MatchScore> with detailed scoring breakdown
+ */
+export async function generateMatchScoreAsync(buyer: any, property: any): Promise<MatchScore> {
+  const buyerFields = buyer.fields;
+  const propertyFields = property.fields;
+
+  // Extract buyer location data
+  const buyerCity = buyerFields['City'] || buyerFields['Preferred Location'] || '';
+  const buyerState = buyerFields['State'] || 'LA';
+  let buyerLat = buyerFields['Lat'];
+  let buyerLng = buyerFields['Lng'];
+
+  // Extract property location data
+  const propertyAddress = propertyFields['Address'] || '';
+  const propertyCity = propertyFields['City'] || '';
+  const propertyState = propertyFields['State'] || buyerState || 'LA';
+  let propertyLat = propertyFields['Lat'];
+  let propertyLng = propertyFields['Lng'];
+
+  // Geocode buyer if coordinates missing but city is available
+  if (!isValidCoordinate(buyerLat) || !isValidCoordinate(buyerLng)) {
+    if (buyerCity) {
+      const coords = await getOrGeocodeLocation(buyerCity, buyerState);
+      if (coords) {
+        buyerLat = coords.lat;
+        buyerLng = coords.lng;
+      }
+    }
+  }
+
+  // Geocode property if coordinates missing
+  if (!isValidCoordinate(propertyLat) || !isValidCoordinate(propertyLng)) {
+    // Try full address first, then city
+    const locationToGeocode = propertyAddress || propertyCity;
+    if (locationToGeocode) {
+      const coords = await getOrGeocodeLocation(locationToGeocode, propertyState);
+      if (coords) {
+        propertyLat = coords.lat;
+        propertyLng = coords.lng;
+      }
+    }
+  }
+
+  // Now call the sync scorer with potentially updated coordinates
+  // Create modified records with geocoded coordinates
+  const buyerWithCoords = {
+    ...buyer,
+    fields: {
+      ...buyerFields,
+      'Lat': buyerLat,
+      'Lng': buyerLng,
+    },
+  };
+
+  const propertyWithCoords = {
+    ...property,
+    fields: {
+      ...propertyFields,
+      'Lat': propertyLat,
+      'Lng': propertyLng,
+    },
+  };
+
+  return generateMatchScore(buyerWithCoords, propertyWithCoords);
 }

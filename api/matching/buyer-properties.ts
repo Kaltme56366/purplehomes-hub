@@ -16,7 +16,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { generateMatchScore } from './scorer';
+import { generateMatchScoreAsync } from './scorer';
 import type { MatchScore } from './scorer';
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -114,34 +114,41 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const properties = await fetchAllProperties(headers);
     console.log(`[Buyer Properties] Fetched ${properties.length} properties`);
 
-    // Score every property
+    // Score every property with async geocoding fallback
     const scoredProperties: ScoredProperty[] = [];
+    const buyerRecord = { id: buyer.recordId, fields: buyerToFields(buyer) };
 
-    for (const property of properties) {
-      const score = generateMatchScore(
-        { id: buyer.recordId, fields: buyerToFields(buyer) },
-        property
+    // Process properties in batches for better performance
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < properties.length; i += BATCH_SIZE) {
+      const batch = properties.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(
+        batch.map(async (property) => {
+          const score = await generateMatchScoreAsync(buyerRecord, property);
+          return {
+            property: {
+              recordId: property.id,
+              propertyCode: property.fields['Property Code'] || '',
+              opportunityId: property.fields['Opportunity ID'],
+              address: property.fields['Address'] || '',
+              city: property.fields['City'] || '',
+              state: property.fields['State'],
+              zipCode: property.fields['Zip Code'] || property.fields['ZIP Code'],
+              price: property.fields['Property Total Price'] || property.fields['Price'],
+              beds: property.fields['Beds'] || 0,
+              baths: property.fields['Baths'] || 0,
+              sqft: property.fields['Sqft'],
+              stage: property.fields['Stage'],
+              heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
+              notes: property.fields['Notes'] || property.fields['Description'] || '',
+            },
+            score,
+          };
+        })
       );
 
-      scoredProperties.push({
-        property: {
-          recordId: property.id,
-          propertyCode: property.fields['Property Code'] || '',
-          opportunityId: property.fields['Opportunity ID'],
-          address: property.fields['Address'] || '',
-          city: property.fields['City'] || '',
-          state: property.fields['State'],
-          zipCode: property.fields['Zip Code'] || property.fields['ZIP Code'],
-          price: property.fields['Property Total Price'] || property.fields['Price'],
-          beds: property.fields['Beds'] || 0,
-          baths: property.fields['Baths'] || 0,
-          sqft: property.fields['Sqft'],
-          stage: property.fields['Stage'],
-          heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
-          notes: property.fields['Notes'] || property.fields['Description'] || '',
-        },
-        score,
-      });
+      scoredProperties.push(...batchResults);
     }
 
     // Sort by score descending
@@ -297,8 +304,9 @@ function recordToBuyer(record: any): BuyerRecord {
     preferredLocation: fields['Preferred Location'],
     preferredZipCodes,
     buyerType: fields['Buyer Type'],
-    locationLat: fields['Location Lat'],
-    locationLng: fields['Location Lng'],
+    // Coordinates - try multiple field name variations for compatibility
+    locationLat: fields['Lat'] ?? fields['Location Lat'],
+    locationLng: fields['Lng'] ?? fields['Location Lng'],
   };
 }
 
@@ -321,7 +329,8 @@ function buyerToFields(buyer: BuyerRecord): Record<string, any> {
     'Preferred Location': buyer.preferredLocation,
     'Preferred Zip Codes': buyer.preferredZipCodes?.join(', '),
     'Buyer Type': buyer.buyerType,
-    'Location Lat': buyer.locationLat,
-    'Location Lng': buyer.locationLng,
+    // Use 'Lat'/'Lng' to match scorer.ts expectations
+    'Lat': buyer.locationLat,
+    'Lng': buyer.locationLng,
   };
 }
