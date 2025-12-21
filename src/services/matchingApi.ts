@@ -508,7 +508,7 @@ export const useBuyerProperties = (buyerId: string | null) => {
 
       console.log('[Matching API] Fetching all properties for buyer:', buyerId);
 
-      const response = await fetch(`${MATCHING_API_BASE}/buyer-properties?buyerId=${buyerId}`);
+      const response = await fetch(`${MATCHING_API_BASE}?action=buyer-properties&buyerId=${buyerId}`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch properties' }));
