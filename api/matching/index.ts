@@ -15,14 +15,14 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { generateMatchScore } from './scorer';
-import type { MatchScore } from './scorer';
+import { generateMatchScore } from '../../lib/matching/scorer';
+import type { MatchScore } from '../../lib/matching/scorer';
 import {
   geocodeBuyerLocation,
   geocodePropertyLocation,
   isMapboxConfigured,
   geocode,
-} from '../lib/mapbox';
+} from '../../lib/mapbox';
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
