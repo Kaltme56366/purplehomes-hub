@@ -184,3 +184,23 @@ export interface BuyerPropertiesResponse {
     timeMs: number;
   };
 }
+
+/**
+ * Scored buyer for property-buyers endpoint
+ */
+export interface ScoredBuyer {
+  buyer: BuyerCriteria;
+  score: MatchScore;
+}
+
+/**
+ * Response from property-buyers endpoint
+ */
+export interface PropertyBuyersResponse {
+  property: PropertyDetails;
+  buyers: ScoredBuyer[]; // All buyers sorted by score
+  totalCount: number;
+  stats: {
+    timeMs: number;
+  };
+}

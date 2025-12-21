@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse, MatchFilters, MatchActivity, PropertyMatch, BuyerPropertiesResponse } from '@/types/matching';
+import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse, MatchFilters, MatchActivity, PropertyMatch, BuyerPropertiesResponse, PropertyBuyersResponse } from '@/types/matching';
 import type { MatchDealStage } from '@/types/associations';
 
 const MATCHING_API_BASE = '/api/matching';
@@ -528,6 +528,43 @@ export const useBuyerProperties = (buyerId: string | null) => {
       return result;
     },
     enabled: !!buyerId, // Only run when buyerId is provided
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+/**
+ * Fetch all buyers scored for a specific property
+ * Returns buyers sorted by match score (property-centric view)
+ */
+export const usePropertyBuyers = (propertyCode: string | null) => {
+  return useQuery({
+    queryKey: ['property-buyers', propertyCode],
+    queryFn: async (): Promise<PropertyBuyersResponse> => {
+      if (!propertyCode) {
+        throw new Error('Property code is required');
+      }
+
+      console.log('[Matching API] Fetching all buyers for property:', propertyCode);
+
+      const response = await fetch(`${MATCHING_API_BASE}?action=property-buyers&propertyCode=${propertyCode}`);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to fetch property buyers' }));
+        throw new Error(error.error || 'Failed to fetch property buyers');
+      }
+
+      const result = await response.json();
+
+      console.log('[Matching API] Property buyers fetched:', {
+        property: result.property?.address,
+        buyersCount: result.buyers?.length || 0,
+        totalCount: result.totalCount,
+        timeMs: result.stats?.timeMs,
+      });
+
+      return result;
+    },
+    enabled: !!propertyCode, // Only run when propertyCode is provided
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };

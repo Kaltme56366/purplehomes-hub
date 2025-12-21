@@ -170,11 +170,32 @@ function PropertyCard({ scoredProperty, isExplore = false, buyer }: PropertyCard
   );
 }
 
-export function BuyerPropertiesView() {
-  const [selectedBuyerId, setSelectedBuyerId] = useState<string | null>(null);
+interface BuyerPropertiesViewProps {
+  selectedBuyerId?: string | null;
+  onBuyerSelect?: (buyerId: string | null) => void;
+}
+
+export function BuyerPropertiesView({
+  selectedBuyerId: externalBuyerId,
+  onBuyerSelect,
+}: BuyerPropertiesViewProps = {}) {
+  // Use internal state as fallback when no external state is provided
+  const [internalBuyerId, setInternalBuyerId] = useState<string | null>(null);
+
+  // Use external state if provided, otherwise use internal state
+  const buyerId = externalBuyerId !== undefined ? externalBuyerId : internalBuyerId;
+
+  // Use external handler if provided, otherwise use internal setter
+  const handleBuyerSelect = (newBuyerId: string | null) => {
+    if (onBuyerSelect) {
+      onBuyerSelect(newBuyerId);
+    } else {
+      setInternalBuyerId(newBuyerId);
+    }
+  };
 
   const { data: buyersList, isLoading: loadingBuyers } = useBuyersList();
-  const { data: buyerProperties, isLoading: loadingProperties, error } = useBuyerProperties(selectedBuyerId);
+  const { data: buyerProperties, isLoading: loadingProperties, error } = useBuyerProperties(buyerId);
 
   return (
     <div className="space-y-6">
@@ -186,8 +207,8 @@ export function BuyerPropertiesView() {
             <span>Select Buyer:</span>
           </div>
           <Select
-            value={selectedBuyerId || ''}
-            onValueChange={(value) => setSelectedBuyerId(value || null)}
+            value={buyerId || ''}
+            onValueChange={(value) => handleBuyerSelect(value || null)}
           >
             <SelectTrigger className="w-[300px]">
               <SelectValue placeholder="Choose a buyer to see their matches..." />

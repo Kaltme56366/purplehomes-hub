@@ -114,6 +114,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         return await handleClearMatches(req, res, headers);
 
+      // Buyer-properties endpoint (Zillow-style: all properties for a buyer)
+      case 'buyer-properties':
+        if (req.method !== 'GET') {
+          return res.status(405).json({ error: 'Method not allowed' });
+        }
+        return await handleBuyerProperties(req, res, headers);
+
+      // Property-buyers endpoint (all buyers for a property)
+      case 'property-buyers':
+        if (req.method !== 'GET') {
+          return res.status(405).json({ error: 'Method not allowed' });
+        }
+        return await handlePropertyBuyers(req, res, headers);
+
       default:
         return res.status(400).json({ error: 'Unknown action', action });
     }
@@ -1731,6 +1745,314 @@ async function handleClearMatches(
       error: 'Failed to clear matches',
       details: String(error),
     });
+  }
+}
+
+// ============================================================================
+// BUYER-PROPERTIES ENDPOINT (Zillow-style property browsing for a buyer)
+// ============================================================================
+
+/**
+ * Fetch all properties scored for a specific buyer
+ * Returns properties split into priority (within 50mi/ZIP) and explore (beyond 50mi)
+ */
+async function handleBuyerProperties(
+  req: VercelRequest,
+  res: VercelResponse,
+  headers: any
+) {
+  const startTime = Date.now();
+  const { buyerId } = req.query;
+
+  if (!buyerId || typeof buyerId !== 'string') {
+    return res.status(400).json({ error: 'buyerId is required' });
+  }
+
+  console.log('[Buyer Properties] Fetching all properties for buyer:', buyerId);
+
+  try {
+    // Step 1: Fetch buyer from cache or Airtable
+    let buyersData = await fetchCachedData('buyers', headers);
+    let allBuyers = buyersData?.records || [];
+
+    if (!buyersData || allBuyers.length === 0) {
+      console.log('[Buyer Properties] Cache miss - fetching buyers from Airtable...');
+      const buyersRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers`, { headers });
+      if (!buyersRes.ok) throw new Error('Failed to fetch buyers');
+      const directBuyersData = await buyersRes.json();
+      allBuyers = directBuyersData.records || [];
+    }
+
+    // Find the buyer by record ID
+    const buyer = allBuyers.find((b: any) => b.id === buyerId);
+
+    if (!buyer) {
+      return res.status(404).json({ error: 'Buyer not found' });
+    }
+
+    console.log(`[Buyer Properties] Found buyer: ${buyer.fields['First Name']} ${buyer.fields['Last Name']}`);
+
+    // Step 2: Fetch all properties from cache or Airtable
+    let propertiesData = await fetchCachedData('properties', headers);
+    let properties = propertiesData?.records || [];
+
+    if (!propertiesData || properties.length === 0) {
+      console.log('[Buyer Properties] Cache miss - fetching properties from Airtable...');
+      const propertiesRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties`, { headers });
+      if (!propertiesRes.ok) throw new Error('Failed to fetch properties');
+      const directPropertiesData = await propertiesRes.json();
+      properties = directPropertiesData.records || [];
+    }
+
+    console.log(`[Buyer Properties] Scoring ${properties.length} properties for buyer`);
+
+    // Step 3: Score all properties for this buyer
+    const scoredProperties = properties.map((property: any) => {
+      const score = generateMatchScore(buyer, property);
+
+      return {
+        property: {
+          recordId: property.id,
+          propertyCode: property.fields['Property Code'] || '',
+          opportunityId: property.fields['Opportunity ID'],
+          address: property.fields['Address'] || '',
+          city: property.fields['City'] || '',
+          state: property.fields['State'],
+          zipCode: property.fields['Zip Code'] || property.fields['ZIP Code'] || extractZipFromCity(property.fields['City']),
+          price: property.fields['Property Total Price'] || property.fields['Price'],
+          beds: property.fields['Beds'] || 0,
+          baths: property.fields['Baths'] || 0,
+          sqft: property.fields['Sqft'],
+          stage: property.fields['Stage'],
+          heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
+          notes: property.fields['Notes'] || property.fields['Description'] || '',
+          propertyLat: property.fields['Lat'],
+          propertyLng: property.fields['Lng'],
+        },
+        score: {
+          score: score.score,
+          locationScore: score.locationScore,
+          bedsScore: score.bedsScore,
+          bathsScore: score.bathsScore,
+          budgetScore: score.budgetScore,
+          reasoning: score.reasoning,
+          locationReason: score.locationReason,
+          highlights: score.highlights,
+          concerns: score.concerns || [],
+          isPriority: score.isPriority,
+          distanceMiles: score.distanceMiles,
+        },
+      };
+    });
+
+    // Step 4: Split into priority and explore, sort by score
+    const priorityMatches = scoredProperties
+      .filter((sp: any) => sp.score.isPriority)
+      .sort((a: any, b: any) => b.score.score - a.score.score);
+
+    const exploreMatches = scoredProperties
+      .filter((sp: any) => !sp.score.isPriority)
+      .sort((a: any, b: any) => b.score.score - a.score.score);
+
+    // Step 5: Prepare buyer info for response
+    const zipCodesRaw = buyer.fields['Preferred Zip Codes'] || buyer.fields['Zip Codes'] || '';
+    const preferredZipCodes = typeof zipCodesRaw === 'string'
+      ? zipCodesRaw.split(',').map((z: string) => z.trim()).filter(Boolean)
+      : Array.isArray(zipCodesRaw) ? zipCodesRaw : [];
+
+    const buyerInfo = {
+      contactId: buyer.fields['Contact ID'] || '',
+      recordId: buyer.id,
+      firstName: buyer.fields['First Name'] || '',
+      lastName: buyer.fields['Last Name'] || '',
+      email: buyer.fields['Email'] || '',
+      monthlyIncome: buyer.fields['Monthly Income'],
+      monthlyLiabilities: buyer.fields['Monthly Liabilities'],
+      downPayment: buyer.fields['Downpayment'],
+      desiredBeds: buyer.fields['No. of Bedrooms'],
+      desiredBaths: buyer.fields['No. of Bath'],
+      city: buyer.fields['City'],
+      state: buyer.fields['State'],
+      location: buyer.fields['Location'],
+      preferredLocation: buyer.fields['Preferred Location'] || buyer.fields['Location'],
+      preferredZipCodes,
+      buyerType: buyer.fields['Buyer Type'],
+      lat: buyer.fields['Lat'],
+      lng: buyer.fields['Lng'],
+      locationLat: buyer.fields['Lat'],
+      locationLng: buyer.fields['Lng'],
+      locationSource: buyer.fields['Lat'] && buyer.fields['Lng'] ? 'city' as const : undefined,
+    };
+
+    const totalTime = Date.now() - startTime;
+
+    console.log(`[Buyer Properties] Completed in ${totalTime}ms - ${priorityMatches.length} priority, ${exploreMatches.length} explore`);
+
+    return res.status(200).json({
+      buyer: buyerInfo,
+      priorityMatches,
+      exploreMatches,
+      totalCount: scoredProperties.length,
+      stats: {
+        priorityCount: priorityMatches.length,
+        exploreCount: exploreMatches.length,
+        timeMs: totalTime,
+      },
+    });
+
+  } catch (error) {
+    console.error('[Buyer Properties] Error:', error);
+    throw error;
+  }
+}
+
+// ============================================================================
+// PROPERTY-BUYERS ENDPOINT (All buyers for a property)
+// ============================================================================
+
+/**
+ * Fetch all buyers scored for a specific property
+ * Returns buyers sorted by match score
+ */
+async function handlePropertyBuyers(
+  req: VercelRequest,
+  res: VercelResponse,
+  headers: any
+) {
+  const startTime = Date.now();
+  const { propertyCode } = req.query;
+
+  if (!propertyCode || typeof propertyCode !== 'string') {
+    return res.status(400).json({ error: 'propertyCode is required' });
+  }
+
+  console.log('[Property Buyers] Fetching all buyers for property:', propertyCode);
+
+  try {
+    // Step 1: Fetch property from cache or Airtable
+    let propertiesData = await fetchCachedData('properties', headers);
+    let allProperties = propertiesData?.records || [];
+
+    if (!propertiesData || allProperties.length === 0) {
+      console.log('[Property Buyers] Cache miss - fetching properties from Airtable...');
+      const propertiesRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties`, { headers });
+      if (!propertiesRes.ok) throw new Error('Failed to fetch properties');
+      const directPropertiesData = await propertiesRes.json();
+      allProperties = directPropertiesData.records || [];
+    }
+
+    // Find the property by record ID or property code
+    const property = allProperties.find(
+      (p: any) => p.id === propertyCode || p.fields['Property Code'] === propertyCode
+    );
+
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+
+    console.log(`[Property Buyers] Found property: ${property.fields['Address']}`);
+
+    // Step 2: Fetch all buyers from cache or Airtable
+    let buyersData = await fetchCachedData('buyers', headers);
+    let buyers = buyersData?.records || [];
+
+    if (!buyersData || buyers.length === 0) {
+      console.log('[Property Buyers] Cache miss - fetching buyers from Airtable...');
+      const buyersRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers`, { headers });
+      if (!buyersRes.ok) throw new Error('Failed to fetch buyers');
+      const directBuyersData = await buyersRes.json();
+      buyers = directBuyersData.records || [];
+    }
+
+    console.log(`[Property Buyers] Scoring ${buyers.length} buyers for property`);
+
+    // Step 3: Score all buyers for this property
+    const scoredBuyers = buyers.map((buyer: any) => {
+      const score = generateMatchScore(buyer, property);
+
+      const zipCodesRaw = buyer.fields['Preferred Zip Codes'] || buyer.fields['Zip Codes'] || '';
+      const preferredZipCodes = typeof zipCodesRaw === 'string'
+        ? zipCodesRaw.split(',').map((z: string) => z.trim()).filter(Boolean)
+        : Array.isArray(zipCodesRaw) ? zipCodesRaw : [];
+
+      return {
+        buyer: {
+          contactId: buyer.fields['Contact ID'] || '',
+          recordId: buyer.id,
+          firstName: buyer.fields['First Name'] || '',
+          lastName: buyer.fields['Last Name'] || '',
+          email: buyer.fields['Email'] || '',
+          monthlyIncome: buyer.fields['Monthly Income'],
+          monthlyLiabilities: buyer.fields['Monthly Liabilities'],
+          downPayment: buyer.fields['Downpayment'],
+          desiredBeds: buyer.fields['No. of Bedrooms'],
+          desiredBaths: buyer.fields['No. of Bath'],
+          city: buyer.fields['City'],
+          state: buyer.fields['State'],
+          location: buyer.fields['Location'],
+          preferredLocation: buyer.fields['Preferred Location'] || buyer.fields['Location'],
+          preferredZipCodes,
+          buyerType: buyer.fields['Buyer Type'],
+          lat: buyer.fields['Lat'],
+          lng: buyer.fields['Lng'],
+        },
+        score: {
+          score: score.score,
+          locationScore: score.locationScore,
+          bedsScore: score.bedsScore,
+          bathsScore: score.bathsScore,
+          budgetScore: score.budgetScore,
+          reasoning: score.reasoning,
+          locationReason: score.locationReason,
+          highlights: score.highlights,
+          concerns: score.concerns || [],
+          isPriority: score.isPriority,
+          distanceMiles: score.distanceMiles,
+        },
+      };
+    });
+
+    // Step 4: Filter by minimum score (e.g., 30) and sort by score descending
+    const qualifiedBuyers = scoredBuyers
+      .filter((sb: any) => sb.score.score >= 30)
+      .sort((a: any, b: any) => b.score.score - a.score.score);
+
+    // Step 5: Prepare property info for response
+    const propertyInfo = {
+      recordId: property.id,
+      propertyCode: property.fields['Property Code'] || '',
+      opportunityId: property.fields['Opportunity ID'],
+      address: property.fields['Address'] || '',
+      city: property.fields['City'] || '',
+      state: property.fields['State'],
+      zipCode: property.fields['Zip Code'] || property.fields['ZIP Code'] || extractZipFromCity(property.fields['City']),
+      price: property.fields['Property Total Price'] || property.fields['Price'],
+      beds: property.fields['Beds'] || 0,
+      baths: property.fields['Baths'] || 0,
+      sqft: property.fields['Sqft'],
+      stage: property.fields['Stage'],
+      heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
+      notes: property.fields['Notes'] || property.fields['Description'] || '',
+      propertyLat: property.fields['Lat'],
+      propertyLng: property.fields['Lng'],
+    };
+
+    const totalTime = Date.now() - startTime;
+
+    console.log(`[Property Buyers] Completed in ${totalTime}ms - ${qualifiedBuyers.length} qualified buyers`);
+
+    return res.status(200).json({
+      property: propertyInfo,
+      buyers: qualifiedBuyers,
+      totalCount: qualifiedBuyers.length,
+      stats: {
+        timeMs: totalTime,
+      },
+    });
+
+  } catch (error) {
+    console.error('[Property Buyers] Error:', error);
+    throw error;
   }
 }
 
