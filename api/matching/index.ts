@@ -2,6 +2,16 @@
  * Property Matching API
  * Handles running matching between buyers and properties
  * Uses hybrid location scoring: ZIP codes + Mapbox geocoding
+ *
+ * Consolidated endpoints:
+ * - action=run - Run full matching
+ * - action=run-buyer - Run matching for single buyer
+ * - action=run-property - Run matching for single property
+ * - action=health - Health check
+ * - action=debug-geocode - Debug geocoding config
+ * - action=aggregated-buyers - Fetch buyers with matches (aggregated)
+ * - action=aggregated-properties - Fetch properties with matches (aggregated)
+ * - action=clear - Clear all matches (DELETE method)
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -17,6 +27,18 @@ import {
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const AIRTABLE_API_URL = 'https://api.airtable.com/v0';
+
+// In-memory cache for aggregated endpoints (semi-static data)
+const aggregatedBuyersCache = new Map<string, { data: any[], timestamp: number }>();
+const aggregatedPropertiesCache = new Map<string, { data: any[], timestamp: number }>();
+const AGGREGATED_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Helper to extract ZIP code from city string (e.g., "Kenner, LA 70062" -> "70062")
+function extractZipFromCity(city: string | undefined): string | undefined {
+  if (!city) return undefined;
+  const match = city.match(/\b\d{5}\b/);
+  return match ? match[0] : undefined;
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log('[Matching API] Request:', {
@@ -71,6 +93,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       case 'debug-geocode':
         return await handleDebugGeocode(req, res, headers);
+
+      // Aggregated endpoints (merged from aggregated.ts)
+      case 'aggregated-buyers':
+        if (req.method !== 'GET') {
+          return res.status(405).json({ error: 'Method not allowed' });
+        }
+        return await handleAggregatedBuyers(req, res, headers);
+
+      case 'aggregated-properties':
+        if (req.method !== 'GET') {
+          return res.status(405).json({ error: 'Method not allowed' });
+        }
+        return await handleAggregatedProperties(req, res, headers);
+
+      // Clear matches endpoint (merged from clear.ts)
+      case 'clear':
+        if (req.method !== 'DELETE') {
+          return res.status(405).json({ error: 'Method not allowed. Use DELETE.' });
+        }
+        return await handleClearMatches(req, res, headers);
 
       default:
         return res.status(400).json({ error: 'Unknown action', action });
@@ -1178,5 +1220,517 @@ async function handleDebugGeocode(req: VercelRequest, res: VercelResponse, heade
       ? '❌ Mapbox token is invalid or API error'
       : '✅ Geocoding is configured and working',
   });
+}
+
+// ============================================================================
+// AGGREGATED ENDPOINTS (merged from aggregated.ts)
+// ============================================================================
+
+/**
+ * Fetch buyers with their matches in an optimized way
+ * Solves the N+1 query problem by doing server-side aggregation
+ */
+async function handleAggregatedBuyers(
+  req: VercelRequest,
+  res: VercelResponse,
+  headers: any
+) {
+  const startTime = Date.now();
+
+  const {
+    limit = '50',
+    offset = '',
+    matchStatus,
+    minScore = '30',
+    priorityOnly = 'false',
+    matchLimit = '25',
+    dateRange = 'all',
+  } = req.query;
+
+  const filters = {
+    matchStatus: matchStatus as string | undefined,
+    minScore: parseInt(minScore as string),
+    priorityOnly: priorityOnly === 'true',
+    matchLimit: parseInt(matchLimit as string),
+    dateRange: dateRange as string,
+  };
+
+  const limitNum = parseInt(limit as string);
+  const offsetStr = offset as string;
+
+  // Step 1: Fetch buyers (paginated) with caching
+  console.log(`[Aggregated] Fetching buyers with limit=${limitNum}, offset=${offsetStr}`);
+
+  const buyersCacheKey = `buyers-${limitNum}-${offsetStr}`;
+  const cachedBuyers = aggregatedBuyersCache.get(buyersCacheKey);
+
+  let buyers: any[];
+  let buyersData: any;
+
+  if (cachedBuyers && Date.now() - cachedBuyers.timestamp < AGGREGATED_CACHE_TTL) {
+    console.log(`[Aggregated] Using cached buyers (age: ${Math.floor((Date.now() - cachedBuyers.timestamp) / 1000)}s)`);
+    buyers = cachedBuyers.data;
+    buyersData = { records: buyers, offset: undefined };
+  } else {
+    const buyersUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?maxRecords=${limitNum}${offsetStr ? `&offset=${offsetStr}` : ''}`;
+
+    const buyersRes = await fetch(buyersUrl, { headers });
+    if (!buyersRes.ok) {
+      throw new Error(`Failed to fetch buyers: ${buyersRes.status} ${buyersRes.statusText}`);
+    }
+
+    buyersData = await buyersRes.json();
+    buyers = buyersData.records || [];
+
+    aggregatedBuyersCache.set(buyersCacheKey, { data: buyers, timestamp: Date.now() });
+    console.log(`[Aggregated] Cached buyers data`);
+  }
+
+  console.log(`[Aggregated] Fetched ${buyers.length} buyers in ${Date.now() - startTime}ms`);
+
+  if (buyers.length === 0) {
+    return res.status(200).json({
+      data: [],
+      nextOffset: null,
+      stats: { buyers: 0, matches: 0, properties: 0, timeMs: Date.now() - startTime },
+    });
+  }
+
+  // Step 2: Fetch ALL matches for these buyers in ONE call
+  const buyerContactIds = buyers.map((b: any) => b.fields['Contact ID']).filter((id: string) => id);
+  const matchesFormula = `OR(${buyerContactIds.map((id: string) => `{Contact ID (for GHL)} = "${id}"`).join(',')})`;
+
+  console.log(`[Aggregated] Fetching matches for ${buyerContactIds.length} buyers`);
+
+  const matchesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${encodeURIComponent(matchesFormula)}`;
+
+  const matchesRes = await fetch(matchesUrl, { headers });
+  const matchesData = matchesRes.ok ? await matchesRes.json() : { records: [] };
+  const allMatches = matchesData.records || [];
+
+  console.log(`[Aggregated] Fetched ${allMatches.length} matches in ${Date.now() - startTime}ms`);
+
+  // Step 3: Get unique property IDs and batch fetch properties
+  const propertyIds = [
+    ...new Set(
+      allMatches.flatMap((m: any) => m.fields['Property Code'] || [])
+    ),
+  ];
+
+  let propertiesMap: Record<string, any> = {};
+
+  if (propertyIds.length > 0) {
+    console.log(`[Aggregated] Batch fetching ${propertyIds.length} properties`);
+
+    const propertiesFormula = `OR(${(propertyIds as string[]).map((id) => `RECORD_ID()="${id}"`).join(',')})`;
+    const propertiesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties?filterByFormula=${encodeURIComponent(propertiesFormula)}`;
+
+    const propertiesRes = await fetch(propertiesUrl, { headers });
+    if (propertiesRes.ok) {
+      const propertiesData = await propertiesRes.json();
+      propertiesMap = Object.fromEntries(
+        (propertiesData.records || []).map((p: any) => [p.id, p])
+      );
+    }
+  }
+
+  console.log(`[Aggregated] Fetched ${Object.keys(propertiesMap).length} properties in ${Date.now() - startTime}ms`);
+
+  // Step 4: Assemble the response with pre-joined data
+  const buyersWithMatches = buyers.map((buyer: any) => {
+    const buyerContactId = buyer.fields['Contact ID'];
+
+    const buyerMatches = allMatches
+      .filter((m: any) => {
+        const matchContactId = m.fields['Contact ID (for GHL)'] || '';
+        if (matchContactId !== buyerContactId) return false;
+
+        const score = m.fields['Match Score'] || 0;
+        if (score < filters.minScore) return false;
+
+        if (filters.matchStatus && m.fields['Match Status'] !== filters.matchStatus) return false;
+        if (filters.priorityOnly && !m.fields['Is Priority']) return false;
+
+        if (filters.dateRange && filters.dateRange !== 'all') {
+          const createdTime = new Date(m.createdTime);
+          const now = new Date();
+          const daysAgo = filters.dateRange === '7days' ? 7 : 30;
+          const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+          if (createdTime < cutoffDate) return false;
+        }
+
+        return true;
+      })
+      .sort((a: any, b: any) => (b.fields['Match Score'] || 0) - (a.fields['Match Score'] || 0))
+      .slice(0, filters.matchLimit)
+      .map((match: any) => {
+        const propertyRecordId = match.fields['Property Code']?.[0];
+        const property = propertiesMap[propertyRecordId];
+
+        return {
+          id: match.id,
+          buyerRecordId: buyer.id,
+          propertyRecordId: propertyRecordId || '',
+          contactId: buyer.fields['Contact ID'] || '',
+          propertyCode: property?.fields['Property Code'] || '',
+          score: match.fields['Match Score'] || 0,
+          distance: match.fields['Distance (miles)'],
+          reasoning: match.fields['Match Notes'] || '',
+          highlights: [],
+          isPriority: match.fields['Is Priority'],
+          status: match.fields['Match Status'] || 'Active',
+          property: property ? {
+            recordId: property.id,
+            propertyCode: property.fields['Property Code'] || '',
+            opportunityId: property.fields['Opportunity ID'],
+            address: property.fields['Address'] || '',
+            city: property.fields['City'] || '',
+            state: property.fields['State'],
+            zipCode: property.fields['Zip Code'] || property.fields['Zip'] || extractZipFromCity(property.fields['City']),
+            price: property.fields['Price'],
+            beds: property.fields['Beds'] || 0,
+            baths: property.fields['Baths'] || 0,
+            sqft: property.fields['Sqft'],
+            stage: property.fields['Stage'],
+            heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
+            notes: property.fields['Notes'] || property.fields['Description'] || '',
+          } : null,
+        };
+      });
+
+    const zipCodesRaw = buyer.fields['Preferred Zip Codes'] || buyer.fields['Zip Codes'] || '';
+    const preferredZipCodes = typeof zipCodesRaw === 'string'
+      ? zipCodesRaw.split(',').map((z: string) => z.trim()).filter(Boolean)
+      : Array.isArray(zipCodesRaw) ? zipCodesRaw : [];
+
+    return {
+      contactId: buyer.fields['Contact ID'] || '',
+      recordId: buyer.id,
+      firstName: buyer.fields['First Name'] || '',
+      lastName: buyer.fields['Last Name'] || '',
+      email: buyer.fields['Email'] || '',
+      monthlyIncome: buyer.fields['Monthly Income'],
+      monthlyLiabilities: buyer.fields['Monthly Liabilities'],
+      downPayment: buyer.fields['Downpayment'],
+      desiredBeds: buyer.fields['No. of Bedrooms'],
+      desiredBaths: buyer.fields['No. of Bath'],
+      city: buyer.fields['City'],
+      location: buyer.fields['Location'],
+      preferredLocation: buyer.fields['Preferred Location'] || buyer.fields['Location'],
+      preferredZipCodes,
+      buyerType: buyer.fields['Buyer Type'],
+      matches: buyerMatches,
+      totalMatches: buyerMatches.length,
+    };
+  });
+
+  const totalTime = Date.now() - startTime;
+  console.log(`[Aggregated] Completed buyers aggregation in ${totalTime}ms`);
+
+  return res.status(200).json({
+    data: buyersWithMatches,
+    nextOffset: buyersData.offset || null,
+    stats: {
+      buyers: buyers.length,
+      matches: allMatches.length,
+      properties: Object.keys(propertiesMap).length,
+      timeMs: totalTime,
+    },
+  });
+}
+
+/**
+ * Fetch properties with their matches in an optimized way
+ */
+async function handleAggregatedProperties(
+  req: VercelRequest,
+  res: VercelResponse,
+  headers: any
+) {
+  const startTime = Date.now();
+
+  const {
+    limit = '50',
+    offset = '',
+    matchStatus,
+    minScore = '30',
+    priorityOnly = 'false',
+    matchLimit = '25',
+    dateRange = 'all',
+  } = req.query;
+
+  const filters = {
+    matchStatus: matchStatus as string | undefined,
+    minScore: parseInt(minScore as string),
+    priorityOnly: priorityOnly === 'true',
+    matchLimit: parseInt(matchLimit as string),
+    dateRange: dateRange as string,
+  };
+
+  const limitNum = parseInt(limit as string);
+  const offsetStr = offset as string;
+
+  // Step 1: Fetch properties (paginated) with caching
+  console.log(`[Aggregated] Fetching properties with limit=${limitNum}, offset=${offsetStr}`);
+
+  const propertiesCacheKey = `properties-${limitNum}-${offsetStr}`;
+  const cachedProperties = aggregatedPropertiesCache.get(propertiesCacheKey);
+
+  let properties: any[];
+  let propertiesData: any;
+
+  if (cachedProperties && Date.now() - cachedProperties.timestamp < AGGREGATED_CACHE_TTL) {
+    console.log(`[Aggregated] Using cached properties (age: ${Math.floor((Date.now() - cachedProperties.timestamp) / 1000)}s)`);
+    properties = cachedProperties.data;
+    propertiesData = { records: properties, offset: undefined };
+  } else {
+    const propertiesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Properties?maxRecords=${limitNum}${offsetStr ? `&offset=${offsetStr}` : ''}`;
+
+    const propertiesRes = await fetch(propertiesUrl, { headers });
+    if (!propertiesRes.ok) {
+      throw new Error(`Failed to fetch properties: ${propertiesRes.status} ${propertiesRes.statusText}`);
+    }
+
+    propertiesData = await propertiesRes.json();
+    properties = propertiesData.records || [];
+
+    aggregatedPropertiesCache.set(propertiesCacheKey, { data: properties, timestamp: Date.now() });
+    console.log(`[Aggregated] Cached properties data`);
+  }
+
+  console.log(`[Aggregated] Fetched ${properties.length} properties in ${Date.now() - startTime}ms`);
+
+  if (properties.length === 0) {
+    return res.status(200).json({
+      data: [],
+      nextOffset: null,
+      stats: { properties: 0, matches: 0, buyers: 0, timeMs: Date.now() - startTime },
+    });
+  }
+
+  // Step 2: Fetch ALL matches for these properties in ONE call
+  const propertyCodes = properties.map((p: any) => p.fields['Property Code']).filter((code: string) => code);
+  const matchesFormula = `OR(${propertyCodes.map((code: string) => `{Opportunity ID (for GHL) } = "${code}"`).join(',')})`;
+
+  console.log(`[Aggregated] Fetching matches for ${propertyCodes.length} properties`);
+
+  const matchesUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches?filterByFormula=${encodeURIComponent(matchesFormula)}`;
+
+  const matchesRes = await fetch(matchesUrl, { headers });
+  const matchesData = matchesRes.ok ? await matchesRes.json() : { records: [] };
+  const allMatches = matchesData.records || [];
+
+  console.log(`[Aggregated] Fetched ${allMatches.length} matches in ${Date.now() - startTime}ms`);
+
+  // Step 3: Get unique buyer Contact IDs and batch fetch buyers
+  const buyerContactIds = [
+    ...new Set(
+      allMatches.map((m: any) => m.fields['Contact ID (for GHL)']).filter(Boolean)
+    ),
+  ];
+
+  let buyersMap: Record<string, any> = {};
+
+  if (buyerContactIds.length > 0) {
+    console.log(`[Aggregated] Batch fetching ${buyerContactIds.length} buyers`);
+
+    const buyersFormula = `OR(${(buyerContactIds as string[]).map((id) => `FIND("${id}", {Contact ID})`).join(',')})`;
+    const buyersUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Buyers?filterByFormula=${encodeURIComponent(buyersFormula)}`;
+
+    const buyersRes = await fetch(buyersUrl, { headers });
+    if (buyersRes.ok) {
+      const buyersData = await buyersRes.json();
+      buyersMap = Object.fromEntries(
+        (buyersData.records || []).map((b: any) => [b.fields['Contact ID'], b])
+      );
+    }
+  }
+
+  console.log(`[Aggregated] Fetched ${Object.keys(buyersMap).length} buyers in ${Date.now() - startTime}ms`);
+
+  // Step 4: Assemble the response
+  const propertiesWithMatches = properties.map((property: any) => {
+    const propertyCode = property.fields['Property Code'];
+
+    const propertyMatches = allMatches
+      .filter((m: any) => {
+        const matchPropertyCode = m.fields['Opportunity ID (for GHL) '] || '';
+        if (matchPropertyCode !== propertyCode) return false;
+
+        const score = m.fields['Match Score'] || 0;
+        if (score < filters.minScore) return false;
+
+        if (filters.matchStatus && m.fields['Match Status'] !== filters.matchStatus) return false;
+        if (filters.priorityOnly && !m.fields['Is Priority']) return false;
+
+        if (filters.dateRange && filters.dateRange !== 'all') {
+          const createdTime = new Date(m.createdTime);
+          const now = new Date();
+          const daysAgo = filters.dateRange === '7days' ? 7 : 30;
+          const cutoffDate = new Date(now.getTime() - daysAgo * 24 * 60 * 60 * 1000);
+          if (createdTime < cutoffDate) return false;
+        }
+
+        return true;
+      })
+      .sort((a: any, b: any) => (b.fields['Match Score'] || 0) - (a.fields['Match Score'] || 0))
+      .slice(0, filters.matchLimit)
+      .map((match: any) => {
+        const buyerContactId = match.fields['Contact ID (for GHL)'] || '';
+        const buyer = buyersMap[buyerContactId];
+
+        return {
+          id: match.id,
+          buyerRecordId: buyer?.id || '',
+          propertyRecordId: property.id,
+          contactId: buyer?.fields['Contact ID'] || '',
+          propertyCode: property.fields['Property Code'] || '',
+          score: match.fields['Match Score'] || 0,
+          distance: match.fields['Distance (miles)'],
+          reasoning: match.fields['Match Notes'] || '',
+          highlights: [],
+          isPriority: match.fields['Is Priority'],
+          status: match.fields['Match Status'] || 'Active',
+          buyer: buyer ? {
+            contactId: buyer.fields['Contact ID'] || '',
+            recordId: buyer.id,
+            firstName: buyer.fields['First Name'] || '',
+            lastName: buyer.fields['Last Name'] || '',
+            email: buyer.fields['Email'] || '',
+            monthlyIncome: buyer.fields['Monthly Income'],
+            monthlyLiabilities: buyer.fields['Monthly Liabilities'],
+            downPayment: buyer.fields['Downpayment'],
+            desiredBeds: buyer.fields['No. of Bedrooms'],
+            desiredBaths: buyer.fields['No. of Bath'],
+            city: buyer.fields['City'],
+            location: buyer.fields['Location'],
+            buyerType: buyer.fields['Buyer Type'],
+          } : null,
+        };
+      });
+
+    return {
+      recordId: property.id,
+      propertyCode: property.fields['Property Code'] || '',
+      opportunityId: property.fields['Opportunity ID'],
+      address: property.fields['Address'] || '',
+      city: property.fields['City'] || '',
+      state: property.fields['State'],
+      zipCode: property.fields['Zip Code'] || property.fields['Zip'] || extractZipFromCity(property.fields['City']),
+      price: property.fields['Price'],
+      beds: property.fields['Beds'] || 0,
+      baths: property.fields['Baths'] || 0,
+      sqft: property.fields['Sqft'],
+      stage: property.fields['Stage'],
+      heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
+      notes: property.fields['Notes'] || property.fields['Description'] || '',
+      matches: propertyMatches,
+      totalMatches: propertyMatches.length,
+    };
+  });
+
+  const totalTime = Date.now() - startTime;
+  console.log(`[Aggregated] Completed properties aggregation in ${totalTime}ms`);
+
+  return res.status(200).json({
+    data: propertiesWithMatches,
+    nextOffset: propertiesData.offset || null,
+    stats: {
+      properties: properties.length,
+      matches: allMatches.length,
+      buyers: Object.keys(buyersMap).length,
+      timeMs: totalTime,
+    },
+  });
+}
+
+// ============================================================================
+// CLEAR MATCHES ENDPOINT (merged from clear.ts)
+// ============================================================================
+
+/**
+ * Clear all matches - deletes all records from Property-Buyer Matches table
+ */
+async function handleClearMatches(
+  _req: VercelRequest,
+  res: VercelResponse,
+  headers: any
+) {
+  console.log('[Clear Matches] Starting deletion of all matches...');
+
+  try {
+    // Step 1: Fetch all match record IDs
+    let allRecordIds: string[] = [];
+    let offset: string | undefined;
+
+    do {
+      const url = new URL(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`);
+      url.searchParams.set('pageSize', '100');
+      url.searchParams.set('fields[]', 'Match Score');
+      if (offset) url.searchParams.set('offset', offset);
+
+      const response = await fetch(url.toString(), { headers });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch matches: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const recordIds = (data.records || []).map((r: any) => r.id);
+      allRecordIds.push(...recordIds);
+      offset = data.offset;
+
+      console.log(`[Clear Matches] Fetched ${recordIds.length} records (total: ${allRecordIds.length})`);
+    } while (offset);
+
+    if (allRecordIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No matches to delete',
+        deletedCount: 0,
+      });
+    }
+
+    console.log(`[Clear Matches] Total records to delete: ${allRecordIds.length}`);
+
+    // Step 2: Delete in batches of 10 (Airtable limit)
+    const BATCH_SIZE = 10;
+    let deletedCount = 0;
+
+    for (let i = 0; i < allRecordIds.length; i += BATCH_SIZE) {
+      const batch = allRecordIds.slice(i, i + BATCH_SIZE);
+
+      const deleteUrl = new URL(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`);
+      batch.forEach(id => deleteUrl.searchParams.append('records[]', id));
+
+      const deleteRes = await fetch(deleteUrl.toString(), {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!deleteRes.ok) {
+        const errorText = await deleteRes.text();
+        console.error(`[Clear Matches] Delete batch failed:`, errorText);
+        throw new Error(`Failed to delete batch: ${deleteRes.status}`);
+      }
+
+      deletedCount += batch.length;
+      console.log(`[Clear Matches] Deleted ${deletedCount}/${allRecordIds.length} records`);
+    }
+
+    console.log(`[Clear Matches] Successfully deleted all ${deletedCount} matches`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Deleted ${deletedCount} matches`,
+      deletedCount,
+    });
+
+  } catch (error) {
+    console.error('[Clear Matches] Error:', error);
+    return res.status(500).json({
+      error: 'Failed to clear matches',
+      details: String(error),
+    });
+  }
 }
 

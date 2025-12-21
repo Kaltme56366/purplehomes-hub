@@ -1,3 +1,13 @@
+/**
+ * Cache API
+ * Consolidated endpoint for cache operations
+ *
+ * Actions:
+ * - action=status (GET) - Get cache status for all caches
+ * - action=get (GET) - Get cached data by cacheKey
+ * - action=sync (POST) - Sync cache by cacheKey (properties, buyers, matches, or all)
+ */
+
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
@@ -97,6 +107,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
+    // SYNC CACHE - Refresh cache from source tables (merged from sync.ts)
+    if (action === 'sync' && req.method === 'POST') {
+      const validKeys = ['properties', 'buyers', 'matches', 'all'];
+
+      if (!cacheKey || !validKeys.includes(cacheKey as string)) {
+        return res.status(400).json({ error: 'Invalid cacheKey. Use: properties, buyers, matches, or all' });
+      }
+
+      const results: Record<string, any> = {};
+
+      if (cacheKey === 'properties' || cacheKey === 'all') {
+        results.properties = await syncProperties();
+      }
+
+      if (cacheKey === 'buyers' || cacheKey === 'all') {
+        results.buyers = await syncBuyers();
+      }
+
+      if (cacheKey === 'matches' || cacheKey === 'all') {
+        results.matches = await syncMatches();
+      }
+
+      return res.status(200).json({
+        success: true,
+        syncedAt: new Date().toISOString(),
+        results,
+      });
+    }
+
     return res.status(400).json({ error: 'Invalid action or method' });
 
   } catch (error) {
@@ -137,4 +176,173 @@ function extractCacheMetadata(records: any[], key: string, sourceCount: number) 
     version: record?.fields.version || 1,
     isValid: record?.fields.is_valid || false,
   };
+}
+
+// ============================================================================
+// SYNC FUNCTIONS (merged from sync.ts)
+// ============================================================================
+
+async function fetchAllRecords(tableName: string, fields?: string[]): Promise<any[]> {
+  const allRecords: any[] = [];
+  let offset: string | undefined;
+
+  do {
+    const url = new URL(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`);
+    url.searchParams.set('pageSize', '100');
+    if (fields) {
+      fields.forEach(f => url.searchParams.append('fields[]', f));
+    }
+    if (offset) url.searchParams.set('offset', offset);
+
+    const response = await fetch(url.toString(), { headers });
+    const data = await response.json();
+
+    allRecords.push(...(data.records || []));
+    offset = data.offset;
+  } while (offset);
+
+  return allRecords;
+}
+
+async function updateCache(cacheKey: string, data: any, recordCount: number): Promise<void> {
+  // First, try to find existing cache record
+  const formula = `{cache_key}="${cacheKey}"`;
+  const findRes = await fetch(
+    `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(CACHE_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=cache_key`,
+    { headers }
+  );
+  const findData = await findRes.json();
+  const recordId = findData.records?.[0]?.id;
+
+  const jsonData = JSON.stringify(data);
+  const dataSize = jsonData.length;
+  console.log(`[Sync] Cache data size for ${cacheKey}: ${dataSize} characters (${(dataSize / 1024).toFixed(2)} KB)`);
+
+  if (dataSize > 100000) {
+    console.warn(`[Sync] WARNING: Cache data for ${cacheKey} exceeds Airtable's 100KB limit! Size: ${dataSize}`);
+  }
+
+  const cacheFields = {
+    cache_key: cacheKey,
+    data: jsonData,
+    record_count: recordCount,
+    source_count: recordCount,
+    last_synced: new Date().toISOString(),
+    is_valid: true,
+    version: 1,
+  };
+
+  if (recordId) {
+    // Update existing record
+    console.log(`[Sync] Updating existing cache record for ${cacheKey} (recordId: ${recordId})`);
+    const updateRes = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(CACHE_TABLE)}/${recordId}`,
+      {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({
+          fields: cacheFields,
+        }),
+      }
+    );
+
+    if (!updateRes.ok) {
+      const errorText = await updateRes.text();
+      console.error(`[Sync] Failed to update cache for ${cacheKey}:`, errorText);
+      throw new Error(`Failed to update cache: ${errorText}`);
+    }
+
+    const result = await updateRes.json();
+    console.log(`[Sync] Successfully updated cache for ${cacheKey}. Record ID: ${result.id}`);
+  } else {
+    // Create new record
+    console.log(`[Sync] Creating new cache record for ${cacheKey}`);
+    const createRes = await fetch(
+      `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(CACHE_TABLE)}`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          fields: cacheFields,
+        }),
+      }
+    );
+
+    if (!createRes.ok) {
+      const errorText = await createRes.text();
+      console.error(`[Sync] Failed to create cache for ${cacheKey}:`, errorText);
+      throw new Error(`Failed to create cache: ${errorText}`);
+    }
+
+    const result = await createRes.json();
+    console.log(`[Sync] Successfully created cache for ${cacheKey}. Record ID: ${result.id}`);
+  }
+}
+
+async function syncProperties() {
+  console.log('Syncing properties cache...');
+
+  const records = await fetchAllRecords(PROPERTIES_TABLE);
+
+  // Store the full Airtable record structure with 'fields' property
+  const cacheData = {
+    records: records,
+  };
+
+  await updateCache('properties', cacheData, records.length);
+
+  return { recordCount: records.length };
+}
+
+async function syncBuyers() {
+  console.log('Syncing buyers cache...');
+
+  const records = await fetchAllRecords(BUYERS_TABLE);
+
+  // Store the full Airtable record structure with 'fields' property
+  const cacheData = {
+    records: records,
+  };
+
+  await updateCache('buyers', cacheData, records.length);
+
+  return { recordCount: records.length };
+}
+
+async function syncMatches() {
+  console.log('Syncing matches cache...');
+
+  const records = await fetchAllRecords(MATCHES_TABLE);
+
+  // Build indexes for fast lookup
+  const buyerIndex: Record<string, string[]> = {};
+  const propertyIndex: Record<string, string[]> = {};
+
+  records.forEach(r => {
+    const buyerRecordId = r.fields['Contact ID']?.[0] || '';
+    const propertyRecordId = r.fields['Property Code']?.[0] || '';
+
+    // Build buyer index
+    if (buyerRecordId) {
+      if (!buyerIndex[buyerRecordId]) buyerIndex[buyerRecordId] = [];
+      buyerIndex[buyerRecordId].push(r.id);
+    }
+
+    // Build property index
+    if (propertyRecordId) {
+      if (!propertyIndex[propertyRecordId]) propertyIndex[propertyRecordId] = [];
+      propertyIndex[propertyRecordId].push(r.id);
+    }
+  });
+
+  // Store the full Airtable record structure with 'fields' property
+  const cacheData = {
+    records: records,
+    buyerIndex,
+    propertyIndex,
+  };
+
+  await updateCache('matches', cacheData, records.length);
+
+  return { recordCount: records.length };
 }

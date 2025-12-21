@@ -20,7 +20,7 @@ export const useBuyersWithMatches = (filters?: MatchFilters, pageSize: number = 
       console.log('[Matching API] Fetching buyers with matches (aggregated)', filters, 'pageSize:', pageSize, 'offset:', offset);
 
       const params = new URLSearchParams({
-        type: 'buyers',
+        action: 'aggregated-buyers',
         limit: pageSize.toString(),
       });
 
@@ -34,7 +34,7 @@ export const useBuyersWithMatches = (filters?: MatchFilters, pageSize: number = 
       if (filters?.matchLimit !== undefined) params.set('matchLimit', filters.matchLimit.toString());
       if (filters?.dateRange) params.set('dateRange', filters.dateRange);
 
-      const response = await fetch(`${MATCHING_API_BASE}/aggregated?${params}`);
+      const response = await fetch(`${MATCHING_API_BASE}?${params}`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch buyers' }));
@@ -74,7 +74,7 @@ export const usePropertiesWithMatches = (filters?: MatchFilters, pageSize: numbe
       console.log('[Matching API] Fetching properties with matches (aggregated)', filters, 'pageSize:', pageSize, 'offset:', offset);
 
       const params = new URLSearchParams({
-        type: 'properties',
+        action: 'aggregated-properties',
         limit: pageSize.toString(),
       });
 
@@ -88,7 +88,7 @@ export const usePropertiesWithMatches = (filters?: MatchFilters, pageSize: numbe
       if (filters?.matchLimit !== undefined) params.set('matchLimit', filters.matchLimit.toString());
       if (filters?.dateRange) params.set('dateRange', filters.dateRange);
 
-      const response = await fetch(`${MATCHING_API_BASE}/aggregated?${params}`);
+      const response = await fetch(`${MATCHING_API_BASE}?${params}`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch properties' }));
@@ -219,7 +219,7 @@ export const useClearMatches = () => {
   return useMutation({
     mutationFn: async (): Promise<{ success: boolean; deletedCount: number; message: string }> => {
       console.log('[Matching API] Clearing all matches...');
-      const response = await fetch(`${MATCHING_API_BASE}/clear`, {
+      const response = await fetch(`${MATCHING_API_BASE}?action=clear`, {
         method: 'DELETE',
       });
 
@@ -541,7 +541,7 @@ export const useBuyersList = () => {
     queryFn: async (): Promise<Array<{ recordId: string; contactId: string; firstName: string; lastName: string; email: string }>> => {
       console.log('[Matching API] Fetching buyers list');
 
-      const response = await fetch(`${MATCHING_API_BASE}/aggregated?type=buyers&limit=100`);
+      const response = await fetch(`${MATCHING_API_BASE}?action=aggregated-buyers&limit=100`);
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Failed to fetch buyers' }));
