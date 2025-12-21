@@ -11,6 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
@@ -29,6 +31,8 @@ import {
   DollarSign,
   Users,
   Search,
+  Eye,
+  Check,
 } from 'lucide-react';
 import { useBuyerProperties, useBuyersList } from '@/services/matchingApi';
 import { useZillowSearch } from '@/services/zillowApi';
@@ -38,6 +42,9 @@ import { SourceBadge } from './SourceBadge';
 import { ZillowTypeBadge } from './ZillowTypeBadge';
 import { ZillowPropertyCard } from './ZillowPropertyCard';
 import { SaveZillowModal } from './SaveZillowModal';
+import { PropertyViewModal } from './PropertyViewModal';
+import { PropertySelectionBar } from './PropertySelectionBar';
+import { SendPropertiesModal } from './SendPropertiesModal';
 import type { ScoredProperty, BuyerCriteria } from '@/types/matching';
 import type { ZillowListing } from '@/types/zillow';
 
@@ -45,9 +52,19 @@ interface PropertyCardProps {
   scoredProperty: ScoredProperty;
   isExplore?: boolean;
   buyer?: BuyerCriteria;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  onViewDetails?: () => void;
 }
 
-function PropertyCard({ scoredProperty, isExplore = false, buyer }: PropertyCardProps) {
+function PropertyCard({
+  scoredProperty,
+  isExplore = false,
+  buyer,
+  isSelected = false,
+  onToggleSelect,
+  onViewDetails,
+}: PropertyCardProps) {
   const { property, score } = scoredProperty;
 
   // Generate highlight tags for explore section
@@ -73,7 +90,50 @@ function PropertyCard({ scoredProperty, isExplore = false, buyer }: PropertyCard
   const exploreHighlights = isExplore ? getExploreHighlights() : [];
 
   return (
-    <Card className="p-4 hover:bg-muted/30 transition-colors">
+    <Card
+      className={cn(
+        "p-4 transition-all relative group",
+        onToggleSelect && "cursor-pointer",
+        isSelected
+          ? "border-2 border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20"
+          : "border hover:bg-muted/30 hover:border-purple-300"
+      )}
+      onClick={(e) => {
+        // Only toggle if not clicking on View button and toggle is enabled
+        if (onToggleSelect && !(e.target as HTMLElement).closest('[data-view-button]')) {
+          onToggleSelect();
+        }
+      }}
+    >
+      {/* Selection Checkbox - Top Left */}
+      {onToggleSelect && (
+        <div
+          className="absolute top-3 left-3 z-10"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSelect();
+          }}
+        >
+          <Checkbox
+            checked={isSelected}
+            className={cn(
+              "h-5 w-5 border-2 transition-all",
+              isSelected
+                ? "border-purple-500 bg-purple-500"
+                : "border-gray-400 bg-white hover:border-purple-400"
+            )}
+            aria-label={`Select ${property.address}`}
+          />
+        </div>
+      )}
+
+      {/* Selected Indicator - Top Right */}
+      {isSelected && (
+        <div className="absolute top-3 right-3 z-10 bg-purple-500 rounded-full p-1">
+          <Check className="h-4 w-4 text-white" />
+        </div>
+      )}
+
       <div className="flex gap-4">
         {/* Property Image */}
         <div className="flex-shrink-0 w-24 h-24 rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center">
@@ -184,6 +244,27 @@ function PropertyCard({ scoredProperty, isExplore = false, buyer }: PropertyCard
           )}
         </div>
       </div>
+
+      {/* View Details Button */}
+      {onViewDetails && (
+        <div
+          className="absolute bottom-3 right-3"
+          data-view-button
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs bg-white hover:bg-purple-50 hover:border-purple-500"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails();
+            }}
+          >
+            <Eye className="h-3 w-3 mr-1" />
+            View
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
@@ -219,6 +300,36 @@ export function BuyerPropertiesView({
   // State for Zillow save modal
   const [zillowModalOpen, setZillowModalOpen] = useState(false);
   const [selectedZillowListing, setSelectedZillowListing] = useState<ZillowListing | null>(null);
+
+  // State for property selection
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState<Set<string>>(new Set());
+  const [selectedPropertyForView, setSelectedPropertyForView] = useState<ScoredProperty | null>(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
+
+  // Selection handlers
+  const togglePropertySelection = (recordId: string) => {
+    setSelectedPropertyIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(recordId)) {
+        newSet.delete(recordId);
+      } else {
+        newSet.add(recordId);
+      }
+      return newSet;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedPropertyIds(new Set());
+  };
+
+  const selectAll = () => {
+    if (!buyerProperties) return;
+    const allIds = [...buyerProperties.priorityMatches, ...buyerProperties.exploreMatches]
+      .map(sp => sp.property.recordId);
+    setSelectedPropertyIds(new Set(allIds));
+  };
 
   return (
     <div className="space-y-6">
@@ -262,10 +373,17 @@ export function BuyerPropertiesView({
                 <p className="text-sm text-muted-foreground">{buyerProperties.buyer.email}</p>
               </div>
               <div className="flex gap-4 text-sm">
-                {buyerProperties.buyer.desiredBeds && (
+                {(buyerProperties.buyer.desiredBeds || buyerProperties.buyer.desiredBaths) && (
                   <div className="flex items-center gap-1">
                     <Bed className="h-4 w-4 text-muted-foreground" />
-                    <span>{buyerProperties.buyer.desiredBeds} bed</span>
+                    <span>{buyerProperties.buyer.desiredBeds || '?'} bed</span>
+                    {buyerProperties.buyer.desiredBaths && (
+                      <>
+                        <span className="text-muted-foreground">•</span>
+                        <Bath className="h-4 w-4 text-muted-foreground" />
+                        <span>{buyerProperties.buyer.desiredBaths} bath</span>
+                      </>
+                    )}
                   </div>
                 )}
                 {buyerProperties.buyer.downPayment && (
@@ -333,6 +451,12 @@ export function BuyerPropertiesView({
                       key={sp.property.recordId}
                       scoredProperty={sp}
                       buyer={buyerProperties.buyer}
+                      isSelected={selectedPropertyIds.has(sp.property.recordId)}
+                      onToggleSelect={() => togglePropertySelection(sp.property.recordId)}
+                      onViewDetails={() => {
+                        setSelectedPropertyForView(sp);
+                        setViewModalOpen(true);
+                      }}
                     />
                   ))}
               </div>
@@ -398,6 +522,39 @@ export function BuyerPropertiesView({
         open={zillowModalOpen}
         onOpenChange={setZillowModalOpen}
       />
+
+      {/* Property View Modal */}
+      <PropertyViewModal
+        scoredProperty={selectedPropertyForView}
+        open={viewModalOpen}
+        onOpenChange={setViewModalOpen}
+      />
+
+      {/* Send Properties Modal */}
+      {buyerProperties && (
+        <SendPropertiesModal
+          buyer={buyerProperties.buyer}
+          properties={[...buyerProperties.priorityMatches, ...buyerProperties.exploreMatches]
+            .filter(sp => selectedPropertyIds.has(sp.property.recordId))}
+          open={sendModalOpen}
+          onOpenChange={setSendModalOpen}
+          onSendSuccess={() => {
+            clearSelection();
+          }}
+        />
+      )}
+
+      {/* Floating Selection Bar */}
+      {buyerProperties && (
+        <PropertySelectionBar
+          selectedCount={selectedPropertyIds.size}
+          totalCount={buyerProperties.totalCount}
+          allSelected={selectedPropertyIds.size === buyerProperties.totalCount && buyerProperties.totalCount > 0}
+          onSelectAll={selectAll}
+          onClearSelection={clearSelection}
+          onSendSelected={() => setSendModalOpen(true)}
+        />
+      )}
     </div>
   );
 }
