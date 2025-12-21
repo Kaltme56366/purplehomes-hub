@@ -72,7 +72,7 @@ export const useSyncCache = () => {
 
   return useMutation({
     mutationFn: async (cacheKey: CacheKey | 'all' = 'all') => {
-      const response = await fetch(`${CACHE_API_BASE}/sync?cacheKey=${cacheKey}`, {
+      const response = await fetch(`${CACHE_API_BASE}?action=sync&cacheKey=${cacheKey}`, {
         method: 'POST',
       });
       if (!response.ok) throw new Error('Sync failed');
