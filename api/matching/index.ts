@@ -727,7 +727,7 @@ async function handleRunMatching(req: VercelRequest, res: VercelResponse, header
             'Match Notes': matchNotes,
             'Match Status': 'Active',
             'Is Priority': score.isPriority,
-            'Distance (miles)': score.distanceMiles,
+            'distance': score.distanceMiles,
           };
 
           // Check if this is an update or create
@@ -921,7 +921,7 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
         'Match Notes': matchNotes,
         'Match Status': 'Active',
         'Is Priority': score.isPriority,
-        'Distance (miles)': score.distanceMiles,
+        'distance': score.distanceMiles,
       };
 
       const pairKey = `${buyer.id}:${property.id}`;
@@ -1081,7 +1081,7 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
         'Match Notes': matchNotes,
         'Match Status': 'Active',
         'Is Priority': score.isPriority,
-        'Distance (miles)': score.distanceMiles,
+        'distance': score.distanceMiles,
       };
 
       const pairKey = `${buyer.id}:${property.id}`;
@@ -1388,7 +1388,7 @@ async function handleAggregatedBuyers(
           contactId: buyer.fields['Contact ID'] || '',
           propertyCode: property?.fields['Property Code'] || '',
           score: match.fields['Match Score'] || 0,
-          distance: match.fields['Distance (miles)'],
+          distance: match.fields['distance'],
           reasoning: match.fields['Match Notes'] || '',
           highlights: [],
           isPriority: match.fields['Is Priority'],
@@ -1600,7 +1600,7 @@ async function handleAggregatedProperties(
           contactId: buyer?.fields['Contact ID'] || '',
           propertyCode: property.fields['Property Code'] || '',
           score: match.fields['Match Score'] || 0,
-          distance: match.fields['Distance (miles)'],
+          distance: match.fields['distance'],
           reasoning: match.fields['Match Notes'] || '',
           highlights: [],
           isPriority: match.fields['Is Priority'],
