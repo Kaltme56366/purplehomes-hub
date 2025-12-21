@@ -287,7 +287,7 @@ export function BuyerPropertiesView({
       </div>
 
       {/* Loading State */}
-      {loadingProperties && selectedBuyerId && (
+      {loadingProperties && buyerId && (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-purple-500" />
           <span className="ml-2 text-muted-foreground">Loading properties...</span>
@@ -302,7 +302,7 @@ export function BuyerPropertiesView({
       )}
 
       {/* No Buyer Selected */}
-      {!selectedBuyerId && !loadingBuyers && (
+      {!buyerId && !loadingBuyers && (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="h-12 w-12 mx-auto mb-4 opacity-20" />
           <p>Select a buyer above to see all properties scored for them</p>
