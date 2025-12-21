@@ -47,6 +47,14 @@ export interface PropertyDetails {
   notes?: string;
   propertyLat?: number; // Geocoded latitude
   propertyLng?: number; // Geocoded longitude
+
+  // Source tracking fields
+  source?: 'Inventory' | 'Lead' | 'Zillow'; // Property source
+  zillowType?: 'Keywords' | 'Formula' | 'DOM'; // Zillow search type (only if source = 'Zillow')
+  zillowZpid?: string; // Zillow property ID for deduplication
+  zillowUrl?: string; // Link to original Zillow listing
+  daysOnMarket?: number; // Days on market (primarily for Zillow properties)
+  createdAt?: string; // Created timestamp for sorting
 }
 
 export interface MatchScore {

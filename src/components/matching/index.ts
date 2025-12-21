@@ -17,3 +17,9 @@ export { MatchActivityTimeline } from './MatchActivityTimeline';
 export { MatchQuickActions } from './MatchQuickActions';
 export { MatchDetailModal } from './MatchDetailModal';
 export type { MatchWithDetails } from './MatchDetailModal';
+
+// Zillow integration components
+export { SourceBadge } from './SourceBadge';
+export { ZillowTypeBadge } from './ZillowTypeBadge';
+export { ZillowPropertyCard } from './ZillowPropertyCard';
+export { SaveZillowModal } from './SaveZillowModal';
