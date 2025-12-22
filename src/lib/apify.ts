@@ -126,7 +126,7 @@ function buildApifyInput(
   if (searchType === '90+ Days') {
     return {
       ...baseInput,
-      min_days: 90,           // Correct filter for 90+ days on market
+      // min_days: 90,        // TODO: Debug - actor may not support this for sale searches
       max_price: 275000,
       sort: 'newest',         // Valid sort option
     };
