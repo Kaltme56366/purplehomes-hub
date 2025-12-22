@@ -178,27 +178,45 @@ function transformApifyResult(item: any): ZillowListing {
     ? addressObj.zipcode || ''
     : (item.zipcode || item.zip || '');
 
+  // Handle price - can be number or object with {value}
+  const price = typeof item.price === 'object' && item.price
+    ? item.price.value || 0
+    : (item.price || 0);
+
+  // Handle images - check media.propertyPhotoLinks first
+  const imageUrl = item.media?.propertyPhotoLinks?.highResolutionLink
+    || item.media?.propertyPhotoLinks?.mediumSizeLink
+    || item.media?.propertyPhotoLinks?.defaultLink
+    || item.imgSrc
+    || (item.photos && item.photos[0])
+    || (item.images && item.images[0])
+    || null;
+
+  // Handle location - can be nested in location object
+  const lat = item.location?.latitude || item.latitude || item.lat || 0;
+  const lng = item.location?.longitude || item.longitude || item.lng || 0;
+
   return {
     zpid: item.zpid || item.id || String(Math.random()),
     address: streetAddress,
     city,
     state,
     zipCode,
-    price: item.price || 0,
+    price,
     beds: item.bedrooms || item.beds || 0,
     baths: item.bathrooms || item.baths || 0,
     sqft: item.livingArea || item.sqft || item.squareFeet,
     propertyType: item.propertyType || item.homeType || 'SINGLE_FAMILY',
     description: item.description || '',
-    images: item.photos || item.images || item.imgSrc ? [item.imgSrc] : [],
+    images: imageUrl ? [imageUrl] : [],
     zillowUrl: item.url || item.detailUrl || (item.zpid ? `https://www.zillow.com/homedetails/${item.zpid}_zpid/` : ''),
     daysOnMarket: item.daysOnZillow || item.dom || item.timeOnZillow,
-    lat: item.latitude || item.lat || 0,
-    lng: item.longitude || item.lng || 0,
+    lat,
+    lng,
     scrapedAt: new Date().toISOString(),
-    listingAgent: item.listingAgent || item.brokerName ? {
-      name: item.listingAgent?.name || item.brokerName || 'Unknown',
-      phone: item.listingAgent?.phone || '',
+    listingAgent: item.brokerageName ? {
+      name: item.brokerageName,
+      phone: '',
     } : undefined,
   };
 }
