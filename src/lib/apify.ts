@@ -38,10 +38,25 @@ export async function runZillowSearch(
 
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
-    console.log(`[Apify] Zillow search completed: ${items.length} results, runId: ${run.id}`);
+    console.log(`[Apify] Zillow search completed: ${items.length} raw results, runId: ${run.id}`);
+
+    // Transform all results
+    let listings = items.map(transformApifyResult);
+
+    // Post-fetch filter for 90+ Days search (min_days doesn't work for sale searches)
+    if (searchType === '90+ Days') {
+      const beforeFilter = listings.length;
+      listings = listings.filter(listing =>
+        listing.daysOnMarket && listing.daysOnMarket >= 90
+      );
+      console.log(`[Apify] Filtered 90+ days: ${beforeFilter} -> ${listings.length} results`);
+    }
+
+    // Limit to 20 results after filtering
+    listings = listings.slice(0, 20);
 
     return {
-      listings: items.map(transformApifyResult),
+      listings,
       runId: run.id,
     };
   } catch (error) {
@@ -126,9 +141,10 @@ function buildApifyInput(
   if (searchType === '90+ Days') {
     return {
       ...baseInput,
-      // min_days: 90,        // TODO: Debug - actor may not support this for sale searches
+      // Note: min_days doesn't work for sale searches, we filter post-fetch instead
       max_price: 275000,
-      sort: 'newest',         // Valid sort option
+      sort: 'newest',
+      limit: 100,             // Fetch more to filter down to 90+ days
     };
   }
 
