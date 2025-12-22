@@ -141,10 +141,9 @@ function buildApifyInput(
   if (searchType === '90+ Days') {
     return {
       ...baseInput,
-      max_days: 90,           // Try max_days instead of min_days
+      max_days: 90,
       max_price: 275000,
       sort: 'newest',
-      limit: 100,             // Fetch more in case we need to filter
     };
   }
 
