@@ -141,10 +141,10 @@ function buildApifyInput(
   if (searchType === '90+ Days') {
     return {
       ...baseInput,
-      // Note: min_days doesn't work for sale searches, we filter post-fetch instead
+      max_days: 90,           // Try max_days instead of min_days
       max_price: 275000,
       sort: 'newest',
-      limit: 100,             // Fetch more to filter down to 90+ days
+      limit: 100,             // Fetch more in case we need to filter
     };
   }
 
