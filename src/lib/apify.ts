@@ -62,7 +62,7 @@ function buildApifyInput(
   const minBeds = buyer.desiredBeds || null;
 
   const baseInput = {
-    location,
+    location: [location], // Apify expects array
     search_type: 'sell' as const, // All searches are for sale properties
     maxResults: 20,
   };
