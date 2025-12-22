@@ -249,16 +249,21 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
  * Individual opportunity card component
  */
 function ZillowOpportunityCard({ listing }: { listing: ZillowListing }) {
+  const [imageError, setImageError] = useState(false);
+  const imageUrl = listing.images?.[0];
+
   return (
     <Card className="p-3 hover:bg-purple-50/30 transition-colors">
       <div className="flex gap-3">
         {/* Property Image */}
         <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-purple-50">
-          {listing.images && listing.images[0] ? (
+          {imageUrl && !imageError ? (
             <img
-              src={listing.images[0]}
+              src={imageUrl}
               alt={listing.address}
               className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+              onError={() => setImageError(true)}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
