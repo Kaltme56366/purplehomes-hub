@@ -147,27 +147,42 @@ function buildApifyInput(
  * Transform Apify result item to ZillowListing format
  */
 function transformApifyResult(item: any): ZillowListing {
+  // Handle address - can be string or object with {streetAddress, city, state, zipcode}
+  const addressObj = item.address;
+  const streetAddress = typeof addressObj === 'object' && addressObj
+    ? addressObj.streetAddress || ''
+    : (item.streetAddress || item.address || '');
+  const city = typeof addressObj === 'object' && addressObj
+    ? addressObj.city || ''
+    : (item.city || '');
+  const state = typeof addressObj === 'object' && addressObj
+    ? addressObj.state || ''
+    : (item.state || '');
+  const zipCode = typeof addressObj === 'object' && addressObj
+    ? addressObj.zipcode || ''
+    : (item.zipcode || item.zip || '');
+
   return {
     zpid: item.zpid || item.id || String(Math.random()),
-    address: item.address || item.streetAddress || '',
-    city: item.city || '',
-    state: item.state || '',
-    zipCode: item.zipcode || item.zip || '',
+    address: streetAddress,
+    city,
+    state,
+    zipCode,
     price: item.price || 0,
     beds: item.bedrooms || item.beds || 0,
     baths: item.bathrooms || item.baths || 0,
     sqft: item.livingArea || item.sqft || item.squareFeet,
-    propertyType: item.propertyType || 'SINGLE_FAMILY',
+    propertyType: item.propertyType || item.homeType || 'SINGLE_FAMILY',
     description: item.description || '',
-    images: item.photos || item.images || [],
-    zillowUrl: item.url || (item.zpid ? `https://www.zillow.com/homedetails/${item.zpid}_zpid/` : ''),
-    daysOnMarket: item.daysOnZillow || item.dom,
+    images: item.photos || item.images || item.imgSrc ? [item.imgSrc] : [],
+    zillowUrl: item.url || item.detailUrl || (item.zpid ? `https://www.zillow.com/homedetails/${item.zpid}_zpid/` : ''),
+    daysOnMarket: item.daysOnZillow || item.dom || item.timeOnZillow,
     lat: item.latitude || item.lat || 0,
     lng: item.longitude || item.lng || 0,
     scrapedAt: new Date().toISOString(),
-    listingAgent: item.listingAgent || item.agent ? {
-      name: item.listingAgent?.name || item.agent?.name || 'Unknown',
-      phone: item.listingAgent?.phone || item.agent?.phone || '',
+    listingAgent: item.listingAgent || item.brokerName ? {
+      name: item.listingAgent?.name || item.brokerName || 'Unknown',
+      phone: item.listingAgent?.phone || '',
     } : undefined,
   };
 }
