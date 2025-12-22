@@ -5,11 +5,11 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { runZillowSearch } from '@/lib/apify';
-import { calculateMaxAffordablePrice, hasValidDownPayment } from '@/lib/affordability';
-import { findCachedSearch, saveCachedSearch, getSearchAge } from '@/lib/airtable-cache';
-import type { ZillowSearchResponse, ZillowSearchType } from '@/types/zillow';
-import type { BuyerCriteria } from '@/types/matching';
+import { runZillowSearch } from '../../src/lib/apify';
+import { calculateMaxAffordablePrice, hasValidDownPayment } from '../../src/lib/affordability';
+import { findCachedSearch, saveCachedSearch, getSearchAge } from '../../src/lib/airtable-cache';
+import type { ZillowSearchResponse, ZillowSearchType } from '../../src/types/zillow';
+import type { BuyerCriteria } from '../../src/types/matching';
 
 const AIRTABLE_API_URL = 'https://api.airtable.com/v0';
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -150,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       maxPrice,
       listings,
       runId
-    ).catch(err => console.error('[Zillow Search] Failed to save cache:', err));
+    ).catch((err: unknown) => console.error('[Zillow Search] Failed to save cache:', err));
 
     const response: ZillowSearchResponse = {
       results: listings,
