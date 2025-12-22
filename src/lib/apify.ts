@@ -80,7 +80,9 @@ function buildApifyInput(
       ...baseInput,
       min_beds: minBeds,
       max_price: 275000,
-      sort: 'days', // Sort by days on market (descending)
+      max_days: 90, // Properties on market 90+ days
+      status: ['fsba', 'fsbo', 'foreclosure', 'foreclosed', 'preforeclosure'],
+      types: ['singleFamily'],
     };
   }
 
