@@ -144,7 +144,7 @@ function buildApifyInput(
       // Note: max_days filters for "listed within X days" (recent), not "on market X+ days"
       // So we don't use it - we filter post-fetch by daysOnMarket instead
       max_price: 275000,
-      limit: 50,              // Fetch more to filter down to 90+ days
+      limit: 200,             // Fetch many to filter down to 90+ days (stale listings)
     };
   }
 
