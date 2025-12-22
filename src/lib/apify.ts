@@ -192,6 +192,11 @@ function transformApifyResult(item: any): ZillowListing {
     || (item.images && item.images[0])
     || null;
 
+  // Debug: log first item's image extraction
+  if (item.zpid) {
+    console.log(`[Apify] Image for ${item.zpid}:`, imageUrl || 'NO IMAGE', item.media?.propertyPhotoLinks);
+  }
+
   // Handle location - can be nested in location object
   const lat = item.location?.latitude || item.latitude || item.lat || 0;
   const lng = item.location?.longitude || item.longitude || item.lng || 0;
