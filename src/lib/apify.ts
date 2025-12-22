@@ -59,12 +59,12 @@ function buildApifyInput(
   maxPrice?: number
 ) {
   const location = buyer.preferredLocation || buyer.city || buyer.location || '';
-  const minBeds = buyer.desiredBeds || null;
+  const minBeds = buyer.desiredBeds ? String(buyer.desiredBeds) : undefined;
 
   const baseInput = {
     location: [location], // Apify expects array
     search_type: 'sale' as const, // All searches are for sale properties
-    maxResults: 20,
+    limit: 20,
   };
 
   if (searchType === 'Creative Financing') {
