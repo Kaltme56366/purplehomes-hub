@@ -51,26 +51,74 @@ export async function runZillowSearch(
 }
 
 /**
+ * Map internal property type to Zillow property type
+ */
+function mapPropertyTypeToZillow(propertyType: string): string | undefined {
+  const mapping: Record<string, string> = {
+    'Single Family': 'SINGLE_FAMILY',
+    'Condo': 'CONDO',
+    'Town House': 'TOWNHOUSE',
+    'Townhouse': 'TOWNHOUSE',
+    'Multi Family': 'MULTI_FAMILY',
+    'Duplex': 'MULTI_FAMILY',
+    'Triplex': 'MULTI_FAMILY',
+    '4-plex': 'MULTI_FAMILY',
+    'Mobile Home': 'MOBILE',
+    'Lot': 'LAND',
+    'Land': 'LAND',
+  };
+  return mapping[propertyType];
+}
+
+/**
  * Build Apify input based on buyer criteria and search type
  */
 function buildApifyInput(
   buyer: BuyerCriteria,
   searchType: ZillowSearchType,
   maxPrice?: number
-) {
+): Record<string, any> {
   const location = buyer.preferredLocation || buyer.city || buyer.location || '';
-  const minBeds = buyer.desiredBeds ? String(buyer.desiredBeds) : undefined;
 
-  const baseInput = {
-    location: [location], // Apify expects array
-    search_type: 'sale' as const, // All searches are for sale properties
-    limit: 20,
+  // Convert to string enums as required by the actor
+  const minBeds = buyer.desiredBeds ? String(buyer.desiredBeds) : undefined;
+  const minBaths = buyer.desiredBaths ? String(buyer.desiredBaths) : undefined;
+
+  // Build base input with corrected parameter names
+  const baseInput: Record<string, any> = {
+    location: [location],           // Array format required
+    search_type: 'sale',            // Correct enum value (not 'sell')
+    limit: 20,                      // Correct param name (not 'maxResults')
   };
 
+  // Always include beds filter if available
+  if (minBeds) {
+    baseInput.min_beds = minBeds;
+  }
+
+  // Always include baths filter if available
+  if (minBaths) {
+    baseInput.min_baths = minBaths;
+  }
+
+  // Add property type filter if available
+  const buyerWithPrefs = buyer as any; // Extended buyer type
+  if (buyerWithPrefs.preferences?.propertyType) {
+    const zillowType = mapPropertyTypeToZillow(buyerWithPrefs.preferences.propertyType);
+    if (zillowType) {
+      baseInput.types = [zillowType];
+    }
+  }
+
+  // Add sqft filter if available
+  if (buyerWithPrefs.preferences?.sqft) {
+    baseInput.min_area = buyerWithPrefs.preferences.sqft;
+  }
+
+  // Search type specific configurations
   if (searchType === 'Creative Financing') {
     return {
       ...baseInput,
-      min_beds: minBeds,
       prompt: 'seller finance OR owner finance OR bond for deed',
     };
   }
@@ -78,24 +126,20 @@ function buildApifyInput(
   if (searchType === '90+ Days') {
     return {
       ...baseInput,
-      min_beds: minBeds,
+      min_days: 90,           // Correct filter for 90+ days on market
       max_price: 275000,
-      max_days: 90, // Properties on market 90+ days
-      sort: 'newest',
-      status: ['fsba', 'fsbo', 'foreclosure', 'foreclosed', 'preforeclosure'],
-      types: ['singleFamily'],
+      sort: 'newest',         // Valid sort option
     };
   }
 
   if (searchType === 'Affordability') {
     return {
       ...baseInput,
-      min_beds: minBeds,
-      max_price: maxPrice, // Calculated max price from affordability formula
+      max_price: maxPrice,    // Calculated from buyer's down payment
     };
   }
 
-  // Fallback - should not reach here
+  // Fallback
   return baseInput;
 }
 
