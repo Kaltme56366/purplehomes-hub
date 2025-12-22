@@ -5,7 +5,15 @@
 
 export type PropertySource = 'Inventory' | 'Lead' | 'Zillow';
 
-export type ZillowSearchType = 'Keywords' | 'Formula' | 'DOM';
+export type ZillowSearchType = 'Creative Financing' | '90+ Days' | 'Affordability';
+
+/**
+ * Listing agent details from Zillow
+ */
+export interface ListingAgent {
+  name: string;
+  phone: string;
+}
 
 /**
  * Zillow property listing from Apify scraper
@@ -29,6 +37,7 @@ export interface ZillowListing {
   lat: number;
   lng: number;
   scrapedAt: string;               // ISO timestamp when data was scraped
+  listingAgent?: ListingAgent;     // Listing agent information
 }
 
 /**
@@ -39,12 +48,15 @@ export interface ZillowSearchResponse {
   searchType: ZillowSearchType;
   buyerCriteria: {
     location: string;
-    beds: number;
-    maxPrice: number;
+    beds: number | null;
+    maxPrice: number | null;
   };
-  apifyRunId: string;              // Apify actor run ID for tracking
+  apifyRunId?: string;             // Apify actor run ID for tracking
   totalResults: number;
   cached?: boolean;                // Whether results came from cache
+  cachedAt?: string;               // When results were cached (ISO timestamp)
+  searchAge?: number;              // Hours since search was performed
+  error?: string;                  // Error message if search failed
 }
 
 /**
@@ -57,6 +69,31 @@ export interface SaveZillowPropertyRequest {
   notes?: string;                  // Optional notes about the property
   opportunityId?: string;          // Optional GHL opportunity ID
   zillowType: ZillowSearchType;    // How this property was found
+}
+
+/**
+ * Zillow search cache entry from Airtable
+ */
+export interface ZillowSearchCache {
+  recordId: string;
+  searchId: string;                // UUID for this search
+  buyerRecordId: string;           // Link to Buyers table
+  searchType: ZillowSearchType;
+  location: string;
+  beds: number | null;
+  maxPrice: number | null;
+  resultsCount: number;
+  resultsJSON: string;             // Stringified ZillowListing[]
+  searchedAt: string;              // ISO timestamp
+  apifyRunId?: string;
+}
+
+/**
+ * Request to Zillow search API with specific search type
+ */
+export interface ZillowSearchRequest {
+  buyerId: string;
+  searchType: ZillowSearchType;
 }
 
 /**

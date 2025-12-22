@@ -1,10 +1,13 @@
 /**
  * Zillow Search API Endpoint
  * Searches Zillow for properties matching a buyer's criteria via Apify
+ * Implements 24-hour caching in Airtable
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { runZillowSearch, determineSearchType } from '@/lib/apify';
+import { runZillowSearch } from '@/lib/apify';
+import { calculateMaxAffordablePrice, hasValidDownPayment } from '@/lib/affordability';
+import { findCachedSearch, saveCachedSearch, getSearchAge } from '@/lib/airtable-cache';
 import type { ZillowSearchResponse, ZillowSearchType } from '@/types/zillow';
 import type { BuyerCriteria } from '@/types/matching';
 
@@ -16,10 +19,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { buyerId } = req.query;
+  const { buyerId, searchType } = req.query;
 
+  // Validate required parameters
   if (!buyerId || typeof buyerId !== 'string') {
     return res.status(400).json({ error: 'buyerId required' });
+  }
+
+  if (!searchType || typeof searchType !== 'string') {
+    return res.status(400).json({ error: 'searchType required' });
+  }
+
+  // Validate search type
+  const validSearchTypes: ZillowSearchType[] = ['Creative Financing', '90+ Days', 'Affordability'];
+  if (!validSearchTypes.includes(searchType as ZillowSearchType)) {
+    return res.status(400).json({
+      error: 'Invalid searchType',
+      validTypes: validSearchTypes
+    });
   }
 
   try {
@@ -50,40 +67,102 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       location: buyerData.fields['City'] || buyerData.fields['State'],
     };
 
-    // Check if buyer has sufficient location data
-    if (!buyer.city && !buyer.preferredLocation && !buyer.location) {
+    // Validate buyer has location
+    const location = buyer.preferredLocation || buyer.city || buyer.location;
+    if (!location) {
       return res.json({
         results: [],
-        searchType: 'Keywords' as ZillowSearchType,
+        searchType: searchType as ZillowSearchType,
         buyerCriteria: {
           location: '',
-          beds: buyer.desiredBeds || 0,
-          maxPrice: 0,
+          beds: buyer.desiredBeds || null,
+          maxPrice: null,
         },
-        apifyRunId: '',
         totalResults: 0,
-        message: 'Buyer location required for Zillow search',
-      });
+        cached: false,
+        error: 'Buyer location required for Zillow search',
+      } as ZillowSearchResponse);
     }
 
-    // Determine search type based on buyer data
-    const searchType = determineSearchType(buyer);
+    // Calculate max price for affordability search
+    let maxPrice: number | null = null;
+    if (searchType === 'Affordability') {
+      if (!hasValidDownPayment(buyer.downPayment)) {
+        return res.json({
+          results: [],
+          searchType: searchType as ZillowSearchType,
+          buyerCriteria: {
+            location,
+            beds: buyer.desiredBeds || null,
+            maxPrice: null,
+          },
+          totalResults: 0,
+          cached: false,
+          error: 'Sufficient down payment required for affordability search (minimum $10,300)',
+        } as ZillowSearchResponse);
+      }
+      maxPrice = calculateMaxAffordablePrice(buyer.downPayment!);
+    }
 
-    console.log(`[Zillow Search] Starting search for buyer ${buyer.firstName} ${buyer.lastName} (${searchType})`);
+    // Check cache first
+    const cached = await findCachedSearch(
+      buyer.recordId!,
+      searchType as ZillowSearchType,
+      location,
+      buyer.desiredBeds || null,
+      maxPrice
+    );
 
-    // Run Zillow search via Apify
-    const results = await runZillowSearch(buyer, searchType);
+    if (cached) {
+      console.log(`[Zillow Search] Returning cached results for buyer ${buyer.firstName} ${buyer.lastName} (${searchType})`);
+
+      return res.json({
+        results: cached.results,
+        searchType: searchType as ZillowSearchType,
+        buyerCriteria: {
+          location,
+          beds: buyer.desiredBeds || null,
+          maxPrice,
+        },
+        apifyRunId: cached.apifyRunId,
+        totalResults: cached.results.length,
+        cached: true,
+        cachedAt: cached.lastSynced,
+        searchAge: getSearchAge(cached.lastSynced),
+      } as ZillowSearchResponse);
+    }
+
+    // No cache - run fresh Apify search
+    console.log(`[Zillow Search] Running fresh search for buyer ${buyer.firstName} ${buyer.lastName} (${searchType})`);
+
+    const { listings, runId } = await runZillowSearch(
+      buyer,
+      searchType as ZillowSearchType,
+      maxPrice || undefined
+    );
+
+    // Save to cache (async, don't wait)
+    saveCachedSearch(
+      buyer.recordId!,
+      searchType as ZillowSearchType,
+      location,
+      buyer.desiredBeds || null,
+      maxPrice,
+      listings,
+      runId
+    ).catch(err => console.error('[Zillow Search] Failed to save cache:', err));
 
     const response: ZillowSearchResponse = {
-      results,
-      searchType,
+      results: listings,
+      searchType: searchType as ZillowSearchType,
       buyerCriteria: {
-        location: buyer.preferredLocation || buyer.city || buyer.location || '',
-        beds: buyer.desiredBeds || 0,
-        maxPrice: buyer.downPayment ? buyer.downPayment * 5 : 0,
+        location,
+        beds: buyer.desiredBeds || null,
+        maxPrice,
       },
-      apifyRunId: 'run-id', // TODO: track actual run ID from Apify
-      totalResults: results.length,
+      apifyRunId: runId,
+      totalResults: listings.length,
+      cached: false,
     };
 
     return res.json(response);

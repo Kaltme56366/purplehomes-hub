@@ -1,6 +1,6 @@
 /**
  * Apify Client for Zillow Property Search
- * Integrates with Apify's Zillow scraper to find external property listings
+ * Integrates with Apify's jupri~zillow-scraper to find external property listings
  */
 
 import { ApifyClient } from 'apify-client';
@@ -12,26 +12,38 @@ const client = new ApifyClient({
   token: process.env.APIFY_API_TOKEN,
 });
 
-const ZILLOW_ACTOR_ID = 'apify/zillow-api-scraper';
+const ZILLOW_ACTOR_ID = 'jupri~zillow-scraper';
 
 /**
- * Run Zillow search via Apify for a specific buyer
+ * Run Zillow search via Apify for a specific buyer and search type
+ *
+ * @param buyer - Buyer criteria including location and preferences
+ * @param searchType - Type of search to perform
+ * @param maxPrice - Optional max price override (for Affordability search)
+ * @returns Object containing listings array and Apify run ID
  */
 export async function runZillowSearch(
   buyer: BuyerCriteria,
-  searchType: ZillowSearchType
-): Promise<ZillowListing[]> {
-  const input = buildApifyInput(buyer, searchType);
+  searchType: ZillowSearchType,
+  maxPrice?: number
+): Promise<{ listings: ZillowListing[], runId: string }> {
+  const input = buildApifyInput(buyer, searchType, maxPrice);
 
-  console.log('[Apify] Running Zillow search:', { searchType, location: input.search });
+  console.log('[Apify] Running Zillow search:', { searchType, location: input.location, input });
 
   try {
-    const run = await client.actor(ZILLOW_ACTOR_ID).call(input);
+    const run = await client.actor(ZILLOW_ACTOR_ID).call(input, {
+      memory: 8192, // Specify memory in call options
+    });
+
     const { items } = await client.dataset(run.defaultDatasetId).listItems();
 
-    console.log(`[Apify] Zillow search completed: ${items.length} results`);
+    console.log(`[Apify] Zillow search completed: ${items.length} results, runId: ${run.id}`);
 
-    return items.map(transformApifyResult);
+    return {
+      listings: items.map(transformApifyResult),
+      runId: run.id,
+    };
   } catch (error) {
     console.error('[Apify] Zillow search failed:', error);
     throw new Error('Zillow search failed');
@@ -41,32 +53,46 @@ export async function runZillowSearch(
 /**
  * Build Apify input based on buyer criteria and search type
  */
-function buildApifyInput(buyer: BuyerCriteria, searchType: ZillowSearchType) {
+function buildApifyInput(
+  buyer: BuyerCriteria,
+  searchType: ZillowSearchType,
+  maxPrice?: number
+) {
+  const location = buyer.preferredLocation || buyer.city || buyer.location || '';
+  const minBeds = buyer.desiredBeds || null;
+
   const baseInput = {
-    search: buyer.preferredLocation || buyer.city || buyer.location || '',
+    location,
+    search_type: 'sell' as const, // All searches are for sale properties
     maxResults: 20,
-    searchType: 'for_sale' as const,
   };
 
-  if (searchType === 'Formula' && buyer.desiredBeds && buyer.downPayment) {
-    // Use buyer's criteria to filter results
+  if (searchType === 'Creative Financing') {
     return {
       ...baseInput,
-      minBeds: buyer.desiredBeds,
-      maxPrice: buyer.downPayment ? buyer.downPayment * 5 : undefined, // Rough estimate (20% down)
+      min_beds: minBeds,
+      prompt: 'seller finance OR owner finance OR bond for deed',
     };
   }
 
-  if (searchType === 'DOM') {
-    // Search for properties that have been on market longer
+  if (searchType === '90+ Days') {
     return {
       ...baseInput,
-      // Note: Apify actor may not directly support DOM filtering
-      // This would need to be filtered post-scrape
+      min_beds: minBeds,
+      max_price: 275000,
+      sort: 'days', // Sort by days on market (descending)
     };
   }
 
-  // Keywords search - use location as-is
+  if (searchType === 'Affordability') {
+    return {
+      ...baseInput,
+      min_beds: minBeds,
+      max_price: maxPrice, // Calculated max price from affordability formula
+    };
+  }
+
+  // Fallback - should not reach here
   return baseInput;
 }
 
@@ -92,23 +118,9 @@ function transformApifyResult(item: any): ZillowListing {
     lat: item.latitude || item.lat || 0,
     lng: item.longitude || item.lng || 0,
     scrapedAt: new Date().toISOString(),
+    listingAgent: item.listingAgent || item.agent ? {
+      name: item.listingAgent?.name || item.agent?.name || 'Unknown',
+      phone: item.listingAgent?.phone || item.agent?.phone || '',
+    } : undefined,
   };
-}
-
-/**
- * Determine best search type based on available buyer data
- */
-export function determineSearchType(buyer: BuyerCriteria): ZillowSearchType {
-  // Priority 1: Keywords search (if buyer has detailed preferred location)
-  if (buyer.preferredLocation && buyer.preferredLocation.length > 10) {
-    return 'Keywords';
-  }
-
-  // Priority 2: Formula search (if we have beds, price, and location)
-  if (buyer.desiredBeds && buyer.downPayment && (buyer.city || buyer.location)) {
-    return 'Formula';
-  }
-
-  // Priority 3: DOM search as fallback
-  return 'DOM';
 }

@@ -13,15 +13,24 @@ import type {
 } from '@/types/zillow';
 
 /**
- * Search Zillow for properties matching a buyer's criteria
+ * Search Zillow for properties with a specific search type
+ *
+ * @param buyerId - Buyer record ID
+ * @param searchType - Type of search: 'Creative Financing', '90+ Days', or 'Affordability'
+ * @returns Query result with Zillow listings
  */
-export const useZillowSearch = (buyerId: string | null) => {
+export const useZillowSearchByType = (
+  buyerId: string | null,
+  searchType: ZillowSearchType | null
+) => {
   return useQuery({
-    queryKey: ['zillow-search', buyerId],
+    queryKey: ['zillow-search', buyerId, searchType],
     queryFn: async (): Promise<ZillowSearchResponse> => {
-      if (!buyerId) throw new Error('Buyer ID required');
+      if (!buyerId || !searchType) throw new Error('Buyer ID and search type required');
 
-      const response = await fetch(`/api/zillow/search?buyerId=${buyerId}`);
+      const response = await fetch(
+        `/api/zillow/search?buyerId=${buyerId}&searchType=${encodeURIComponent(searchType)}`
+      );
 
       if (!response.ok) {
         const error = await response.json();
@@ -30,8 +39,9 @@ export const useZillowSearch = (buyerId: string | null) => {
 
       return response.json();
     },
-    enabled: !!buyerId,
-    staleTime: 15 * 60 * 1000, // 15 minutes - Zillow data doesn't change frequently
+    enabled: !!buyerId && !!searchType,
+    staleTime: 60 * 60 * 1000, // 1 hour - longer since we have server-side cache
+    gcTime: 60 * 60 * 1000, // 1 hour cache in React Query (formerly cacheTime)
     retry: 1, // Only retry once on failure
   });
 };

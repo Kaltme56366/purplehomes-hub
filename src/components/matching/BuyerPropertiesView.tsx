@@ -35,18 +35,15 @@ import {
   Check,
 } from 'lucide-react';
 import { useBuyerProperties, useBuyersList } from '@/services/matchingApi';
-import { useZillowSearch } from '@/services/zillowApi';
 import { MatchSectionDivider } from './MatchSectionDivider';
 import { MatchScoreBadge } from './MatchScoreBadge';
 import { SourceBadge } from './SourceBadge';
 import { ZillowTypeBadge } from './ZillowTypeBadge';
-import { ZillowPropertyCard } from './ZillowPropertyCard';
-import { SaveZillowModal } from './SaveZillowModal';
+import { ZillowOpportunities } from './ZillowOpportunities';
 import { PropertyViewModal } from './PropertyViewModal';
 import { PropertySelectionBar } from './PropertySelectionBar';
 import { SendPropertiesModal } from './SendPropertiesModal';
 import type { ScoredProperty, BuyerCriteria } from '@/types/matching';
-import type { ZillowListing } from '@/types/zillow';
 
 interface PropertyCardProps {
   scoredProperty: ScoredProperty;
@@ -295,11 +292,6 @@ export function BuyerPropertiesView({
 
   const { data: buyersList, isLoading: loadingBuyers } = useBuyersList();
   const { data: buyerProperties, isLoading: loadingProperties, error } = useBuyerProperties(buyerId);
-  const { data: zillowData, isLoading: loadingZillow } = useZillowSearch(buyerId);
-
-  // State for Zillow save modal
-  const [zillowModalOpen, setZillowModalOpen] = useState(false);
-  const [selectedZillowListing, setSelectedZillowListing] = useState<ZillowListing | null>(null);
 
   // State for property selection
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<Set<string>>(new Set());
@@ -468,60 +460,18 @@ export function BuyerPropertiesView({
             )}
           </div>
 
-          {/* Zillow Section */}
-          {zillowData?.results && zillowData.results.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <Search className="h-5 w-5 text-teal-500" />
-                <h2 className="text-lg font-semibold">
-                  Find More on Zillow
-                </h2>
-                <Badge variant="secondary" className="bg-teal-100 text-teal-700">
-                  {zillowData.results.length}
-                </Badge>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {zillowData.results.map((listing) => (
-                  <ZillowPropertyCard
-                    key={listing.zpid}
-                    listing={listing}
-                    searchType={zillowData.searchType}
-                    onSave={(listing) => {
-                      setSelectedZillowListing(listing);
-                      setZillowModalOpen(true);
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Zillow Loading State */}
-          {loadingZillow && (
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="h-6 w-6 animate-spin mr-2" />
-              <span>Searching Zillow...</span>
-            </div>
+          {/* Zillow Opportunities - Agent Tool */}
+          {buyerProperties?.buyer && (
+            <ZillowOpportunities buyer={buyerProperties.buyer} />
           )}
 
           {/* Stats Footer */}
           <div className="text-center text-sm text-muted-foreground pt-4 border-t">
             Showing {buyerProperties.totalCount} properties in system
-            {zillowData?.results && ` + ${zillowData.results.length} from Zillow`}
             {buyerProperties.stats.timeMs && ` • Scored in ${buyerProperties.stats.timeMs}ms`}
           </div>
         </>
       )}
-
-      {/* Save Zillow Modal */}
-      <SaveZillowModal
-        listing={selectedZillowListing}
-        buyerId={buyerId || ''}
-        zillowType={zillowData?.searchType || 'Keywords'}
-        open={zillowModalOpen}
-        onOpenChange={setZillowModalOpen}
-      />
 
       {/* Property View Modal */}
       <PropertyViewModal
