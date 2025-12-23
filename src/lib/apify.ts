@@ -40,6 +40,12 @@ export async function runZillowSearch(
 
     console.log(`[Apify] Zillow search completed: ${items.length} raw results, runId: ${run.id}`);
 
+    // Debug: Log first raw item to see full structure
+    if (items.length > 0) {
+      console.log('[Apify] Raw first item keys:', Object.keys(items[0]));
+      console.log('[Apify] Raw first item (full):', JSON.stringify(items[0], null, 2).slice(0, 3000));
+    }
+
     // Transform all results
     let listings = items.map(transformApifyResult);
 
