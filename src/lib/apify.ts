@@ -104,19 +104,11 @@ function buildApifyInput(
     location: [location],           // Array format required
     search_type: 'sale',            // Correct enum value (not 'sell')
     limit: 20,                      // Correct param name (not 'maxResults')
-    // Include additional property details (must be strings, not booleans)
-    'includes:description': 'true',
-    'includes:foreClosure': 'true',
-    'includes:homeInsights': 'true',
-    'includes:resoFacts': 'true',
-    'includes:attributionInfo': 'true',
-    'includes:priceHistory': 'true',
-    'includes:taxHistory': 'true',
-    'includes:schools': 'true',
-    'includes:tourEligibility': 'true',
-    'includes:localProtections': 'true',
-    'includes:walkScores': 'true',
-    'includes:photos': 'true',
+    // Include only essential property details
+    'includes:description': true,
+    'includes:homeInsights': true,
+    'includes:attributionInfo': true,
+    'includes:photos': true,
   };
 
   // Always include beds filter if available
