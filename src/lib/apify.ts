@@ -196,18 +196,16 @@ function transformApifyResult(item: any): ZillowListing {
     ? item.price.value || 0
     : (item.price || 0);
 
-  // Handle images - check media.propertyPhotoLinks first
-  const imageUrl = item.media?.propertyPhotoLinks?.highResolutionLink
-    || item.media?.propertyPhotoLinks?.mediumSizeLink
-    || item.media?.propertyPhotoLinks?.defaultLink
-    || item.imgSrc
-    || (item.photos && item.photos[0])
-    || (item.images && item.images[0])
-    || null;
-
-  // Debug: log first item's image extraction
-  if (item.zpid) {
-    console.log(`[Apify] Image for ${item.zpid}:`, imageUrl || 'NO IMAGE', item.media?.propertyPhotoLinks);
+  // Handle images - check originalPhotos array first (from includes:photos)
+  let images: string[] = [];
+  if (item.originalPhotos && Array.isArray(item.originalPhotos)) {
+    images = item.originalPhotos.map((p: any) => p.url).filter(Boolean);
+  } else if (item.responsivePhotos && Array.isArray(item.responsivePhotos)) {
+    images = item.responsivePhotos
+      .map((p: any) => p.mixedSources?.jpeg?.[0]?.url)
+      .filter(Boolean);
+  } else if (item.imgSrc) {
+    images = [item.imgSrc];
   }
 
   // Handle location - can be nested in location object
@@ -226,15 +224,16 @@ function transformApifyResult(item: any): ZillowListing {
     sqft: item.livingArea || item.sqft || item.squareFeet,
     propertyType: item.propertyType || item.homeType || 'SINGLE_FAMILY',
     description: item.description || '',
-    images: imageUrl ? [imageUrl] : [],
+    images,
     zillowUrl: item.url || item.detailUrl || (item.zpid ? `https://www.zillow.com/homedetails/${item.zpid}_zpid/` : ''),
     daysOnMarket: item.daysOnZillow || item.dom || item.timeOnZillow,
     lat,
     lng,
     scrapedAt: new Date().toISOString(),
-    listingAgent: item.brokerageName ? {
-      name: item.brokerageName,
-      phone: '',
+    listingAgent: (item.attributionInfo || item.brokerageName) ? {
+      name: item.attributionInfo?.agentName || item.brokerageName || '',
+      phone: item.attributionInfo?.agentPhoneNumber || item.attributionInfo?.brokerPhoneNumber || '',
+      brokerName: item.attributionInfo?.brokerName || item.brokerageName,
     } : undefined,
   };
 }

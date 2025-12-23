@@ -13,6 +13,7 @@ export type ZillowSearchType = 'Creative Financing' | '90+ Days' | 'Affordabilit
 export interface ListingAgent {
   name: string;
   phone: string;
+  brokerName?: string;
 }
 
 /**
