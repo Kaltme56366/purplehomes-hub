@@ -44,12 +44,14 @@ import {
   Castle,
   Caravan,
   LandPlot,
+  Send,
   type LucideIcon,
 } from 'lucide-react';
 import { useZillowSearchByType } from '@/services/zillowApi';
 import { calculateMaxAffordablePrice } from '@/lib/affordability';
 import type { BuyerCriteria } from '@/types/matching';
 import type { ZillowSearchType, ZillowListing } from '@/types/zillow';
+import { SendFlyerModal } from './SendFlyerModal';
 
 // Property type configuration for icons, colors, and labels
 interface PropertyTypeConfig {
@@ -167,6 +169,15 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
   const [selectedSearchType, setSelectedSearchType] = useState<ZillowSearchType | null>(null);
   const [selectedPropertyType, setSelectedPropertyType] = useState<string | null>(null);
 
+  // Send Flyer modal state
+  const [sendFlyerModalOpen, setSendFlyerModalOpen] = useState(false);
+  const [selectedListing, setSelectedListing] = useState<ZillowListing | null>(null);
+
+  const handleSendFlyer = (listing: ZillowListing) => {
+    setSelectedListing(listing);
+    setSendFlyerModalOpen(true);
+  };
+
   // Query for selected search type
   const { data, isLoading, error, refetch, isFetching } = useZillowSearchByType(
     buyer.recordId || null,
@@ -221,6 +232,7 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
   };
 
   return (
+    <>
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <Card className="border-2 border-purple-200 bg-purple-50/30">
         <CollapsibleTrigger asChild>
@@ -411,6 +423,7 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
                       <ZillowOpportunityCard
                         key={listing.zpid}
                         listing={listing}
+                        onSendFlyer={handleSendFlyer}
                       />
                     ))}
                   </div>
@@ -436,13 +449,29 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
         </CollapsibleContent>
       </Card>
     </Collapsible>
+
+      {/* Send Flyer Modal */}
+      {selectedListing && (
+        <SendFlyerModal
+          open={sendFlyerModalOpen}
+          onOpenChange={setSendFlyerModalOpen}
+          listing={selectedListing}
+          buyer={buyer}
+        />
+      )}
+    </>
   );
 }
 
 /**
  * Individual opportunity card component
  */
-function ZillowOpportunityCard({ listing }: { listing: ZillowListing }) {
+interface ZillowOpportunityCardProps {
+  listing: ZillowListing;
+  onSendFlyer: (listing: ZillowListing) => void;
+}
+
+function ZillowOpportunityCard({ listing, onSendFlyer }: ZillowOpportunityCardProps) {
   const [imageError, setImageError] = useState(false);
   const imageUrl = listing.images?.[0];
   const typeConfig = getPropertyTypeConfig(listing.propertyType);
@@ -558,6 +587,14 @@ function ZillowOpportunityCard({ listing }: { listing: ZillowListing }) {
             >
               <ExternalLink className="h-3 w-3 mr-1" />
               View on Zillow
+            </Button>
+            <Button
+              size="sm"
+              className="h-7 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+              onClick={() => onSendFlyer(listing)}
+            >
+              <Send className="h-3 w-3 mr-1" />
+              Send Flyer
             </Button>
           </div>
         </div>

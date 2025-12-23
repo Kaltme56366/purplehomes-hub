@@ -23,3 +23,4 @@ export { SourceBadge } from './SourceBadge';
 export { ZillowTypeBadge } from './ZillowTypeBadge';
 export { ZillowPropertyCard } from './ZillowPropertyCard';
 export { SaveZillowModal } from './SaveZillowModal';
+export { SendFlyerModal } from './SendFlyerModal';
