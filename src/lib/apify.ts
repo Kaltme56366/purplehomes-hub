@@ -75,18 +75,19 @@ export async function runZillowSearch(
  * Map internal property type to Zillow property type
  */
 function mapPropertyTypeToZillow(propertyType: string): string | undefined {
+  // Apify uses camelCase types (e.g., 'singleFamily' not 'SINGLE_FAMILY')
   const mapping: Record<string, string> = {
-    'Single Family': 'SINGLE_FAMILY',
-    'Condo': 'CONDO',
-    'Town House': 'TOWNHOUSE',
-    'Townhouse': 'TOWNHOUSE',
-    'Multi Family': 'MULTI_FAMILY',
-    'Duplex': 'MULTI_FAMILY',
-    'Triplex': 'MULTI_FAMILY',
-    '4-plex': 'MULTI_FAMILY',
-    'Mobile Home': 'MOBILE',
-    'Lot': 'LAND',
-    'Land': 'LAND',
+    'Single Family': 'singleFamily',
+    'Condo': 'condo',
+    'Town House': 'townhouse',
+    'Townhouse': 'townhouse',
+    'Multi Family': 'multiFamily',
+    'Duplex': 'multiFamily',
+    'Triplex': 'multiFamily',
+    '4-plex': 'multiFamily',
+    'Mobile Home': 'manufactured',
+    'Lot': 'land',
+    'Land': 'land',
   };
   return mapping[propertyType];
 }
@@ -106,11 +107,13 @@ function buildApifyInput(
   const minBaths = buyer.desiredBaths ? String(buyer.desiredBaths) : undefined;
 
   // Build base input with corrected parameter names
-  // Note: Apify now returns all fields by default, no need for includes:* params
+  // Note: includes:* params default to false, set to true to get extra data
   const baseInput: Record<string, any> = {
     location: [location],           // Array format required
     search_type: 'sale',            // Correct enum value (not 'sell')
     limit: 20,                      // Correct param name (not 'maxResults')
+    'includes:attributionInfo': true,  // Get agent/broker info
+    'includes:description': true,      // Get property descriptions
   };
 
   // Always include beds filter if available
