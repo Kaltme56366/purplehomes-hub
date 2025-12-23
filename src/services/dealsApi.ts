@@ -163,7 +163,7 @@ export const useDeals = (filters?: DealFilters) => {
       }
 
       const params = new URLSearchParams({
-        action: 'list',
+        action: 'list-records',
         table: 'Property-Buyer Matches',
       });
 
@@ -228,7 +228,7 @@ export const usePipelineStats = () => {
       console.log('[Deals API] Computing pipeline stats');
 
       const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list&table=${encodeURIComponent('Property-Buyer Matches')}`
+        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch deals for stats');
@@ -308,7 +308,7 @@ export const useDealsByStage = () => {
       console.log('[Deals API] Fetching deals by stage');
 
       const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list&table=${encodeURIComponent('Property-Buyer Matches')}`
+        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
@@ -358,7 +358,7 @@ export const useDealsByBuyer = () => {
       console.log('[Deals API] Fetching deals by buyer');
 
       const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list&table=${encodeURIComponent('Property-Buyer Matches')}`
+        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
@@ -420,7 +420,7 @@ export const useDealsByProperty = () => {
       console.log('[Deals API] Fetching deals by property');
 
       const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list&table=${encodeURIComponent('Property-Buyer Matches')}`
+        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
@@ -497,7 +497,7 @@ export const useStaleDeals = (limit: number = 5) => {
       console.log('[Deals API] Fetching stale deals, limit:', limit);
 
       const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list&table=${encodeURIComponent('Property-Buyer Matches')}`
+        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
@@ -539,7 +539,7 @@ export const useUpcomingShowings = (limit: number = 5) => {
       console.log('[Deals API] Fetching upcoming showings, limit:', limit);
 
       const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list&table=${encodeURIComponent('Property-Buyer Matches')}&filterByFormula=${encodeURIComponent('{Match Stage}="Showing Scheduled"')}`
+        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}&filterByFormula=${encodeURIComponent('{Match Stage}="Showing Scheduled"')}`
       );
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
