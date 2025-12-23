@@ -68,6 +68,12 @@ function transformMatchToDeal(
     return null;
   }
 
+  // Only include matches that have an explicit Match Stage set
+  // Matches without a stage are just "Active" matches, not deals in the pipeline
+  if (!match.stage) {
+    return null;
+  }
+
   // Parse activities if stored as JSON string
   let activities: MatchActivity[] = [];
   if (match.activities) {
