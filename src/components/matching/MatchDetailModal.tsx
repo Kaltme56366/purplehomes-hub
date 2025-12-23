@@ -199,33 +199,37 @@ export function MatchDetailModal({
               </div>
             )}
 
-            <Separator />
+            {/* Deal Progress Section - Only show if stage management is enabled */}
+            {onStageChange && (
+              <>
+                <Separator />
 
-            {/* Deal Progress Section */}
-            <div>
-              <h3 className="text-base font-semibold mb-4">Deal Progress</h3>
-              <DealProgressKanban
-                currentStage={currentStage}
-                onStageChange={handleStageChange}
-                onNotInterested={() => handleStageChange('Not Interested')}
-                isUpdating={isUpdating}
-              />
-            </div>
+                <div>
+                  <h3 className="text-base font-semibold mb-4">Deal Progress</h3>
+                  <DealProgressKanban
+                    currentStage={currentStage}
+                    onStageChange={handleStageChange}
+                    onNotInterested={() => handleStageChange('Not Interested')}
+                    isUpdating={isUpdating}
+                  />
+                </div>
 
-            <Separator />
+                <Separator />
 
-            {/* Quick Actions Section */}
-            <div>
-              <h3 className="text-base font-semibold mb-4">Quick Actions</h3>
-              <MatchQuickActions
-                currentStage={currentStage}
-                onAdvanceStage={handleStageChange}
-                onSendEmail={onSendEmail ? handleSendEmail : undefined}
-                onAddNote={onAddNote ? handleAddNote : undefined}
-                onMarkNotInterested={() => handleStageChange('Not Interested')}
-                isLoading={isUpdating}
-              />
-            </div>
+                {/* Quick Actions Section */}
+                <div>
+                  <h3 className="text-base font-semibold mb-4">Quick Actions</h3>
+                  <MatchQuickActions
+                    currentStage={currentStage}
+                    onAdvanceStage={handleStageChange}
+                    onSendEmail={onSendEmail ? handleSendEmail : undefined}
+                    onAddNote={onAddNote ? handleAddNote : undefined}
+                    onMarkNotInterested={() => handleStageChange('Not Interested')}
+                    isLoading={isUpdating}
+                  />
+                </div>
+              </>
+            )}
 
             <Separator />
 

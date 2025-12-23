@@ -43,11 +43,8 @@ import { ZillowTypeBadge } from './ZillowTypeBadge';
 import { ZillowOpportunities } from './ZillowOpportunities';
 import { PropertySelectionBar } from './PropertySelectionBar';
 import { SendPropertiesModal } from './SendPropertiesModal';
-import { StageBadge } from './StageBadge';
 import { MatchDetailModal } from './MatchDetailModal';
 import type { ScoredProperty, BuyerCriteria } from '@/types/matching';
-import type { MatchDealStage } from '@/types/associations';
-import { Button } from '@/components/ui/button';
 import { ArrowRight } from 'lucide-react';
 
 interface PropertyCardProps {
@@ -236,14 +233,6 @@ function PropertyCard({
                 {highlight}
               </Badge>
             ))}
-
-            {/* Stage Badge */}
-            {scoredProperty.currentStage && (
-              <StageBadge
-                stage={scoredProperty.currentStage as MatchDealStage}
-                size="sm"
-              />
-            )}
           </div>
 
           {/* Location Reason */}
@@ -496,7 +485,6 @@ export function BuyerPropertiesView({
           propertyId: selectedProperty.property.recordId,
           buyerId: buyerProperties?.buyer.recordId || buyerProperties?.buyer.contactId || '',
           score: selectedProperty.score.score,
-          status: (selectedProperty.currentStage as MatchDealStage) || 'Sent to Buyer',
           reasoning: selectedProperty.score.reasoning,
           distance: selectedProperty.score.distanceMiles,
           isPriority: selectedProperty.score.isPriority,
