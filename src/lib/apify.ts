@@ -184,16 +184,39 @@ function transformApifyResult(item: any): ZillowListing {
     ? item.price.value || 0
     : (item.price || 0);
 
-  // Handle images - check originalPhotos array first (from includes:photos)
+  // Handle images - try multiple sources
   let images: string[] = [];
-  if (item.originalPhotos && Array.isArray(item.originalPhotos)) {
-    images = item.originalPhotos.map((p: any) => p.url).filter(Boolean);
-  } else if (item.responsivePhotos && Array.isArray(item.responsivePhotos)) {
-    images = item.responsivePhotos
-      .map((p: any) => p.mixedSources?.jpeg?.[0]?.url)
+
+  // First try imgSrc (main thumbnail - most reliable)
+  if (item.imgSrc) {
+    images.push(item.imgSrc);
+  }
+
+  // Then try responsivePhotos (detailed photos)
+  if (item.responsivePhotos && Array.isArray(item.responsivePhotos) && item.responsivePhotos.length > 0) {
+    const responsiveUrls = item.responsivePhotos
+      .slice(0, 7) // Limit to 7 photos
+      .map((p: any) => {
+        // Get largest jpeg available (last in array)
+        const jpegs = p.mixedSources?.jpeg;
+        if (jpegs && jpegs.length > 0) {
+          return jpegs[jpegs.length - 1]?.url; // Get largest
+        }
+        return null;
+      })
       .filter(Boolean);
-  } else if (item.imgSrc) {
-    images = [item.imgSrc];
+    images = [...images, ...responsiveUrls];
+  }
+
+  // Try originalPhotos if available
+  if (images.length === 0 && item.originalPhotos && Array.isArray(item.originalPhotos)) {
+    images = item.originalPhotos.slice(0, 7).map((p: any) => p.url).filter(Boolean);
+  }
+
+  // Fallback to hiResImageLink or desktopWebHdpImageLink
+  if (images.length === 0) {
+    if (item.hiResImageLink) images.push(item.hiResImageLink);
+    else if (item.desktopWebHdpImageLink) images.push(item.desktopWebHdpImageLink);
   }
 
   // Handle location - can be nested in location object
