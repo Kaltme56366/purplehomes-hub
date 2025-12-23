@@ -7,7 +7,7 @@
  * 3. Affordability - Properties within calculated max price
  */
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Lock,
   ChevronDown,
@@ -31,11 +38,125 @@ import {
   Bath,
   Square,
   Home,
+  RefreshCw,
+  Building2,
+  Warehouse,
+  Castle,
+  Caravan,
+  LandPlot,
+  type LucideIcon,
 } from 'lucide-react';
 import { useZillowSearchByType } from '@/services/zillowApi';
 import { calculateMaxAffordablePrice } from '@/lib/affordability';
 import type { BuyerCriteria } from '@/types/matching';
 import type { ZillowSearchType, ZillowListing } from '@/types/zillow';
+
+// Property type configuration for icons, colors, and labels
+interface PropertyTypeConfig {
+  label: string;
+  shortLabel: string;
+  icon: LucideIcon;
+  color: string;
+  bgColor: string;
+}
+
+const PROPERTY_TYPE_CONFIG: Record<string, PropertyTypeConfig> = {
+  SINGLE_FAMILY: {
+    label: 'Single Family',
+    shortLabel: 'SFH',
+    icon: Home,
+    color: 'text-blue-700',
+    bgColor: 'bg-blue-100',
+  },
+  MULTI_FAMILY: {
+    label: 'Multi-Family',
+    shortLabel: 'MF',
+    icon: Warehouse,
+    color: 'text-amber-700',
+    bgColor: 'bg-amber-100',
+  },
+  CONDO: {
+    label: 'Condo',
+    shortLabel: 'Condo',
+    icon: Building2,
+    color: 'text-purple-700',
+    bgColor: 'bg-purple-100',
+  },
+  TOWNHOUSE: {
+    label: 'Townhouse',
+    shortLabel: 'TH',
+    icon: Castle,
+    color: 'text-indigo-700',
+    bgColor: 'bg-indigo-100',
+  },
+  MOBILE: {
+    label: 'Mobile Home',
+    shortLabel: 'Mobile',
+    icon: Caravan,
+    color: 'text-teal-700',
+    bgColor: 'bg-teal-100',
+  },
+  LAND: {
+    label: 'Land/Lot',
+    shortLabel: 'Land',
+    icon: LandPlot,
+    color: 'text-green-700',
+    bgColor: 'bg-green-100',
+  },
+  LOT: {
+    label: 'Land/Lot',
+    shortLabel: 'Lot',
+    icon: LandPlot,
+    color: 'text-green-700',
+    bgColor: 'bg-green-100',
+  },
+  APARTMENT: {
+    label: 'Apartment',
+    shortLabel: 'Apt',
+    icon: Building2,
+    color: 'text-rose-700',
+    bgColor: 'bg-rose-100',
+  },
+};
+
+const DEFAULT_PROPERTY_TYPE_CONFIG: PropertyTypeConfig = {
+  label: 'Other',
+  shortLabel: 'Other',
+  icon: Home,
+  color: 'text-gray-700',
+  bgColor: 'bg-gray-100',
+};
+
+function getPropertyTypeConfig(type: string | undefined): PropertyTypeConfig {
+  if (!type) return DEFAULT_PROPERTY_TYPE_CONFIG;
+  return PROPERTY_TYPE_CONFIG[type] || DEFAULT_PROPERTY_TYPE_CONFIG;
+}
+
+// Property type badge component
+interface PropertyTypeBadgeProps {
+  propertyType: string | undefined;
+  size?: 'sm' | 'md';
+  showIcon?: boolean;
+}
+
+function PropertyTypeBadge({ propertyType, size = 'sm', showIcon = true }: PropertyTypeBadgeProps) {
+  const config = getPropertyTypeConfig(propertyType);
+  const Icon = config.icon;
+
+  return (
+    <Badge
+      variant="secondary"
+      className={`
+        ${config.bgColor} ${config.color}
+        ${size === 'sm' ? 'text-xs px-1.5 py-0.5' : 'text-sm px-2 py-1'}
+        font-medium border-0
+      `}
+    >
+      {showIcon && <Icon className={`${size === 'sm' ? 'h-3 w-3' : 'h-4 w-4'} mr-1`} />}
+      {size === 'sm' ? config.shortLabel : config.label}
+    </Badge>
+  );
+}
 
 interface ZillowOpportunitiesProps {
   buyer: BuyerCriteria;
@@ -44,12 +165,35 @@ interface ZillowOpportunitiesProps {
 export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedSearchType, setSelectedSearchType] = useState<ZillowSearchType | null>(null);
+  const [selectedPropertyType, setSelectedPropertyType] = useState<string | null>(null);
 
   // Query for selected search type
-  const { data, isLoading, error } = useZillowSearchByType(
+  const { data, isLoading, error, refetch, isFetching } = useZillowSearchByType(
     buyer.recordId || null,
     selectedSearchType
   );
+
+  // Reset property type filter when search type changes
+  useEffect(() => {
+    setSelectedPropertyType(null);
+  }, [selectedSearchType]);
+
+  // Filter results by property type
+  const filteredResults = useMemo(() => {
+    if (!data?.results) return [];
+    if (!selectedPropertyType) return data.results;
+    return data.results.filter(r => r.propertyType === selectedPropertyType);
+  }, [data?.results, selectedPropertyType]);
+
+  // Get unique property types with counts for filter dropdown
+  const propertyTypeCounts = useMemo(() => {
+    if (!data?.results) return {};
+    return data.results.reduce((acc, r) => {
+      const type = r.propertyType || 'OTHER';
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [data?.results]);
 
   // Calculate max price for display
   const maxPrice = buyer.downPayment && buyer.downPayment > 10300
@@ -191,31 +335,79 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
             {data && !isLoading && (
               <div className="space-y-3">
                 {/* Results Header */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-semibold">
-                      {selectedSearchType} Results
-                    </h4>
-                    <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                      {data.results.length}
-                    </Badge>
-                    {data.cached && (
-                      <Badge variant="outline" className="text-xs">
-                        Cached
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-semibold">
+                        {selectedSearchType} Results
+                      </h4>
+                      <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                        {selectedPropertyType
+                          ? `${filteredResults.length} of ${data.results.length}`
+                          : data.results.length}
                       </Badge>
-                    )}
+                      {data.cached && (
+                        <Badge variant="outline" className="text-xs">
+                          Cached
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {data.searchAge !== undefined && (
+                        <span className="text-xs text-muted-foreground">
+                          Last searched: {getSearchAge()}
+                        </span>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0"
+                        onClick={() => refetch()}
+                        disabled={isLoading || isFetching}
+                        title="Refresh search results"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+                      </Button>
+                    </div>
                   </div>
-                  {data.searchAge !== undefined && (
-                    <span className="text-xs text-muted-foreground">
-                      Last searched: {getSearchAge()}
-                    </span>
+
+                  {/* Property Type Filter */}
+                  {Object.keys(propertyTypeCounts).length > 1 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Filter:</span>
+                      <Select
+                        value={selectedPropertyType || 'all'}
+                        onValueChange={(value) => setSelectedPropertyType(value === 'all' ? null : value)}
+                      >
+                        <SelectTrigger className="h-8 w-[160px] text-xs">
+                          <SelectValue placeholder="All Types" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all" className="text-xs">
+                            All Types ({data.results.length})
+                          </SelectItem>
+                          {Object.entries(propertyTypeCounts).map(([type, count]) => {
+                            const config = getPropertyTypeConfig(type);
+                            const Icon = config.icon;
+                            return (
+                              <SelectItem key={type} value={type} className="text-xs">
+                                <span className="flex items-center gap-1.5">
+                                  <Icon className={`h-3.5 w-3.5 ${config.color}`} />
+                                  {config.label} ({count})
+                                </span>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                 </div>
 
                 {/* Results List */}
-                {data.results.length > 0 ? (
+                {filteredResults.length > 0 ? (
                   <div className="space-y-2">
-                    {data.results.map((listing) => (
+                    {filteredResults.map((listing) => (
                       <ZillowOpportunityCard
                         key={listing.zpid}
                         listing={listing}
@@ -225,7 +417,9 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
                 ) : (
                   <div className="text-center py-8 bg-white rounded-lg border">
                     <p className="text-sm text-muted-foreground">
-                      No properties found for this search
+                      {selectedPropertyType
+                        ? 'No properties match the selected filter'
+                        : 'No properties found for this search'}
                     </p>
                   </div>
                 )}
@@ -251,12 +445,18 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
 function ZillowOpportunityCard({ listing }: { listing: ZillowListing }) {
   const [imageError, setImageError] = useState(false);
   const imageUrl = listing.images?.[0];
+  const typeConfig = getPropertyTypeConfig(listing.propertyType);
+  const TypeIcon = typeConfig.icon;
 
   return (
     <Card className="p-3 hover:bg-purple-50/30 transition-colors">
       <div className="flex gap-3">
-        {/* Property Image */}
-        <div className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-purple-50">
+        {/* Property Image with property-type-specific fallback */}
+        <div className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden ${
+          imageUrl && !imageError
+            ? 'bg-gray-100'
+            : `bg-gradient-to-br ${typeConfig.bgColor} to-white`
+        }`}>
           {imageUrl && !imageError ? (
             <img
               src={imageUrl}
@@ -267,17 +467,23 @@ function ZillowOpportunityCard({ listing }: { listing: ZillowListing }) {
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              <Home className="h-6 w-6 text-purple-300" />
+              <TypeIcon className={`h-8 w-8 ${typeConfig.color} opacity-60`} />
             </div>
           )}
         </div>
 
         {/* Property Details */}
         <div className="flex-1 min-w-0">
-          <h5 className="font-medium text-sm truncate">{listing.address}</h5>
-          <p className="text-xs text-muted-foreground truncate">
-            {listing.city}, {listing.state} {listing.zipCode}
-          </p>
+          {/* Header with address and property type badge */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h5 className="font-medium text-sm truncate">{listing.address}</h5>
+              <p className="text-xs text-muted-foreground truncate">
+                {listing.city}, {listing.state} {listing.zipCode}
+              </p>
+            </div>
+            <PropertyTypeBadge propertyType={listing.propertyType} size="sm" />
+          </div>
 
           {/* Stats */}
           <div className="flex items-center gap-3 mt-1 text-xs">
