@@ -104,7 +104,7 @@ function buildApifyInput(
     location: [location],           // Array format required
     search_type: 'sale',            // Correct enum value (not 'sell')
     limit: 20,                      // Correct param name (not 'maxResults')
-    'includes:photos': 'true',      // String format required by API
+    'includes:photos': '7',         // Number of photos to include (1-7)
   };
 
   // Always include beds filter if available
