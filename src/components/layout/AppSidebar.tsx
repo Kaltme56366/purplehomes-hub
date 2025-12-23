@@ -1,19 +1,20 @@
-import { 
-  LayoutDashboard, 
-  Building2, 
-  Users, 
+import {
+  LayoutDashboard,
+  Building2,
+  Users,
   UserPlus,
   Home,
   UsersRound,
   FileText,
-  Share2, 
-  Settings, 
+  Share2,
+  Settings,
   Activity,
   ChevronLeft,
   ChevronRight,
   Globe,
   LogOut,
-  Target  // Add this icon for Matching
+  Target,
+  Kanban,
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
@@ -31,7 +32,8 @@ const navigation = [
   { name: 'Seller Acquisitions', href: '/seller-acquisitions', icon: Home },
   { name: 'Buyer Acquisitions', href: '/acquisitions', icon: UserPlus },
   { name: 'Buyers Pipeline', href: '/buyers', icon: Users },
-  { name: 'Property Matching', href: '/matching', icon: Target }, 
+  { name: 'Property Matching', href: '/matching', icon: Target },
+  { name: 'Deal Pipeline', href: '/deals', icon: Kanban },
   { name: 'Contacts', href: '/contacts', icon: UsersRound },
   { name: 'Documents', href: '/documents', icon: FileText },
   { name: 'Social Hub', href: '/social', icon: Share2 },

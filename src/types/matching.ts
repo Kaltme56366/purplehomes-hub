@@ -176,6 +176,8 @@ export interface MatchFilters {
 export interface ScoredProperty {
   property: PropertyDetails;
   score: MatchScore;
+  currentStage?: string;  // Current deal stage
+  matchId?: string;       // Reference to match record
 }
 
 /**

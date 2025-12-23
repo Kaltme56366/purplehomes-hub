@@ -35,15 +35,20 @@ import {
   Check,
 } from 'lucide-react';
 import { useBuyerProperties, useBuyersList } from '@/services/matchingApi';
+import { useNavigate } from 'react-router-dom';
 import { MatchSectionDivider } from './MatchSectionDivider';
 import { MatchScoreBadge } from './MatchScoreBadge';
 import { SourceBadge } from './SourceBadge';
 import { ZillowTypeBadge } from './ZillowTypeBadge';
 import { ZillowOpportunities } from './ZillowOpportunities';
-import { PropertyViewModal } from './PropertyViewModal';
 import { PropertySelectionBar } from './PropertySelectionBar';
 import { SendPropertiesModal } from './SendPropertiesModal';
+import { StageBadge } from './StageBadge';
+import { MatchDetailModal } from './MatchDetailModal';
 import type { ScoredProperty, BuyerCriteria } from '@/types/matching';
+import type { MatchDealStage } from '@/types/associations';
+import { Button } from '@/components/ui/button';
+import { ArrowRight } from 'lucide-react';
 
 interface PropertyCardProps {
   scoredProperty: ScoredProperty;
@@ -231,6 +236,14 @@ function PropertyCard({
                 {highlight}
               </Badge>
             ))}
+
+            {/* Stage Badge */}
+            {scoredProperty.currentStage && (
+              <StageBadge
+                stage={scoredProperty.currentStage as MatchDealStage}
+                size="sm"
+              />
+            )}
           </div>
 
           {/* Location Reason */}
@@ -290,14 +303,17 @@ export function BuyerPropertiesView({
     }
   };
 
+  const navigate = useNavigate();
   const { data: buyersList, isLoading: loadingBuyers } = useBuyersList();
   const { data: buyerProperties, isLoading: loadingProperties, error } = useBuyerProperties(buyerId);
 
   // State for property selection
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<Set<string>>(new Set());
-  const [selectedPropertyForView, setSelectedPropertyForView] = useState<ScoredProperty | null>(null);
-  const [viewModalOpen, setViewModalOpen] = useState(false);
   const [sendModalOpen, setSendModalOpen] = useState(false);
+
+  // State for match detail modal (read-only view)
+  const [selectedProperty, setSelectedProperty] = useState<ScoredProperty | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   // Selection handlers
   const togglePropertySelection = (recordId: string) => {
@@ -446,8 +462,8 @@ export function BuyerPropertiesView({
                       isSelected={selectedPropertyIds.has(sp.property.recordId)}
                       onToggleSelect={() => togglePropertySelection(sp.property.recordId)}
                       onViewDetails={() => {
-                        setSelectedPropertyForView(sp);
-                        setViewModalOpen(true);
+                        setSelectedProperty(sp);
+                        setDetailModalOpen(true);
                       }}
                     />
                   ))}
@@ -473,12 +489,37 @@ export function BuyerPropertiesView({
         </>
       )}
 
-      {/* Property View Modal */}
-      <PropertyViewModal
-        scoredProperty={selectedPropertyForView}
-        open={viewModalOpen}
-        onOpenChange={setViewModalOpen}
+      {/* Match Detail Modal (Read-only - stage management moved to Deal Pipeline) */}
+      <MatchDetailModal
+        match={selectedProperty ? {
+          id: selectedProperty.matchId || selectedProperty.property.recordId,
+          propertyId: selectedProperty.property.recordId,
+          buyerId: buyerProperties?.buyer.recordId || buyerProperties?.buyer.contactId || '',
+          score: selectedProperty.score.score,
+          status: (selectedProperty.currentStage as MatchDealStage) || 'Sent to Buyer',
+          reasoning: selectedProperty.score.reasoning,
+          distance: selectedProperty.score.distanceMiles,
+          isPriority: selectedProperty.score.isPriority,
+          property: selectedProperty.property,
+          buyer: buyerProperties?.buyer,
+        } : null}
+        open={detailModalOpen}
+        onOpenChange={setDetailModalOpen}
       />
+
+      {/* Link to Deal Pipeline */}
+      {buyerProperties && buyerProperties.totalCount > 0 && (
+        <div className="flex justify-center pt-4">
+          <Button
+            variant="outline"
+            onClick={() => navigate('/deals')}
+            className="gap-2"
+          >
+            Manage Deal Stages in Pipeline
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {/* Send Properties Modal */}
       {buyerProperties && (

@@ -13,6 +13,7 @@ import BuyerAcquisitions from "@/pages/BuyerAcquisitions";
 import SellerAcquisitions from "@/pages/SellerAcquisitions";
 import Contacts from "@/pages/Contacts";
 import Matching from "@/pages/Matching";
+import DealPipeline from "@/pages/DealPipeline";
 import Documents from "@/pages/Documents";
 import SocialMedia from "@/pages/SocialMedia";
 import Settings from "@/pages/Settings";
@@ -47,6 +48,7 @@ const App = () => (
                 <Route path="/seller-acquisitions" element={<SellerAcquisitions />} />
                 <Route path="/contacts" element={<Contacts />} />
                 <Route path="/matching" element={<Matching />} />
+                <Route path="/deals" element={<DealPipeline />} />
                 <Route path="/documents" element={<Documents />} />
                 <Route path="/social" element={<SocialMedia />} />
                 <Route path="/settings" element={<Settings />} />

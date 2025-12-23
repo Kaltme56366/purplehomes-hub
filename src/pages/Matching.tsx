@@ -7,7 +7,6 @@ import { useRunMatching, useClearMatches } from '@/services/matchingApi';
 import { BuyerPropertiesView } from '@/components/matching/BuyerPropertiesView';
 import { PropertyBuyersView } from '@/components/matching/PropertyBuyersView';
 import { MatchingSummary } from '@/components/matching/MatchingSummary';
-import { MatchDetailModal, MatchWithDetails } from '@/components/matching/MatchDetailModal';
 import { useMatchingData } from '@/hooks/useCache';
 import { toast } from 'sonner';
 import {
@@ -22,9 +21,6 @@ export default function Matching() {
   const [activeTab, setActiveTab] = useState<'by-buyer' | 'by-property'>('by-buyer');
   const [selectedBuyerId, setSelectedBuyerId] = useState<string | null>(null);
   const [selectedPropertyCode, setSelectedPropertyCode] = useState<string | null>(null);
-
-  // Legacy state (keeping for now in case needed by other parts)
-  const [selectedMatch, setSelectedMatch] = useState<MatchWithDetails | null>(null);
 
   // Cross-tab navigation helpers
   const handleSelectBuyer = (buyerId: string) => {
@@ -246,63 +242,6 @@ export default function Matching() {
 
         </Tabs>
       </div>
-
-      {/* Match Detail Modal */}
-      <MatchDetailModal
-        match={selectedMatch}
-        open={!!selectedMatch}
-        onOpenChange={(open) => !open && setSelectedMatch(null)}
-        onStageChange={async (matchId, newStage) => {
-          if (!selectedMatch) return;
-          try {
-            // Debug: Log the GHL sync params being passed
-            console.log('[Matching Page] Stage change params:', {
-              matchId,
-              newStage,
-              contactId: selectedMatch.buyer?.contactId,
-              propertyAddress: selectedMatch.property?.address,
-              opportunityId: selectedMatch.property?.opportunityId,
-              buyer: selectedMatch.buyer,
-              property: selectedMatch.property,
-            });
-
-            const result = await updateStageWithActivity.mutateAsync({
-              matchId,
-              fromStage: selectedMatch.status || 'Sent to Buyer',
-              toStage: newStage,
-              // GHL sync params - extract from the match data
-              syncToGhl: true,
-              contactId: selectedMatch.buyer?.contactId,
-              propertyAddress: selectedMatch.property?.address,
-              opportunityId: selectedMatch.property?.opportunityId,
-            });
-            // Update local state
-            setSelectedMatch({
-              ...selectedMatch,
-              status: newStage,
-              ghlRelationId: result.ghlRelationId || selectedMatch.ghlRelationId,
-            });
-            toast.success(`Stage updated to "${newStage}"${result.ghlRelationId ? ' (synced to GHL)' : ''}`);
-          } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Failed to update stage');
-          }
-        }}
-        onAddNote={async (matchId, note) => {
-          try {
-            await addActivity.mutateAsync({
-              matchId,
-              activity: {
-                type: 'note-added',
-                details: 'Note added',
-                metadata: { note },
-              },
-            });
-            toast.success('Note added');
-          } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Failed to add note');
-          }
-        }}
-      />
     </div>
   );
 }
