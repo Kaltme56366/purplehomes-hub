@@ -106,11 +106,11 @@ function buildApifyInput(
   const minBaths = buyer.desiredBaths ? String(buyer.desiredBaths) : undefined;
 
   // Build base input with corrected parameter names
+  // Note: Apify now returns all fields by default, no need for includes:* params
   const baseInput: Record<string, any> = {
     location: [location],           // Array format required
     search_type: 'sale',            // Correct enum value (not 'sell')
     limit: 20,                      // Correct param name (not 'maxResults')
-    'includes:photos': '7',         // Number of photos to include (1-7)
   };
 
   // Always include beds filter if available
