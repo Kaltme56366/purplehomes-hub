@@ -1393,6 +1393,7 @@ async function handleAggregatedBuyers(
           highlights: [],
           isPriority: match.fields['Is Priority'],
           status: match.fields['Match Status'] || 'Active',
+          stage: match.fields['Match Stage'] || 'Sent to Buyer',
           property: property ? {
             recordId: property.id,
             propertyCode: property.fields['Property Code'] || '',
@@ -1605,6 +1606,7 @@ async function handleAggregatedProperties(
           highlights: [],
           isPriority: match.fields['Is Priority'],
           status: match.fields['Match Status'] || 'Active',
+          stage: match.fields['Match Stage'] || 'Sent to Buyer',
           buyer: buyer ? {
             contactId: buyer.fields['Contact ID'] || '',
             recordId: buyer.id,

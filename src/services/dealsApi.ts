@@ -3,6 +3,9 @@
  *
  * These hooks provide deal-centric views of the matching data,
  * with computed properties for the pipeline UI.
+ *
+ * Uses the matching API's aggregated endpoint which already joins
+ * property and buyer details, then transforms for pipeline views.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -16,7 +19,7 @@ import type {
 } from '@/types/deals';
 import type { MatchDealStage } from '@/types/associations';
 import { MATCH_DEAL_STAGES, STAGE_ASSOCIATION_IDS } from '@/types/associations';
-import type { PropertyMatch, PropertyDetails, BuyerCriteria, MatchActivity } from '@/types/matching';
+import type { PropertyDetails, BuyerCriteria, MatchActivity, BuyerWithMatches } from '@/types/matching';
 
 const MATCHING_API_BASE = '/api/matching';
 const AIRTABLE_API_BASE = '/api/airtable';
@@ -31,14 +34,12 @@ function computeDealMetadata(
   activities: MatchActivity[],
   createdAt?: string
 ): { isStale: boolean; daysSinceActivity: number; lastActivityAt?: string } {
-  // Get most recent activity timestamp
   const sortedActivities = [...(activities || [])].sort(
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   );
   const lastActivity = sortedActivities[0];
   const lastActivityAt = lastActivity?.timestamp;
 
-  // Fall back to createdAt if no activities
   const lastDate = lastActivityAt
     ? new Date(lastActivityAt)
     : createdAt
@@ -57,85 +58,57 @@ function computeDealMetadata(
 }
 
 /**
- * Transform raw Airtable match record into a Deal object
+ * Transform a match from the aggregated API into a Deal object
  */
-function transformToDeal(record: {
-  id: string;
-  fields: Record<string, unknown>;
-  createdTime?: string;
-}): Deal | null {
-  const f = record.fields;
-
-  // Parse activities JSON
-  let activities: MatchActivity[] = [];
-  try {
-    activities = f.Activities ? JSON.parse(f.Activities as string) : [];
-  } catch {
-    activities = [];
-  }
-
-  // Parse highlights/concerns
-  let highlights: string[] = [];
-  let concerns: string[] = [];
-  try {
-    highlights = f.Highlights ? JSON.parse(f.Highlights as string) : [];
-    concerns = f.Concerns ? JSON.parse(f.Concerns as string) : [];
-  } catch {
-    // Keep empty arrays
-  }
-
-  const metadata = computeDealMetadata(activities, record.createdTime);
-
-  // Construct property details
-  const property: PropertyDetails = {
-    recordId: (f['Property Record ID'] as string) || (f.PropertyId as string) || '',
-    propertyCode: (f['Property Code'] as string) || '',
-    opportunityId: (f['Opportunity ID'] as string) || '',
-    address: (f['Property Address'] as string) || 'Unknown',
-    city: (f['Property City'] as string) || '',
-    state: (f['Property State'] as string) || '',
-    zipCode: (f['Property Zip'] as string) || '',
-    price: (f['Property Price'] as number) || 0,
-    beds: (f['Property Beds'] as number) || 0,
-    baths: (f['Property Baths'] as number) || 0,
-    sqft: (f['Property Sqft'] as number) || 0,
-    heroImage: (f['Property Image'] as string) || '',
-    source: f['Property Source'] as PropertyDetails['source'],
-  };
-
-  // Construct buyer details
-  const buyer: BuyerCriteria = {
-    contactId: (f['Contact ID'] as string) || '',
-    recordId: (f['Buyer Record ID'] as string) || (f.BuyerId as string) || '',
-    firstName: (f['Buyer First Name'] as string) || (f['Buyer Name'] as string)?.split(' ')[0] || '',
-    lastName: (f['Buyer Last Name'] as string) || (f['Buyer Name'] as string)?.split(' ').slice(1).join(' ') || '',
-    email: (f['Buyer Email'] as string) || '',
-  };
-
-  // Skip if missing essential data
-  if (!property.address || property.address === 'Unknown') {
+function transformMatchToDeal(
+  match: any,
+  buyer: BuyerCriteria
+): Deal | null {
+  if (!match || !match.property) {
     return null;
   }
 
+  // Parse activities if stored as JSON string
+  let activities: MatchActivity[] = [];
+  if (match.activities) {
+    if (typeof match.activities === 'string') {
+      try {
+        activities = JSON.parse(match.activities);
+      } catch {
+        activities = [];
+      }
+    } else if (Array.isArray(match.activities)) {
+      activities = match.activities;
+    }
+  }
+
+  const metadata = computeDealMetadata(activities, match.createdAt);
+
+  // Map stage from the match - use 'Match Stage' field (not 'Match Status')
+  // The aggregated API returns this as 'stage' after transformation
+  const rawStage = match.stage || 'Sent to Buyer';
+  // 'Active' is from 'Match Status' field (not a deal stage), default to 'Sent to Buyer'
+  const status: MatchDealStage = rawStage === 'Active' ? 'Sent to Buyer' : rawStage as MatchDealStage;
+
   const deal: Deal = {
-    id: record.id,
-    buyerRecordId: buyer.recordId || '',
-    propertyRecordId: property.recordId,
-    contactId: buyer.contactId,
-    propertyCode: property.propertyCode,
-    score: (f['Match Score'] as number) || 0,
-    distance: (f.Distance as number) || undefined,
-    reasoning: (f.Reasoning as string) || '',
-    highlights,
-    concerns,
-    isPriority: (f.IsPriority as boolean) || false,
-    status: ((f['Match Stage'] as string) || 'Sent to Buyer') as MatchDealStage,
+    id: match.id,
+    buyerRecordId: match.buyerRecordId || buyer.recordId || '',
+    propertyRecordId: match.propertyRecordId || match.property?.recordId || '',
+    contactId: match.contactId || buyer.contactId || '',
+    propertyCode: match.propertyCode || match.property?.propertyCode || '',
+    score: match.score || 0,
+    distance: match.distance,
+    reasoning: match.reasoning || '',
+    highlights: match.highlights || [],
+    concerns: match.concerns || [],
+    isPriority: match.isPriority || false,
+    status,
     activities,
-    ghlRelationId: (f['GHL Relation ID'] as string) || undefined,
-    createdAt: record.createdTime,
-    updatedAt: record.createdTime,
-    property,
-    buyer,
+    ghlRelationId: match.ghlRelationId,
+    createdAt: match.createdAt,
+    updatedAt: match.updatedAt || match.createdAt,
+    property: match.property as PropertyDetails,
+    buyer: buyer,
     isStale: metadata.isStale,
     daysSinceActivity: metadata.daysSinceActivity,
     lastActivityAt: metadata.lastActivityAt,
@@ -145,7 +118,8 @@ function transformToDeal(record: {
 }
 
 /**
- * Fetch all deals with optional filters
+ * Fetch all deals by getting all buyers with matches from the aggregated endpoint
+ * and flattening into a single list of deals
  */
 export const useDeals = (filters?: DealFilters) => {
   return useQuery({
@@ -153,40 +127,46 @@ export const useDeals = (filters?: DealFilters) => {
     queryFn: async (): Promise<Deal[]> => {
       console.log('[Deals API] Fetching deals with filters:', filters);
 
-      // Build filter formula
-      let filterFormula = '';
-      if (filters?.stage && filters.stage !== 'all') {
-        filterFormula = `{Match Stage}="${filters.stage}"`;
-      } else if (filters?.stages && filters.stages.length > 0) {
-        const stageConditions = filters.stages.map(s => `{Match Stage}="${s}"`);
-        filterFormula = `OR(${stageConditions.join(',')})`;
-      }
+      // Fetch all buyers with their matches from the aggregated endpoint
+      const response = await fetch(`${MATCHING_API_BASE}?action=aggregated-buyers&limit=100`);
 
-      const params = new URLSearchParams({
-        action: 'list-records',
-        table: 'Property-Buyer Matches',
-      });
-
-      if (filterFormula) {
-        params.set('filterByFormula', filterFormula);
-      }
-
-      const response = await fetch(`${AIRTABLE_API_BASE}?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
       }
 
       const data = await response.json();
+      const buyersWithMatches: BuyerWithMatches[] = data.data || [];
 
-      // Transform records to deals
-      const deals = (data.records || [])
-        .map((r: { id: string; fields: Record<string, unknown>; createdTime?: string }) =>
-          transformToDeal(r)
-        )
-        .filter((d: Deal | null): d is Deal => d !== null);
+      // Flatten all matches into deals
+      const deals: Deal[] = [];
+
+      for (const buyerData of buyersWithMatches) {
+        const buyer: BuyerCriteria = {
+          contactId: buyerData.contactId || '',
+          recordId: buyerData.recordId || '',
+          firstName: buyerData.firstName || '',
+          lastName: buyerData.lastName || '',
+          email: buyerData.email || '',
+        };
+
+        for (const match of buyerData.matches || []) {
+          const deal = transformMatchToDeal(match, buyer);
+          if (deal) {
+            deals.push(deal);
+          }
+        }
+      }
+
+      console.log('[Deals API] Total deals fetched:', deals.length);
 
       // Apply client-side filters
       let filtered = deals;
+
+      if (filters?.stage && filters.stage !== 'all') {
+        filtered = filtered.filter((d) => d.status === filters.stage);
+      } else if (filters?.stages && filters.stages.length > 0) {
+        filtered = filtered.filter((d) => filters.stages!.includes(d.status));
+      }
 
       if (filters?.search) {
         const search = filters.search.toLowerCase();
@@ -210,11 +190,11 @@ export const useDeals = (filters?: DealFilters) => {
         filtered = filtered.filter((d) => d.status === 'Showing Scheduled');
       }
 
-      console.log('[Deals API] Deals fetched:', filtered.length);
+      console.log('[Deals API] Filtered deals:', filtered.length);
 
       return filtered;
     },
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 2 * 60 * 1000,
   });
 };
 
@@ -227,19 +207,35 @@ export const usePipelineStats = () => {
     queryFn: async (): Promise<PipelineStats> => {
       console.log('[Deals API] Computing pipeline stats');
 
-      const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
-      );
+      // Fetch all buyers with matches
+      const response = await fetch(`${MATCHING_API_BASE}?action=aggregated-buyers&limit=100`);
+
       if (!response.ok) {
         throw new Error('Failed to fetch deals for stats');
       }
 
       const data = await response.json();
-      const deals = (data.records || [])
-        .map((r: { id: string; fields: Record<string, unknown>; createdTime?: string }) =>
-          transformToDeal(r)
-        )
-        .filter((d: Deal | null): d is Deal => d !== null);
+      const buyersWithMatches: BuyerWithMatches[] = data.data || [];
+
+      // Flatten all matches into deals
+      const deals: Deal[] = [];
+
+      for (const buyerData of buyersWithMatches) {
+        const buyer: BuyerCriteria = {
+          contactId: buyerData.contactId || '',
+          recordId: buyerData.recordId || '',
+          firstName: buyerData.firstName || '',
+          lastName: buyerData.lastName || '',
+          email: buyerData.email || '',
+        };
+
+        for (const match of buyerData.matches || []) {
+          const deal = transformMatchToDeal(match, buyer);
+          if (deal) {
+            deals.push(deal);
+          }
+        }
+      }
 
       // Initialize stage counts
       const byStage: Record<string, number> = {};
@@ -259,6 +255,9 @@ export const usePipelineStats = () => {
         // Count by stage
         if (byStage[deal.status] !== undefined) {
           byStage[deal.status]++;
+        } else {
+          // Handle unknown statuses as 'Sent to Buyer'
+          byStage['Sent to Buyer']++;
         }
 
         // Needs attention (stale deals, excluding closed/lost)
@@ -307,19 +306,35 @@ export const useDealsByStage = () => {
     queryFn: async (): Promise<Record<MatchDealStage, Deal[]>> => {
       console.log('[Deals API] Fetching deals by stage');
 
-      const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
-      );
+      // Fetch all buyers with matches
+      const response = await fetch(`${MATCHING_API_BASE}?action=aggregated-buyers&limit=100`);
+
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
       }
 
       const data = await response.json();
-      const deals = (data.records || [])
-        .map((r: { id: string; fields: Record<string, unknown>; createdTime?: string }) =>
-          transformToDeal(r)
-        )
-        .filter((d: Deal | null): d is Deal => d !== null);
+      const buyersWithMatches: BuyerWithMatches[] = data.data || [];
+
+      // Flatten all matches into deals
+      const deals: Deal[] = [];
+
+      for (const buyerData of buyersWithMatches) {
+        const buyer: BuyerCriteria = {
+          contactId: buyerData.contactId || '',
+          recordId: buyerData.recordId || '',
+          firstName: buyerData.firstName || '',
+          lastName: buyerData.lastName || '',
+          email: buyerData.email || '',
+        };
+
+        for (const match of buyerData.matches || []) {
+          const deal = transformMatchToDeal(match, buyer);
+          if (deal) {
+            deals.push(deal);
+          }
+        }
+      }
 
       // Initialize all stages
       const byStage: Record<string, Deal[]> = {};
@@ -328,10 +343,14 @@ export const useDealsByStage = () => {
       });
       byStage['Not Interested'] = [];
 
-      // Group deals
+      // Group deals by stage
       deals.forEach((deal) => {
-        if (byStage[deal.status]) {
-          byStage[deal.status].push(deal);
+        const stage = deal.status;
+        if (byStage[stage]) {
+          byStage[stage].push(deal);
+        } else {
+          // Default unknown statuses to 'Sent to Buyer'
+          byStage['Sent to Buyer'].push(deal);
         }
       });
 
@@ -357,50 +376,56 @@ export const useDealsByBuyer = () => {
     queryFn: async (): Promise<DealsByBuyer[]> => {
       console.log('[Deals API] Fetching deals by buyer');
 
-      const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
-      );
+      // Fetch all buyers with matches
+      const response = await fetch(`${MATCHING_API_BASE}?action=aggregated-buyers&limit=100`);
+
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
       }
 
       const data = await response.json();
-      const deals = (data.records || [])
-        .map((r: { id: string; fields: Record<string, unknown>; createdTime?: string }) =>
-          transformToDeal(r)
-        )
-        .filter((d: Deal | null): d is Deal => d !== null);
+      const buyersWithMatches: BuyerWithMatches[] = data.data || [];
 
-      // Group by buyer
-      const grouped = new Map<string, DealsByBuyer>();
+      // Transform into DealsByBuyer format
+      const result: DealsByBuyer[] = [];
 
-      deals.forEach((deal) => {
-        const buyerId = deal.buyer.contactId || deal.buyer.recordId || 'unknown';
+      for (const buyerData of buyersWithMatches) {
+        const buyer: BuyerCriteria = {
+          contactId: buyerData.contactId || '',
+          recordId: buyerData.recordId || '',
+          firstName: buyerData.firstName || '',
+          lastName: buyerData.lastName || '',
+          email: buyerData.email || '',
+        };
 
-        if (!grouped.has(buyerId)) {
-          grouped.set(buyerId, {
-            buyer: deal.buyer,
-            deals: [],
-            totalDeals: 0,
-            totalValue: 0,
-            activeStages: [],
+        const deals: Deal[] = [];
+        const activeStages: MatchDealStage[] = [];
+        let totalValue = 0;
+
+        for (const match of buyerData.matches || []) {
+          const deal = transformMatchToDeal(match, buyer);
+          if (deal) {
+            deals.push(deal);
+            totalValue += deal.property.price || 0;
+            if (!activeStages.includes(deal.status)) {
+              activeStages.push(deal.status);
+            }
+          }
+        }
+
+        if (deals.length > 0) {
+          result.push({
+            buyer,
+            deals,
+            totalDeals: deals.length,
+            totalValue,
+            activeStages,
           });
         }
-
-        const group = grouped.get(buyerId)!;
-        group.deals.push(deal);
-        group.totalDeals++;
-        group.totalValue += deal.property.price || 0;
-
-        if (!group.activeStages.includes(deal.status)) {
-          group.activeStages.push(deal.status);
-        }
-      });
+      }
 
       // Sort by total deals descending
-      const result = Array.from(grouped.values()).sort(
-        (a, b) => b.totalDeals - a.totalDeals
-      );
+      result.sort((a, b) => b.totalDeals - a.totalDeals);
 
       console.log('[Deals API] Deals by buyer:', result.length, 'buyers');
 
@@ -419,22 +444,18 @@ export const useDealsByProperty = () => {
     queryFn: async (): Promise<DealsByProperty[]> => {
       console.log('[Deals API] Fetching deals by property');
 
-      const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
-      );
+      // Fetch all buyers with matches
+      const response = await fetch(`${MATCHING_API_BASE}?action=aggregated-buyers&limit=100`);
+
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
       }
 
       const data = await response.json();
-      const deals = (data.records || [])
-        .map((r: { id: string; fields: Record<string, unknown>; createdTime?: string }) =>
-          transformToDeal(r)
-        )
-        .filter((d: Deal | null): d is Deal => d !== null);
+      const buyersWithMatches: BuyerWithMatches[] = data.data || [];
 
       // Group by property
-      const grouped = new Map<string, DealsByProperty>();
+      const propertyMap = new Map<string, DealsByProperty>();
 
       // Define stage order for determining "furthest" stage
       const stageOrder: Record<string, number> = {
@@ -445,37 +466,50 @@ export const useDealsByProperty = () => {
         'Offer Made': 5,
         'Under Contract': 6,
         'Closed Deal / Won': 7,
-        'Not Interested': 0, // Exit stage
+        'Not Interested': 0,
       };
 
-      deals.forEach((deal) => {
-        const propertyId = deal.property.recordId || deal.property.propertyCode || 'unknown';
+      for (const buyerData of buyersWithMatches) {
+        const buyer: BuyerCriteria = {
+          contactId: buyerData.contactId || '',
+          recordId: buyerData.recordId || '',
+          firstName: buyerData.firstName || '',
+          lastName: buyerData.lastName || '',
+          email: buyerData.email || '',
+        };
 
-        if (!grouped.has(propertyId)) {
-          grouped.set(propertyId, {
-            property: deal.property,
-            deals: [],
-            totalBuyers: 0,
-            highestScore: 0,
-            furthestStage: 'Sent to Buyer',
-          });
+        for (const match of buyerData.matches || []) {
+          const deal = transformMatchToDeal(match, buyer);
+          if (!deal) continue;
+
+          const propertyId = deal.property.recordId || deal.property.propertyCode || 'unknown';
+
+          if (!propertyMap.has(propertyId)) {
+            propertyMap.set(propertyId, {
+              property: deal.property,
+              deals: [],
+              totalBuyers: 0,
+              highestScore: 0,
+              furthestStage: 'Sent to Buyer',
+            });
+          }
+
+          const group = propertyMap.get(propertyId)!;
+          group.deals.push(deal);
+          group.totalBuyers++;
+
+          if (deal.score > group.highestScore) {
+            group.highestScore = deal.score;
+          }
+
+          if (stageOrder[deal.status] > stageOrder[group.furthestStage]) {
+            group.furthestStage = deal.status;
+          }
         }
-
-        const group = grouped.get(propertyId)!;
-        group.deals.push(deal);
-        group.totalBuyers++;
-
-        if (deal.score > group.highestScore) {
-          group.highestScore = deal.score;
-        }
-
-        if (stageOrder[deal.status] > stageOrder[group.furthestStage]) {
-          group.furthestStage = deal.status;
-        }
-      });
+      }
 
       // Sort by total buyers descending
-      const result = Array.from(grouped.values()).sort(
+      const result = Array.from(propertyMap.values()).sort(
         (a, b) => b.totalBuyers - a.totalBuyers
       );
 
@@ -496,19 +530,35 @@ export const useStaleDeals = (limit: number = 5) => {
     queryFn: async (): Promise<Deal[]> => {
       console.log('[Deals API] Fetching stale deals, limit:', limit);
 
-      const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}`
-      );
+      // Fetch all buyers with matches
+      const response = await fetch(`${MATCHING_API_BASE}?action=aggregated-buyers&limit=100`);
+
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
       }
 
       const data = await response.json();
-      const deals = (data.records || [])
-        .map((r: { id: string; fields: Record<string, unknown>; createdTime?: string }) =>
-          transformToDeal(r)
-        )
-        .filter((d: Deal | null): d is Deal => d !== null);
+      const buyersWithMatches: BuyerWithMatches[] = data.data || [];
+
+      // Flatten all matches into deals
+      const deals: Deal[] = [];
+
+      for (const buyerData of buyersWithMatches) {
+        const buyer: BuyerCriteria = {
+          contactId: buyerData.contactId || '',
+          recordId: buyerData.recordId || '',
+          firstName: buyerData.firstName || '',
+          lastName: buyerData.lastName || '',
+          email: buyerData.email || '',
+        };
+
+        for (const match of buyerData.matches || []) {
+          const deal = transformMatchToDeal(match, buyer);
+          if (deal) {
+            deals.push(deal);
+          }
+        }
+      }
 
       // Filter to stale deals (excluding closed/lost), sort by stalest first
       const staleDeals = deals
@@ -538,24 +588,44 @@ export const useUpcomingShowings = (limit: number = 5) => {
     queryFn: async (): Promise<Deal[]> => {
       console.log('[Deals API] Fetching upcoming showings, limit:', limit);
 
-      const response = await fetch(
-        `${AIRTABLE_API_BASE}?action=list-records&table=${encodeURIComponent('Property-Buyer Matches')}&filterByFormula=${encodeURIComponent('{Match Stage}="Showing Scheduled"')}`
-      );
+      // Fetch all buyers with matches
+      const response = await fetch(`${MATCHING_API_BASE}?action=aggregated-buyers&limit=100`);
+
       if (!response.ok) {
         throw new Error('Failed to fetch deals');
       }
 
       const data = await response.json();
-      const deals = (data.records || [])
-        .map((r: { id: string; fields: Record<string, unknown>; createdTime?: string }) =>
-          transformToDeal(r)
-        )
-        .filter((d: Deal | null): d is Deal => d !== null)
+      const buyersWithMatches: BuyerWithMatches[] = data.data || [];
+
+      // Flatten all matches into deals
+      const deals: Deal[] = [];
+
+      for (const buyerData of buyersWithMatches) {
+        const buyer: BuyerCriteria = {
+          contactId: buyerData.contactId || '',
+          recordId: buyerData.recordId || '',
+          firstName: buyerData.firstName || '',
+          lastName: buyerData.lastName || '',
+          email: buyerData.email || '',
+        };
+
+        for (const match of buyerData.matches || []) {
+          const deal = transformMatchToDeal(match, buyer);
+          if (deal) {
+            deals.push(deal);
+          }
+        }
+      }
+
+      // Filter to "Showing Scheduled" deals
+      const showingDeals = deals
+        .filter((d) => d.status === 'Showing Scheduled')
         .slice(0, limit);
 
-      console.log('[Deals API] Upcoming showings found:', deals.length);
+      console.log('[Deals API] Upcoming showings found:', showingDeals.length);
 
-      return deals;
+      return showingDeals;
     },
     staleTime: 2 * 60 * 1000,
   });
@@ -563,7 +633,6 @@ export const useUpcomingShowings = (limit: number = 5) => {
 
 /**
  * Update deal stage with activity logging and GHL sync
- * Wraps the existing useUpdateMatchStageWithActivity hook
  */
 export const useUpdateDealStage = () => {
   const queryClient = useQueryClient();
@@ -580,7 +649,7 @@ export const useUpdateDealStage = () => {
     }: StageChangeRequest): Promise<{ success: boolean; ghlRelationId?: string }> => {
       console.log('[Deals API] Updating deal stage:', { dealId, fromStage, toStage });
 
-      // 1. Update Airtable first
+      // 1. Update Airtable - use 'Match Stage' field (the deal pipeline stage)
       const updateResponse = await fetch(
         `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${dealId}`,
         {
@@ -605,9 +674,14 @@ export const useUpdateDealStage = () => {
       );
       if (getResponse.ok) {
         const currentMatch = await getResponse.json();
-        const currentActivities: MatchActivity[] = currentMatch.record?.fields?.Activities
-          ? JSON.parse(currentMatch.record.fields.Activities)
-          : [];
+        let currentActivities: MatchActivity[] = [];
+        try {
+          currentActivities = currentMatch.record?.fields?.Activities
+            ? JSON.parse(currentMatch.record.fields.Activities)
+            : [];
+        } catch {
+          currentActivities = [];
+        }
 
         const newActivity: MatchActivity = {
           id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
