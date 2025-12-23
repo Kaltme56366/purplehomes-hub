@@ -1,10 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search, Filter, X, Send, Calendar, SkipForward, MapPin, Home, RefreshCw, CloudDownload, Wifi, WifiOff, AlertCircle, Loader2 } from 'lucide-react';
+import { Search, Filter, X, Send, Calendar, SkipForward, MapPin, Home, RefreshCw, Database, Wifi, WifiOff, AlertCircle, Loader2, Target } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -15,99 +14,78 @@ import {
 import { PropertyCard } from '@/components/properties/PropertyCard';
 import { PropertyDetailModal } from '@/components/properties/PropertyDetailModal';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Skeleton } from '@/components/ui/skeleton';
-import { demoProperties, mockProperties } from '@/data/mockData';
+import { demoProperties } from '@/data/mockData';
 import { Building2 } from 'lucide-react';
 import type { PropertyStatus, PropertyType, Property } from '@/types';
-import { useProperties, useSyncProperties, getApiConfig, ACQUISITION_PIPELINE_ID } from '@/services/ghlApi';
-import { useAppStore } from '@/store/useAppStore';
+import { useAirtableProperties } from '@/services/matchingApi';
 import { toast } from 'sonner';
 
-const statusOptions: { value: string; label: string }[] = [
-  { value: 'all', label: 'All Statuses' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'posted', label: 'Posted' },
-  { value: 'scheduled', label: 'Scheduled' },
-  { value: 'skipped', label: 'Skipped' },
-  { value: 'deleted', label: 'Deleted' },
+// Property source types for filtering
+const sourceOptions: { value: string; label: string }[] = [
+  { value: 'all', label: 'All Sources' },
+  { value: 'Inventory', label: 'Inventory' },
+  { value: 'Lead', label: 'Lead' },
+  { value: 'Zillow', label: 'Zillow' },
 ];
 
 const PROPERTY_TYPES: PropertyType[] = [
-  'Single Family', 'Duplex', 'Multi Family', 'Condo', 'Lot', 
+  'Single Family', 'Duplex', 'Multi Family', 'Condo', 'Lot',
   'Mobile Home', 'Town House', 'Commercial', 'Triplex', '4-plex'
 ];
 
-const PROPERTIES_PER_PAGE = 9;
+const PROPERTIES_PER_PAGE = 12;
 
 export default function Properties() {
-  const { connectionStatus } = useAppStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  
+
   const [search, setSearch] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [propertyType, setPropertyType] = useState('all');
+  const [sourceFilter, setSourceFilter] = useState('all');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [syncProgress, setSyncProgress] = useState(0);
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  const statusFilter = searchParams.get('status') || 'all';
-
-  // Check GHL connection
-  const ghlConfig = getApiConfig();
-  const isGhlConnected = connectionStatus.highLevel && ghlConfig.apiKey;
-
-  // GHL API hooks
-  const { 
-    data: ghlData, 
-    isLoading, 
+  // Fetch properties from Airtable (same source as Property Matching)
+  const {
+    data: airtableData,
+    isLoading,
     isError,
-    refetch 
-  } = useProperties(ACQUISITION_PIPELINE_ID);
-  
-  const syncProperties = useSyncProperties();
+    refetch
+  } = useAirtableProperties(200);
 
-  // Get properties from GHL or fallback to mock
-  const ghlProperties = ghlData?.properties || [];
+  // Transform Airtable properties to Property type for display
+  const airtableProperties: Property[] = useMemo(() => {
+    if (!airtableData?.properties) return [];
 
-  // Combine demo + GHL/mock, demos always first
+    return airtableData.properties.map((p) => ({
+      id: p.recordId,
+      ghlOpportunityId: p.opportunityId,
+      propertyCode: p.propertyCode,
+      address: p.address,
+      city: `${p.city || ''}${p.state ? `, ${p.state}` : ''}${p.zipCode ? ` ${p.zipCode}` : ''}`,
+      price: p.price || 0,
+      beds: p.beds || 0,
+      baths: p.baths || 0,
+      sqft: p.sqft,
+      heroImage: p.heroImage || '/placeholder.svg',
+      images: p.heroImage ? [p.heroImage] : ['/placeholder.svg'],
+      status: 'pending' as PropertyStatus, // Map from Airtable stage
+      description: p.notes,
+      source: p.source,
+      zillowUrl: p.zillowUrl,
+      daysOnMarket: p.daysOnMarket,
+      createdAt: p.createdAt,
+      isDemo: false,
+    }));
+  }, [airtableData]);
+
+  // Combine demo + Airtable properties
   const allProperties = useMemo(() => {
-    const liveProperties = isGhlConnected && ghlProperties.length > 0 ? ghlProperties : mockProperties;
-    return [...demoProperties, ...liveProperties];
-  }, [isGhlConnected, ghlProperties]);
-
-  // Sync handler
-  const handleSyncProperties = async () => {
-    if (!isGhlConnected) {
-      toast.error('Please configure GHL API in Settings first');
-      return;
-    }
-
-    setIsSyncing(true);
-    setSyncProgress(0);
-
-    const progressInterval = setInterval(() => {
-      setSyncProgress(prev => Math.min(prev + 15, 90));
-    }, 200);
-
-    try {
-      await syncProperties.mutateAsync();
-      setSyncProgress(100);
-      toast.success('Properties synced from HighLevel!');
-      refetch();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Sync failed');
-    } finally {
-      clearInterval(progressInterval);
-      setTimeout(() => {
-        setIsSyncing(false);
-        setSyncProgress(0);
-      }, 500);
-    }
-  };
+    return [...demoProperties, ...airtableProperties];
+  }, [airtableProperties]);
 
   // Filter properties
   const filteredProperties = useMemo(() => {

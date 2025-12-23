@@ -603,3 +603,63 @@ export const useBuyersList = () => {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
+
+/**
+ * Fetch all properties from Airtable (same source as Property Matching)
+ * Returns properties with basic details suitable for the Properties page
+ */
+export const useAirtableProperties = (pageSize: number = 100) => {
+  return useQuery({
+    queryKey: ['airtable-properties', pageSize],
+    queryFn: async (): Promise<{ properties: PropertyDetails[], total: number }> => {
+      console.log('[Matching API] Fetching properties from Airtable...');
+
+      const params = new URLSearchParams({
+        action: 'aggregated-properties',
+        limit: pageSize.toString(),
+      });
+
+      const response = await fetch(`${MATCHING_API_BASE}?${params}`);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to fetch properties' }));
+        throw new Error(error.error || 'Failed to fetch properties from Airtable');
+      }
+
+      const result = await response.json();
+
+      // Extract properties from the result
+      const properties = (result.data || []).map((item: PropertyWithMatches) => ({
+        recordId: item.recordId,
+        propertyCode: item.propertyCode,
+        opportunityId: item.opportunityId,
+        address: item.address,
+        city: item.city,
+        state: item.state,
+        zipCode: item.zipCode,
+        price: item.price,
+        beds: item.beds,
+        baths: item.baths,
+        sqft: item.sqft,
+        stage: item.stage,
+        heroImage: item.heroImage,
+        notes: item.notes,
+        source: item.source,
+        zillowType: item.zillowType,
+        zillowZpid: item.zillowZpid,
+        zillowUrl: item.zillowUrl,
+        daysOnMarket: item.daysOnMarket,
+        createdAt: item.createdAt,
+      }));
+
+      console.log('[Matching API] Airtable properties fetched:', properties.length);
+
+      return {
+        properties,
+        total: properties.length,
+      };
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    refetchOnWindowFocus: true,
+  });
+};
