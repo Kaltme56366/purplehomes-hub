@@ -164,6 +164,13 @@ function buildApifyInput(
  * Transform Apify result item to ZillowListing format
  */
 function transformApifyResult(item: any): ZillowListing {
+  // Debug: log available photo-related fields
+  const photoFields = ['imgSrc', 'responsivePhotos', 'originalPhotos', 'photos', 'hiResImageLink',
+    'desktopWebHdpImageLink', 'hdpUrl', 'photoCount', 'streetViewTileImageUrlMediumAddress',
+    'hugePhotos', 'mediumPhotos', 'small'];
+  const presentFields = photoFields.filter(f => item[f] !== undefined);
+  console.log(`[Apify Transform] Address: ${item.address?.streetAddress || item.abbreviatedAddress}, Photo fields present:`, presentFields);
+  if (item.responsivePhotos) console.log('[Apify Transform] responsivePhotos sample:', JSON.stringify(item.responsivePhotos[0]).slice(0, 200));
   // Handle address - can be string or object with {streetAddress, city, state, zipcode}
   const addressObj = item.address;
   const streetAddress = typeof addressObj === 'object' && addressObj
