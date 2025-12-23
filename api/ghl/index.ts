@@ -1361,8 +1361,9 @@ if (resource === 'opportunities') {
           console.log('[MESSAGES] File buffer size:', fileBuffer.length, 'bytes');
 
           // Create form data for multipart upload
-          const FormData = (await import('form-data')).default;
-          const form = new FormData();
+          const formDataModule = await import('form-data');
+          const FormDataClass = formDataModule.default || formDataModule;
+          const form = new FormDataClass();
           form.append('fileAttachment', fileBuffer, {
             filename: fileName || 'attachment.pdf',
             contentType: fileType || 'application/pdf'

@@ -3,7 +3,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import type { BuyerWithMatches, PropertyWithMatches, RunMatchingResponse, MatchFilters, MatchActivity, PropertyMatch, BuyerPropertiesResponse, PropertyBuyersResponse } from '@/types/matching';
+import type { BuyerWithMatches, PropertyWithMatches, PropertyDetails, RunMatchingResponse, MatchFilters, MatchActivity, PropertyMatch, BuyerPropertiesResponse, PropertyBuyersResponse } from '@/types/matching';
 import type { MatchDealStage } from '@/types/associations';
 
 const MATCHING_API_BASE = '/api/matching';
@@ -644,6 +644,13 @@ export const useAirtableProperties = (pageSize: number = 100) => {
         stage: item.stage,
         heroImage: item.heroImage,
         notes: item.notes,
+        propertyLat: item.propertyLat,
+        propertyLng: item.propertyLng,
+        monthlyPayment: item.monthlyPayment,
+        downPayment: item.downPayment,
+        images: item.images,
+        propertyType: item.propertyType,
+        condition: item.condition,
         source: item.source,
         zillowType: item.zillowType,
         zillowZpid: item.zillowZpid,

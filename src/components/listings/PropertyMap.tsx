@@ -277,12 +277,50 @@ export function PropertyMap({ properties, onPropertySelect, hoveredPropertyId, z
 
   // Update data when properties change
   useEffect(() => {
-    if (!map.current || !mapLoaded) return;
+    const propertiesWithCoords = properties.filter(p => p.lat && p.lng);
+    console.log('[PropertyMap] Update effect:', {
+      hasMap: !!map.current,
+      mapLoaded,
+      propertiesCount: properties.length,
+      propertiesWithCoords: propertiesWithCoords.length
+    });
+
+    if (!map.current || !mapLoaded) {
+      console.log('[PropertyMap] Skipping update - map not ready');
+      return;
+    }
+
     const source = map.current.getSource('properties') as mapboxgl.GeoJSONSource;
     if (source) {
-      source.setData(getGeoJSON());
+      const geoJSON = {
+        type: 'FeatureCollection' as const,
+        features: propertiesWithCoords.map(property => ({
+          type: 'Feature' as const,
+          properties: {
+            id: property.id,
+            price: property.price,
+            address: property.address,
+            city: property.city,
+            beds: property.beds,
+            baths: property.baths,
+            sqft: property.sqft,
+            heroImage: property.heroImage,
+          },
+          geometry: {
+            type: 'Point' as const,
+            coordinates: [property.lng!, property.lat!]
+          }
+        }))
+      };
+      console.log('[PropertyMap] Updating map source with features:', geoJSON.features.length);
+      if (geoJSON.features.length > 0) {
+        console.log('[PropertyMap] Sample feature:', JSON.stringify(geoJSON.features[0], null, 2));
+      }
+      source.setData(geoJSON);
+    } else {
+      console.warn('[PropertyMap] No properties source found on map');
     }
-  }, [properties, mapLoaded, getGeoJSON]);
+  }, [properties, mapLoaded]);
 
   // Pan to ZIP code when searched
   useEffect(() => {

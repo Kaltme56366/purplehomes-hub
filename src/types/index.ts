@@ -40,6 +40,9 @@ export interface Property {
   isDemo?: boolean;
   downPayment?: number;
   monthlyPayment?: number;
+  source?: 'Inventory' | 'Lead' | 'Zillow';
+  zillowUrl?: string;
+  daysOnMarket?: number;
 }
 
 // Buyer Home Acquisition Pipeline (interested buyers who submit offers)

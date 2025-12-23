@@ -16,7 +16,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/useAppStore';
-import { mockSocialAccounts } from '@/data/mockData';
+import { mockSocialAccounts } from '@/data/mockData.backup';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { getApiConfig, setApiConfig, useTestConnection } from '@/services/ghlApi';

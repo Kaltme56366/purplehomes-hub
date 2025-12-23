@@ -296,6 +296,22 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
+ * Helper to collect supporting images from Airtable fields
+ * Supporting images are stored in individual fields: Supporting Image 1 through Supporting Image 25
+ */
+function collectSupportingImages(propertyFields: any): string[] {
+  const images: string[] = [];
+  for (let i = 1; i <= 25; i++) {
+    const fieldName = `Supporting Image ${i}`;
+    const imageUrl = propertyFields[fieldName];
+    if (imageUrl && typeof imageUrl === 'string') {
+      images.push(imageUrl);
+    }
+  }
+  return images;
+}
+
+/**
  * Fetches cached data from System Cache table
  * Returns null if cache is not available or invalid
  */
@@ -1402,13 +1418,18 @@ async function handleAggregatedBuyers(
             city: property.fields['City'] || '',
             state: property.fields['State'],
             zipCode: property.fields['Zip Code'] || property.fields['Zip'] || extractZipFromCity(property.fields['City']),
-            price: property.fields['Price'],
+            price: property.fields['Property Total Price'] || property.fields['Price'],
             beds: property.fields['Beds'] || 0,
             baths: property.fields['Baths'] || 0,
             sqft: property.fields['Sqft'],
             stage: property.fields['Stage'],
             heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
             notes: property.fields['Notes'] || property.fields['Description'] || '',
+            monthlyPayment: property.fields['Monthly Payment'],
+            downPayment: property.fields['Down Payment'],
+            images: collectSupportingImages(property.fields),
+            propertyType: property.fields['Property Type'],
+            condition: property.fields['Property Current Condition'],
           } : null,
         };
       });
@@ -1633,13 +1654,24 @@ async function handleAggregatedProperties(
       city: property.fields['City'] || '',
       state: property.fields['State'],
       zipCode: property.fields['Zip Code'] || property.fields['Zip'] || extractZipFromCity(property.fields['City']),
-      price: property.fields['Price'],
+      price: property.fields['Property Total Price'] || property.fields['Price'],
       beds: property.fields['Beds'] || 0,
       baths: property.fields['Baths'] || 0,
       sqft: property.fields['Sqft'],
       stage: property.fields['Stage'],
       heroImage: property.fields['Hero Image']?.[0]?.url || property.fields['Hero Image'],
       notes: property.fields['Notes'] || property.fields['Description'] || '',
+      propertyLat: property.fields['Lat'],
+      propertyLng: property.fields['Lng'],
+      monthlyPayment: property.fields['Monthly Payment'],
+      downPayment: property.fields['Down Payment'],
+      images: collectSupportingImages(property.fields),
+      propertyType: property.fields['Property Type'],
+      condition: property.fields['Property Current Condition'],
+      source: property.fields['Source'],
+      zillowUrl: property.fields['Zillow URL'] || property.fields['Zillow Link'],
+      daysOnMarket: property.fields['Days on Market'],
+      createdAt: property.fields['Created At'] || property.createdTime,
       matches: propertyMatches,
       totalMatches: propertyMatches.length,
     };
@@ -1830,6 +1862,15 @@ async function handleBuyerProperties(
           notes: property.fields['Notes'] || property.fields['Description'] || '',
           propertyLat: property.fields['Lat'],
           propertyLng: property.fields['Lng'],
+          monthlyPayment: property.fields['Monthly Payment'],
+          downPayment: property.fields['Down Payment'],
+          images: collectSupportingImages(property.fields),
+          propertyType: property.fields['Property Type'],
+          condition: property.fields['Property Current Condition'],
+          source: property.fields['Source'],
+          zillowUrl: property.fields['Zillow URL'] || property.fields['Zillow Link'],
+          daysOnMarket: property.fields['Days on Market'],
+          createdAt: property.fields['Created At'] || property.createdTime,
         },
         score: {
           score: score.score,
@@ -2037,6 +2078,15 @@ async function handlePropertyBuyers(
       notes: property.fields['Notes'] || property.fields['Description'] || '',
       propertyLat: property.fields['Lat'],
       propertyLng: property.fields['Lng'],
+      monthlyPayment: property.fields['Monthly Payment'],
+      downPayment: property.fields['Down Payment'],
+      images: collectSupportingImages(property.fields),
+      propertyType: property.fields['Property Type'],
+      condition: property.fields['Property Current Condition'],
+      source: property.fields['Source'],
+      zillowUrl: property.fields['Zillow URL'] || property.fields['Zillow Link'],
+      daysOnMarket: property.fields['Days on Market'],
+      createdAt: property.fields['Created At'] || property.createdTime,
     };
 
     const totalTime = Date.now() - startTime;

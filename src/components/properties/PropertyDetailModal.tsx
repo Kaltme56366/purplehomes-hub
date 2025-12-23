@@ -33,7 +33,7 @@ import { useProperty, useUpdateProperty, useCustomFields, getApiConfig } from '@
 import { useAppStore } from '@/store/useAppStore';
 
 interface PropertyDetailModalProps {
-  propertyId: string | null;
+  property: Property | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
@@ -74,7 +74,7 @@ const PROPERTY_CUSTOM_FIELDS = {
 };
 
 export function PropertyDetailModal({
-  propertyId,
+  property: initialProperty,
   open,
   onOpenChange,
   onSaved,
@@ -83,33 +83,32 @@ export function PropertyDetailModal({
   const ghlConfig = getApiConfig();
   const isGhlConnected = connectionStatus.highLevel && ghlConfig.apiKey;
 
-  // Fetch property from GHL
-  const { data, isLoading, refetch } = useProperty(propertyId || '');
   const updateProperty = useUpdateProperty();
-  
-  // Fetch custom fields for the dropdown
+
+  // Fetch custom fields for the dropdown (only if GHL connected)
   const { data: customFieldsData } = useCustomFields('opportunity');
 
   // Local form state
   const [formData, setFormData] = useState<Partial<Property>>({});
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
+  const [isLoading] = useState(false);
 
-  // Populate form when data loads
+  // Populate form when property changes
   useEffect(() => {
-    if (data?.property) {
-      setFormData(data.property);
-      // Also extract custom field values from the opportunity
-      const cfValues: Record<string, string> = {};
-      data.opportunity?.customFields?.forEach(cf => {
-        if (typeof cf.fieldValue === 'string') {
-          cfValues[cf.id] = cf.fieldValue;
-        }
+    if (initialProperty) {
+      console.log('[PropertyDetailModal] Loading property:', {
+        propertyCode: initialProperty.propertyCode,
+        propertyType: initialProperty.propertyType,
+        condition: initialProperty.condition,
+        price: initialProperty.price,
+        monthlyPayment: initialProperty.monthlyPayment,
+        downPayment: initialProperty.downPayment,
       });
-      setCustomFieldValues(cfValues);
+      setFormData(initialProperty);
       setHasChanges(false);
     }
-  }, [data]);
+  }, [initialProperty]);
 
   const handleFieldChange = (field: keyof Property, value: string | number) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -122,8 +121,8 @@ export function PropertyDetailModal({
   };
 
   const handleSave = async () => {
-    if (!propertyId || !isGhlConnected) {
-      toast.error('Cannot save in demo mode');
+    if (!initialProperty?.ghlOpportunityId || !isGhlConnected) {
+      toast.error('Cannot save - property is not synced with GHL');
       return;
     }
 
@@ -166,7 +165,7 @@ export function PropertyDetailModal({
       });
 
       await updateProperty.mutateAsync({
-        id: propertyId,
+        id: initialProperty.ghlOpportunityId,
         monetaryValue: formData.price,
         customFields: customFieldsUpdate,
       });
@@ -174,7 +173,6 @@ export function PropertyDetailModal({
       toast.success('Property saved!');
       setHasChanges(false);
       onSaved?.();
-      refetch();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to save');
     }
@@ -202,19 +200,21 @@ export function PropertyDetailModal({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {!isGhlConnected && (
+              {!isGhlConnected && property.isDemo && (
                 <Badge variant="outline" className="text-yellow-500 border-yellow-500/50">
                   Demo Mode
                 </Badge>
               )}
-              <Button 
-                variant="ghost" 
-                size="icon"
-                onClick={() => refetch()}
-                disabled={isLoading}
-              >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              </Button>
+              {onSaved && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onSaved()}
+                  disabled={isLoading}
+                >
+                  <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                </Button>
+              )}
             </div>
           </div>
         </DialogHeader>

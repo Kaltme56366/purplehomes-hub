@@ -13,7 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { demoProperties, mockProperties } from '@/data/mockData';
+import { demoProperties, mockProperties } from '@/data/mockData.backup';
 import type { Buyer, Property } from '@/types';
 
 interface SendInventoryModalProps {

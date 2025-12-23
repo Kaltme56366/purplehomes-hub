@@ -48,6 +48,17 @@ export interface PropertyDetails {
   propertyLat?: number; // Geocoded latitude
   propertyLng?: number; // Geocoded longitude
 
+  // Financial fields
+  monthlyPayment?: number; // Monthly mortgage payment
+  downPayment?: number; // Down payment amount
+
+  // Images (up to 25 supporting images)
+  images?: string[]; // Array of image URLs (supporting images)
+
+  // Property metadata
+  propertyType?: string; // Property type (Single Family, Duplex, etc.)
+  condition?: string; // Property condition (Excellent, Great, Good, etc.)
+
   // Source tracking fields
   source?: 'Inventory' | 'Lead' | 'Zillow'; // Property source
   zillowType?: 'Keywords' | 'Formula' | 'DOM'; // Zillow search type (only if source = 'Zillow')

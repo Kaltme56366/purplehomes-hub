@@ -23,7 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { demoProperties, mockProperties, mockSocialAccounts, mockScheduledPosts } from '@/data/mockData';
+import { demoProperties, mockProperties, mockSocialAccounts, mockScheduledPosts } from '@/data/mockData.backup';
 import { toast } from 'sonner';
 import { useSocialAccounts, useCreateSocialPost, getApiConfig, useProperties, ACQUISITION_PIPELINE_ID } from '@/services/ghlApi';
 import { useAppStore } from '@/store/useAppStore';

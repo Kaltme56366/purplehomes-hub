@@ -32,7 +32,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
-import { demoProperties, mockProperties } from '@/data/mockData';
+// import { demoProperties, mockProperties } from '@/data/mockData'; // Moved to mockData.backup.ts
 import { toast } from 'sonner';
 import { PropertyMap } from '@/components/listings/PropertyMap';
 import { MapCoachMarks } from '@/components/listings/MapCoachMarks';
@@ -41,6 +41,7 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useSubmitForm } from '@/services/ghlApi';
 import { calculatePropertyDistance } from '@/lib/proximityCalculator';
+import { useAirtableProperties } from '@/services/matchingApi';
 
 const PROPERTY_TYPES: PropertyType[] = [
   'Single Family', 'Duplex', 'Multi Family', 'Condo', 'Lot', 
@@ -51,13 +52,46 @@ const CONDITION_OPTIONS: PropertyCondition[] = [
   'Excellent', 'Great', 'Good', 'Fair', 'Poor', 'Terrible', 'Needs some Repair'
 ];
 
-const allProperties = [...demoProperties, ...mockProperties];
-
 type SortOption = 'price-high' | 'price-low' | 'newest' | 'beds' | 'sqft';
 
 export default function PublicListings() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+
+  // Fetch properties from Airtable (same source as Properties page and Property Matching)
+  const { data: airtableData, isLoading: isLoadingProperties, isError, error } = useAirtableProperties(200);
+
+  // Transform Airtable properties to Property type for display
+  const allProperties: Property[] = useMemo(() => {
+    if (!airtableData?.properties) return [];
+
+    const properties = airtableData.properties
+      .filter(p => p.heroImage) // Only show properties with images for public listings
+      .map((p): Property => ({
+        id: p.recordId,
+        ghlOpportunityId: p.opportunityId,
+        propertyCode: p.propertyCode,
+        address: p.address,
+        city: `${p.city || ''}${p.state ? `, ${p.state}` : ''}${p.zipCode ? ` ${p.zipCode}` : ''}`,
+        price: p.price || 0,
+        beds: p.beds || 0,
+        baths: p.baths || 0,
+        sqft: p.sqft,
+        lat: p.propertyLat,
+        lng: p.propertyLng,
+        propertyType: p.propertyType as PropertyType | undefined,
+        condition: p.condition as PropertyCondition | undefined,
+        heroImage: p.heroImage || '/placeholder.svg',
+        images: p.images && p.images.length > 0 ? p.images : (p.heroImage ? [p.heroImage] : ['/placeholder.svg']),
+        status: 'pending',
+        description: p.notes,
+        monthlyPayment: p.monthlyPayment,
+        downPayment: p.downPayment,
+        createdAt: p.createdAt || new Date().toISOString(),
+      }));
+
+    return properties;
+  }, [airtableData]);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [search, setSearch] = useState('');
   const [zipCode, setZipCode] = useState('');
@@ -94,6 +128,12 @@ export default function PublicListings() {
   const submitForm = useSubmitForm();
 
   const filteredProperties = useMemo(() => {
+    // Wait for properties to load before filtering
+    // Return empty during loading OR if still waiting for properties to populate
+    if (isLoadingProperties || (allProperties.length === 0 && !isError)) {
+      return [];
+    }
+
     let results = allProperties.filter((property) => {
       if (search) {
         const searchLower = search.toLowerCase();
@@ -135,7 +175,7 @@ export default function PublicListings() {
     }
 
     return results;
-  }, [search, zipCode, priceRange, beds, baths, condition, propertyType, sortBy]);
+  }, [allProperties, search, zipCode, priceRange, downPaymentRange, beds, baths, condition, propertyType, sortBy, isLoadingProperties, isError]);
 
   const toggleSaved = (propertyId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -825,6 +865,16 @@ export default function PublicListings() {
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden relative">
+        {/* Loading State */}
+        {isLoadingProperties && (
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="text-center space-y-3">
+              <Loader2 className="h-10 w-10 animate-spin text-purple-500 mx-auto" />
+              <p className="text-sm font-medium">Initializing properties...</p>
+            </div>
+          </div>
+        )}
+
         {/* Map - Full screen on mobile */}
         <div className="flex-1 relative" data-tour="map-area">
           <PropertyMap

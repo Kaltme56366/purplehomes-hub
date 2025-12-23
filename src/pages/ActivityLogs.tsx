@@ -37,7 +37,7 @@ import {
   syncLogToTimelineItem,
   type TimelineItem,
 } from '@/components/activity/ActivityTimeline';
-import { mockActivities } from '@/data/mockData';
+import { mockActivities } from '@/data/mockData.backup';
 import { useSyncStore } from '@/store/useSyncStore';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';

@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { demoProperties, mockProperties } from '@/data/mockData';
+import { demoProperties, mockProperties } from '@/data/mockData.backup';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
