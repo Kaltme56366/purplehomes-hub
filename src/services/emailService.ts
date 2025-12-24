@@ -114,8 +114,8 @@ export async function sendPropertyEmail(options: SendPropertyEmailOptions): Prom
           <h3 style="color: #1F2937; margin-top: 0; font-size: 16px;">Quick Property Summary:</h3>
           ${properties.slice(0, 3).map((p, i) => `
             <div style="margin: 15px 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid #E5E7EB;">
-              <div style="font-weight: bold; color: #9333EA; font-size: 14px;">${i + 1}. ${p.propertyCode}</div>
-              <div style="color: #374151; margin: 5px 0;">${p.address}, ${p.city}</div>
+              <div style="font-weight: bold; color: #9333EA; font-size: 14px;">${i + 1}. ${p.address}</div>
+              <div style="color: #374151; margin: 5px 0;">${p.city}${p.state ? `, ${p.state}` : ''}</div>
               <div style="color: #6B7280; font-size: 13px;">
                 <strong>$${p.price.toLocaleString()}</strong> • ${p.beds} bed • ${p.baths} bath
                 ${p.sqft ? ` • ${p.sqft.toLocaleString()} sqft` : ''}
