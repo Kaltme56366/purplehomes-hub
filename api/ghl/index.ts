@@ -32,6 +32,9 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 // These endpoints require a different API key with object/association scopes
 const GHL_OBJECTS_API_KEY = process.env.GHL_OBJECTS_API_KEY || 'pit-373a6abb-b368-4457-b578-ba5db43affc4';
 
+// Separate API key for sending emails (v2 API key with conversations.message.write scope)
+const GHL_API_V2 = process.env.GHL_API_V2;
+
 // Pipeline IDs
 const SELLER_ACQUISITION_PIPELINE_ID = process.env.GHL_SELLER_ACQUISITION_PIPELINE_ID || 'U4FANAMaB1gGddRaaD9x'; // Acquisition Seller pipeline
 const BUYER_ACQUISITION_PIPELINE_ID = process.env.GHL_BUYER_ACQUISITION_PIPELINE_ID || 'FRw9XPyTSnPv8ct0cWcm';
@@ -66,6 +69,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     GHL_API_KEY_exists: !!GHL_API_KEY,
     GHL_API_KEY_length: GHL_API_KEY?.length,
     GHL_API_KEY_prefix: GHL_API_KEY?.substring(0, 15) + '...',
+    GHL_API_V2_exists: !!GHL_API_V2,
+    GHL_API_V2_prefix: GHL_API_V2 ? GHL_API_V2.substring(0, 15) + '...' : 'not set',
     GHL_OBJECTS_API_KEY_exists: !!GHL_OBJECTS_API_KEY,
     GHL_OBJECTS_API_KEY_prefix: GHL_OBJECTS_API_KEY?.substring(0, 15) + '...',
     GHL_LOCATION_ID_exists: !!GHL_LOCATION_ID,
@@ -1293,10 +1298,19 @@ if (resource === 'opportunities') {
 
         console.log('[MESSAGES] Payload:', JSON.stringify(messagePayload).substring(0, 300));
 
+        // Use GHL_API_V2 for sending messages if available (has conversations.message.write scope)
+        const messageApiKey = GHL_API_V2 || GHL_API_KEY;
+        const messageHeaders = {
+          'Authorization': `Bearer ${messageApiKey}`,
+          'Content-Type': 'application/json',
+          'Version': '2021-07-28',
+        };
+        console.log('[MESSAGES] Using API key:', GHL_API_V2 ? 'GHL_API_V2' : 'GHL_API_KEY');
+
         try {
           const response = await fetch(`${GHL_API_URL}/conversations/messages`, {
             method: 'POST',
-            headers,
+            headers: messageHeaders,
             body: JSON.stringify(messagePayload)
           });
 
@@ -1371,11 +1385,15 @@ if (resource === 'opportunities') {
 
           console.log('[MESSAGES] Uploading to GHL...');
 
+          // Use GHL_API_V2 for uploads if available (same as send)
+          const uploadApiKey = GHL_API_V2 || GHL_API_KEY;
+          console.log('[MESSAGES] Upload using API key:', GHL_API_V2 ? 'GHL_API_V2' : 'GHL_API_KEY');
+
           const response = await fetch(`${GHL_API_URL}/conversations/messages/upload`, {
             method: 'POST',
             headers: {
-              'Authorization': headers['Authorization'],
-              'Version': headers['Version'],
+              'Authorization': `Bearer ${uploadApiKey}`,
+              'Version': '2021-07-28',
               ...form.getHeaders()
             },
             body: form as any
