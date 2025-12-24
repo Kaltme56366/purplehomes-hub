@@ -1838,11 +1838,44 @@ async function handleBuyerProperties(
       properties = directPropertiesData.records || [];
     }
 
+    // Step 2.5: Fetch existing matches for this buyer to get matchId and currentStage
+    let matchesData = await fetchCachedData('matches', headers);
+    let allMatches = matchesData?.records || [];
+
+    if (!matchesData || allMatches.length === 0) {
+      console.log('[Buyer Properties] Cache miss - fetching matches from Airtable...');
+      const matchesRes = await fetch(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/Property-Buyer%20Matches`, { headers });
+      if (matchesRes.ok) {
+        const directMatchesData = await matchesRes.json();
+        allMatches = directMatchesData.records || [];
+      }
+    }
+
+    // Create a map of property record ID to match record for this buyer
+    const matchesByPropertyId = new Map<string, any>();
+    const buyerContactId = buyer.fields['Contact ID'];
+
+    for (const match of allMatches) {
+      // Match records link to buyer via Contact ID field
+      const matchContactId = match.fields['Contact ID (for GHL)'] || '';
+      if (matchContactId === buyerContactId) {
+        // Property Code is a linked record array
+        const propertyRecordId = match.fields['Property Code']?.[0];
+        if (propertyRecordId) {
+          matchesByPropertyId.set(propertyRecordId, match);
+        }
+      }
+    }
+
+    console.log(`[Buyer Properties] Found ${matchesByPropertyId.size} existing matches for buyer`);
     console.log(`[Buyer Properties] Scoring ${properties.length} properties for buyer`);
 
     // Step 3: Score all properties for this buyer
     const scoredProperties = properties.map((property: any) => {
       const score = generateMatchScore(buyer, property);
+
+      // Look up existing match record for this property
+      const existingMatch = matchesByPropertyId.get(property.id);
 
       return {
         property: {
@@ -1885,6 +1918,9 @@ async function handleBuyerProperties(
           isPriority: score.isPriority,
           distanceMiles: score.distanceMiles,
         },
+        // Include match record info if it exists
+        matchId: existingMatch?.id || undefined,
+        currentStage: existingMatch?.fields['Match Stage'] || undefined,
       };
     });
 

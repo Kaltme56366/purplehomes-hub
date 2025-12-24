@@ -159,12 +159,13 @@ export async function sendPropertyEmail(options: SendPropertyEmailOptions): Prom
   `;
 
   // Send via GHL API
-  const response = await fetch(`${API_BASE}?resource=messages&action=send-email`, {
+  const response = await fetch(`${API_BASE}?resource=messages&action=send`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      type: 'Email',
       contactId,
       to: contactEmail,
       subject,
@@ -438,12 +439,13 @@ export async function sendPropertyFlyer(options: SendFlyerOptions): Promise<{ su
   `;
 
   // Send via GHL API
-  const response = await fetch(`${API_BASE}?resource=messages&action=send-email`, {
+  const response = await fetch(`${API_BASE}?resource=messages&action=send`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
+      type: 'Email',
       contactId,
       to: contactEmail,
       subject: `Property Opportunity: ${property.address}`,

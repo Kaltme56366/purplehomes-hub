@@ -33,6 +33,7 @@ import {
   Search,
   Eye,
   Check,
+  TrendingUp,
 } from 'lucide-react';
 import { useBuyerProperties, useBuyersList } from '@/services/matchingApi';
 import { useNavigate } from 'react-router-dom';
@@ -64,7 +65,8 @@ function PropertyCard({
   onToggleSelect,
   onViewDetails,
 }: PropertyCardProps) {
-  const { property, score } = scoredProperty;
+  const { property, score, currentStage } = scoredProperty;
+  const isInPipeline = !!currentStage;
 
   // Generate highlight tags for explore section
   const getExploreHighlights = () => {
@@ -88,24 +90,28 @@ function PropertyCard({
 
   const exploreHighlights = isExplore ? getExploreHighlights() : [];
 
+  // Can only select if not already in pipeline
+  const canSelect = onToggleSelect && !isInPipeline;
+
   return (
     <Card
       className={cn(
         "p-4 transition-all relative group",
-        onToggleSelect && "cursor-pointer",
+        canSelect && "cursor-pointer",
+        isInPipeline && "border-l-4 border-l-green-500 bg-green-50/30",
         isSelected
           ? "border-2 border-purple-500 bg-purple-500/10 shadow-lg shadow-purple-500/20"
-          : "border hover:bg-muted/30 hover:border-purple-300"
+          : !isInPipeline && "border hover:bg-muted/30 hover:border-purple-300"
       )}
       onClick={(e) => {
-        // Only toggle if not clicking on View button and toggle is enabled
-        if (onToggleSelect && !(e.target as HTMLElement).closest('[data-view-button]')) {
+        // Only toggle if not clicking on View button, toggle is enabled, and not in pipeline
+        if (canSelect && !(e.target as HTMLElement).closest('[data-view-button]')) {
           onToggleSelect();
         }
       }}
     >
-      {/* Selection Checkbox - Top Left */}
-      {onToggleSelect && (
+      {/* Selection Checkbox - Top Left (only for properties not in pipeline) */}
+      {canSelect && (
         <div
           className="absolute top-3 left-3 z-10"
           onClick={(e) => {
@@ -127,9 +133,22 @@ function PropertyCard({
       )}
 
       {/* Selected Indicator - Top Right */}
-      {isSelected && (
+      {isSelected && !isInPipeline && (
         <div className="absolute top-3 right-3 z-10 bg-purple-500 rounded-full p-1">
           <Check className="h-4 w-4 text-white" />
+        </div>
+      )}
+
+      {/* In Pipeline Badge - Top Right */}
+      {isInPipeline && (
+        <div className="absolute top-3 right-3 z-10">
+          <Badge
+            variant="secondary"
+            className="bg-green-100 text-green-700 border-green-300 text-xs"
+          >
+            <TrendingUp className="h-3 w-3 mr-1" />
+            In Pipeline
+          </Badge>
         </div>
       )}
 

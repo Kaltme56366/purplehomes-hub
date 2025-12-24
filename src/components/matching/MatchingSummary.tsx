@@ -2,19 +2,20 @@
  * MatchingSummary - Dashboard summary for the Matching page
  *
  * Shows immediate value on page load:
- * - 3 key stats: Total Matches, New Today, Need Follow-up
+ * - 3 key stats: Ready to Send, Sent Today, In Pipeline (linked)
  * - Top 5 buyers by match count
  * - Top 5 properties by match count
  */
 
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Target,
+  Send,
   TrendingUp,
-  Bell,
   Users,
   Home,
   ArrowRight,
@@ -30,6 +31,8 @@ interface MatchingSummaryProps {
 }
 
 export function MatchingSummary({ onSelectBuyer, onViewProperty }: MatchingSummaryProps) {
+  const navigate = useNavigate();
+
   // Get cache data for accurate total counts
   const { matchesCount, isLoading: loadingCache } = useMatchingData();
 
@@ -40,36 +43,50 @@ export function MatchingSummary({ onSelectBuyer, onViewProperty }: MatchingSumma
   const topBuyers = topBuyersData?.data || [];
   const topProperties = topPropertiesData?.data || [];
 
-  // Calculate approximate "New Today" and "Need Follow-up" from visible data
-  // Note: This is approximate as we only fetch top 5 buyers/properties
-  const calculateApproximateStats = () => {
+  // Calculate stats based on match stage (Deal Pipeline status)
+  const calculateStats = () => {
     const now = new Date();
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    let newToday = 0;
-    let needFollowUp = 0;
+    let readyToSend = 0;  // Matches without a stage (unsent)
+    let sentToday = 0;    // Matches sent today
+    let inPipeline = 0;   // Matches with any stage set
 
     topBuyers.forEach((buyer) => {
       buyer.matches.forEach((match) => {
-        if (match.createdAt && new Date(match.createdAt) >= yesterday) {
-          newToday++;
-        }
-        if (match.status === 'Sent to Buyer') {
-          needFollowUp++;
+        // Check if match has a stage (is in pipeline)
+        // stage field from Match Stage column (Deal Pipeline)
+        const stage = match.stage;
+
+        if (!stage) {
+          // No stage = ready to send
+          readyToSend++;
+        } else {
+          // Has stage = in pipeline
+          inPipeline++;
+
+          // Check if sent today (stage is 'Sent to Buyer' and recent activity)
+          if (stage === 'Sent to Buyer') {
+            // Check if it was updated today
+            const updatedAt = match.updatedAt ? new Date(match.updatedAt) : null;
+            if (updatedAt && updatedAt >= todayStart) {
+              sentToday++;
+            }
+          }
         }
       });
     });
 
-    return { newToday, needFollowUp };
+    return { readyToSend, sentToday, inPipeline };
   };
 
-  const { newToday, needFollowUp } = calculateApproximateStats();
+  const { readyToSend, sentToday, inPipeline } = calculateStats();
 
   return (
     <div className="space-y-6">
       {/* Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Total Matches */}
+        {/* Ready to Send */}
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-purple-600/5" />
           <div className="relative p-6">
@@ -78,70 +95,70 @@ export function MatchingSummary({ onSelectBuyer, onViewProperty }: MatchingSumma
                 <Target className="h-6 w-6 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Matches</p>
-                {loadingCache ? (
+                <p className="text-sm font-medium text-muted-foreground">Ready to Send</p>
+                {loadingCache || loadingBuyers ? (
                   <Skeleton className="h-8 w-16 mt-1" />
                 ) : (
-                  <p className="text-3xl font-bold text-foreground">{matchesCount}</p>
+                  <p className="text-3xl font-bold text-foreground">{readyToSend}</p>
                 )}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  matches not yet sent
+                </p>
               </div>
             </div>
           </div>
         </Card>
 
-        {/* New Today */}
+        {/* Sent Today */}
         <Card className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-green-600/5" />
           <div className="relative p-6">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-lg bg-green-100">
-                <TrendingUp className="h-6 w-6 text-green-600" />
+                <Send className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">New Today</p>
+                <p className="text-sm font-medium text-muted-foreground">Sent Today</p>
                 {loadingBuyers ? (
                   <Skeleton className="h-8 w-16 mt-1" />
                 ) : (
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-3xl font-bold text-foreground">{newToday}</p>
-                    <p className="text-xs text-muted-foreground">~</p>
-                  </div>
+                  <p className="text-3xl font-bold text-foreground">{sentToday}</p>
                 )}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  properties emailed
+                </p>
               </div>
             </div>
           </div>
         </Card>
 
-        {/* Need Follow-up */}
-        <Card className="relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-amber-600/5" />
+        {/* In Pipeline - Clickable */}
+        <Card
+          className="relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow border-2 border-transparent hover:border-indigo-200"
+          onClick={() => navigate('/deals')}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-indigo-600/5" />
           <div className="relative p-6">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-lg bg-amber-100">
-                <Bell className="h-6 w-6 text-amber-600" />
+              <div className="p-3 rounded-lg bg-indigo-100">
+                <TrendingUp className="h-6 w-6 text-indigo-600" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Need Follow-up</p>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-muted-foreground">In Pipeline</p>
                 {loadingBuyers ? (
                   <Skeleton className="h-8 w-16 mt-1" />
                 ) : (
-                  <div className="flex items-baseline gap-1">
-                    <p className="text-3xl font-bold text-foreground">{needFollowUp}</p>
-                    <p className="text-xs text-muted-foreground">~</p>
-                  </div>
+                  <p className="text-3xl font-bold text-foreground">{inPipeline}</p>
                 )}
+                <p className="text-xs text-indigo-600 mt-0.5 flex items-center gap-1">
+                  View Deal Pipeline
+                  <ArrowRight className="h-3 w-3" />
+                </p>
               </div>
             </div>
           </div>
         </Card>
       </div>
-
-      {/* Disclaimer for approximate stats */}
-      {(newToday > 0 || needFollowUp > 0) && (
-        <p className="text-xs text-muted-foreground text-center -mt-2">
-          ~ Approximate counts based on top buyers
-        </p>
-      )}
 
       {/* Top Lists Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -170,44 +187,56 @@ export function MatchingSummary({ onSelectBuyer, onViewProperty }: MatchingSumma
               </div>
             ) : (
               <div className="space-y-2">
-                {topBuyers.map((buyer, index) => (
-                  <div
-                    key={buyer.recordId || buyer.contactId}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors group"
-                  >
-                    {/* Rank */}
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-sm font-semibold text-purple-700">
-                      {index + 1}
-                    </div>
+                {topBuyers.map((buyer, index) => {
+                  // Count unsent matches for this buyer
+                  const unsentCount = buyer.matches.filter((m) => !m.stage).length;
 
-                    {/* Buyer Info */}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">
-                        {buyer.firstName} {buyer.lastName}
-                      </p>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Mail className="h-3 w-3" />
-                        {buyer.email}
-                      </p>
-                    </div>
-
-                    {/* Match Count */}
-                    <Badge variant="secondary" className="flex-shrink-0">
-                      {buyer.totalMatches} {buyer.totalMatches === 1 ? 'match' : 'matches'}
-                    </Badge>
-
-                    {/* View Button */}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => onSelectBuyer(buyer.recordId || buyer.contactId)}
+                  return (
+                    <div
+                      key={buyer.recordId || buyer.contactId}
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 transition-colors group"
                     >
-                      View
-                      <ArrowRight className="h-3 w-3 ml-1" />
-                    </Button>
-                  </div>
-                ))}
+                      {/* Rank */}
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-sm font-semibold text-purple-700">
+                        {index + 1}
+                      </div>
+
+                      {/* Buyer Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">
+                          {buyer.firstName} {buyer.lastName}
+                        </p>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          {buyer.email}
+                        </p>
+                      </div>
+
+                      {/* Match Count with unsent indicator */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Badge variant="secondary">
+                          {buyer.totalMatches} {buyer.totalMatches === 1 ? 'match' : 'matches'}
+                        </Badge>
+                        {unsentCount > 0 && (
+                          <Badge variant="outline" className="text-purple-600 border-purple-300">
+                            {unsentCount} unsent
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* View Button */}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onSelectBuyer(buyer.recordId || buyer.contactId)}
+                      >
+                        View
+                        <ArrowRight className="h-3 w-3 ml-1" />
+                      </Button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
