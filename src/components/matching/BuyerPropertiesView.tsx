@@ -163,8 +163,8 @@ function PropertyCard({
 
         {/* Property Details */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div>
+            <div className="flex items-start justify-between gap-2">
+            <div className={cn("min-w-0", isInPipeline && "pr-16")}>
               <h4 className="font-medium text-sm truncate">{property.address}</h4>
               <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                 <MapPin className="h-3 w-3" />
@@ -174,8 +174,10 @@ function PropertyCard({
               </p>
             </div>
 
-            {/* Score Badge */}
-            <MatchScoreBadge score={score.score} size="sm" showLabel={false} />
+            {/* Score Badge - hide when in pipeline to avoid overlap with StageBadge */}
+            {!isInPipeline && (
+              <MatchScoreBadge score={score.score} size="sm" showLabel={false} />
+            )}
           </div>
 
           {/* Property Stats */}
