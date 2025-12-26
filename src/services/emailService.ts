@@ -492,7 +492,13 @@ export function generatePropertySMS(
     if (properties.length > 1) {
       message += `${index + 1}. `;
     }
-    message += `📍 ${property.address}\n`;
+
+    // Build location string with city and state if available
+    const location = property.city || property.state
+      ? `${property.address}, ${[property.city, property.state].filter(Boolean).join(', ')}`
+      : property.address;
+
+    message += `📍 ${location}\n`;
 
     const details: string[] = [];
     if (property.beds || property.baths) {
@@ -538,6 +544,7 @@ export async function sendPropertySMS(
       contactId: buyer.contactId,
       type: 'SMS',
       message: message,
+      fromNumber: '+15047561217',
     }),
   });
 

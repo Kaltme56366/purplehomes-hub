@@ -56,6 +56,24 @@ export default function DealPipeline() {
   // Fetch deals for deep linking
   const { data: deals } = useDeals();
 
+  // Keep selectedDeal in sync with latest data from deals query
+  useEffect(() => {
+    if (selectedDeal && deals) {
+      const updatedDeal = deals.find((d) => d.id === selectedDeal.id);
+      if (updatedDeal) {
+        // Check if any relevant fields have changed
+        const hasChanges =
+          updatedDeal.status !== selectedDeal.status ||
+          JSON.stringify(updatedDeal.activities) !== JSON.stringify(selectedDeal.activities) ||
+          updatedDeal.notes !== selectedDeal.notes;
+
+        if (hasChanges) {
+          setSelectedDeal(updatedDeal);
+        }
+      }
+    }
+  }, [deals, selectedDeal]);
+
   // Handle deep linking via URL params
   useEffect(() => {
     const dealId = searchParams.get('dealId');

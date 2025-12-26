@@ -142,8 +142,8 @@ function PropertyCard({
 
       {/* Stage Badge - Top Right */}
       {isInPipeline && currentStage && (
-        <div className="absolute top-3 right-3 z-10 shadow-md">
-          <StageBadge stage={currentStage} size="sm" showIcon />
+        <div className="absolute top-3 right-3 z-10">
+          <StageBadge stage={currentStage} size="sm" showIcon className="shadow-sm" />
         </div>
       )}
 
