@@ -266,7 +266,19 @@ export function SendPropertiesModal({
 
       console.log(`[SendProperties] Updated ${updated} matches, created ${created} new matches, synced ${synced} to GHL`);
 
-      // Step 4: Invalidate queries so UI updates
+      // Step 4: Sync server-side cache so matching page reflects changes
+      try {
+        await fetch('/api/cache?action=sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cacheKey: 'matches' }),
+        });
+        console.log('[SendProperties] Server cache synced');
+      } catch (cacheError) {
+        console.warn('[SendProperties] Failed to sync server cache:', cacheError);
+      }
+
+      // Step 5: Invalidate queries so UI updates
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] });
       queryClient.invalidateQueries({ queryKey: ['deals-by-stage'] });
@@ -276,7 +288,7 @@ export function SendPropertiesModal({
       queryClient.invalidateQueries({ queryKey: ['buyer-properties'] });
       queryClient.invalidateQueries({ queryKey: ['cache', 'matches'] });
 
-      // Step 5: Show success toast with View in Pipeline action
+      // Step 6: Show success toast with View in Pipeline action
       const sentDescription = sentMethods.join(' & ') + ' sent';
       toast.success(
         `Sent ${properties.length} ${properties.length === 1 ? 'property' : 'properties'} to ${buyer.firstName}!`,
