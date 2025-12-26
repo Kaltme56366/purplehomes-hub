@@ -10,6 +10,7 @@
  */
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Home,
   Bed,
@@ -23,6 +24,8 @@ import {
   Clock,
   Mail,
   Phone,
+  ArrowRight,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -45,6 +48,8 @@ import {
 import { DealProgressKanban } from './DealProgressKanban';
 import { MatchActivityTimeline } from './MatchActivityTimeline';
 import { MatchQuickActions } from './MatchQuickActions';
+import { WinProbability } from '@/components/deals/WinProbability';
+import { AIInsightCard } from './AIInsightCard';
 import {
   PropertyMatch,
   PropertyDetails,
@@ -52,6 +57,7 @@ import {
   MatchActivity,
 } from '@/types/matching';
 import { MatchDealStage } from '@/types/associations';
+import type { Deal } from '@/types/deals';
 
 export interface MatchWithDetails extends PropertyMatch {
   property?: PropertyDetails;
@@ -78,11 +84,23 @@ export function EnhancedMatchDetailModal({
 }: EnhancedMatchDetailModalProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<'property' | 'progress' | 'activity'>('property');
+  const navigate = useNavigate();
 
   if (!match) return null;
 
   const { property, buyer, activities = [] } = match;
   const currentStage: MatchDealStage = match.status || 'Sent to Buyer';
+
+  // Cross-navigation handlers
+  const handleViewInPipeline = () => {
+    onOpenChange(false);
+    navigate(`/deals?dealId=${match.id}`);
+  };
+
+  const handleViewMatchDetails = () => {
+    onOpenChange(false);
+    navigate(`/matching?buyerId=${buyer?.contactId}`);
+  };
 
   const handleStageChange = async (newStage: MatchDealStage) => {
     if (!onStageChange) return;
@@ -115,7 +133,7 @@ export function EnhancedMatchDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col">
+      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-5xl sm:max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col rounded-none sm:rounded-lg">
         {/* Sticky Header */}
         <div className="sticky top-0 z-20 bg-background border-b px-6 py-4">
           <div className="flex items-start justify-between gap-4">
@@ -232,6 +250,22 @@ export function EnhancedMatchDetailModal({
                   </div>
                 )}
 
+                {/* AI Insight */}
+                {buyer && property && match.score && (
+                  <AIInsightCard
+                    buyerName={`${buyer.firstName} ${buyer.lastName}`}
+                    propertyAddress={property.address}
+                    score={match.score}
+                    highlights={match.highlights}
+                    concerns={match.concerns}
+                    distanceMiles={match.distance}
+                    stage={currentStage}
+                    price={property.price}
+                    beds={property.beds}
+                    baths={property.baths}
+                  />
+                )}
+
                 {/* Property Notes */}
                 {property?.notes && (
                   <div className="space-y-2">
@@ -321,6 +355,17 @@ export function EnhancedMatchDetailModal({
                     isUpdating={isUpdating}
                   />
                 </div>
+
+                {/* Win Probability */}
+                {match.status && (
+                  <div className="bg-muted/30 rounded-xl p-4">
+                    <WinProbability
+                      deal={match as unknown as Deal}
+                      size="md"
+                      showFactors={true}
+                    />
+                  </div>
+                )}
 
                 <Separator />
 
@@ -445,17 +490,45 @@ export function EnhancedMatchDetailModal({
           </div>
         </div>
 
-        {/* Sticky Footer - Quick Actions */}
+        {/* Sticky Footer - Quick Actions + Navigation */}
         <div className="sticky bottom-0 z-20 bg-background border-t px-6 py-4">
-          <MatchQuickActions
-            currentStage={currentStage}
-            onAdvanceStage={handleStageChange}
-            onSendEmail={onSendEmail ? handleSendEmail : undefined}
-            onAddNote={onAddNote ? handleAddNote : undefined}
-            onMarkNotInterested={() => handleStageChange('Not Interested')}
-            isLoading={isUpdating}
-            className="justify-center lg:justify-start"
-          />
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <MatchQuickActions
+              currentStage={currentStage}
+              onAdvanceStage={handleStageChange}
+              onSendEmail={onSendEmail ? handleSendEmail : undefined}
+              onAddNote={onAddNote ? handleAddNote : undefined}
+              onMarkNotInterested={() => handleStageChange('Not Interested')}
+              isLoading={isUpdating}
+              className="justify-center lg:justify-start"
+            />
+
+            {/* Cross-navigation links */}
+            <div className="flex items-center gap-2 justify-center lg:justify-end">
+              {match.status && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleViewInPipeline}
+                  className="gap-1"
+                >
+                  View in Pipeline
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              )}
+              {buyer?.contactId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleViewMatchDetails}
+                  className="gap-1 text-muted-foreground"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  All Matches
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

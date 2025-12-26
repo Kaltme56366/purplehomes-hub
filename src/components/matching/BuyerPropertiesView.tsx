@@ -45,6 +45,7 @@ import { ZillowOpportunities } from './ZillowOpportunities';
 import { PropertySelectionBar } from './PropertySelectionBar';
 import { SendPropertiesModal } from './SendPropertiesModal';
 import { MatchDetailModal } from './MatchDetailModal';
+import { StageBadge } from './StageBadge';
 import type { ScoredProperty, BuyerCriteria } from '@/types/matching';
 import { ArrowRight } from 'lucide-react';
 
@@ -139,16 +140,10 @@ function PropertyCard({
         </div>
       )}
 
-      {/* In Pipeline Badge - Top Right */}
-      {isInPipeline && (
-        <div className="absolute top-3 right-3 z-10">
-          <Badge
-            variant="secondary"
-            className="bg-green-100 text-green-700 border-green-300 text-xs"
-          >
-            <TrendingUp className="h-3 w-3 mr-1" />
-            In Pipeline
-          </Badge>
+      {/* Stage Badge - Top Right */}
+      {isInPipeline && currentStage && (
+        <div className="absolute top-3 right-3 z-10 shadow-md">
+          <StageBadge stage={currentStage} size="sm" showIcon />
         </div>
       )}
 

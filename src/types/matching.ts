@@ -212,6 +212,8 @@ export interface BuyerPropertiesResponse {
 export interface ScoredBuyer {
   buyer: BuyerCriteria;
   score: MatchScore;
+  currentStage?: string;  // Current deal stage
+  matchId?: string;       // Reference to match record
 }
 
 /**

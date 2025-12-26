@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Send, FileText, Loader2 } from 'lucide-react';
+import { Send, FileText, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import { sendPropertyEmail } from '@/services/emailService';
 import { convertPropertyDetailsToProperty } from '@/lib/propertyTypeAdapter';
 import { syncMatchStageToGhl } from '@/services/ghlAssociationsApi';
 import { STAGE_ASSOCIATION_IDS } from '@/types/associations';
+import { EmailPreview } from './EmailPreview';
 import type { ScoredProperty, BuyerCriteria, MatchActivity } from '@/types/matching';
 
 const AIRTABLE_API_BASE = '/api/airtable';
@@ -27,6 +28,7 @@ interface SendPropertiesModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSendSuccess?: () => void;
+  onSelectTopMatches?: (count: number) => void;
 }
 
 /**
@@ -154,11 +156,25 @@ export function SendPropertiesModal({
   open,
   onOpenChange,
   onSendSuccess,
+  onSelectTopMatches,
 }: SendPropertiesModalProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [customMessage, setCustomMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+
+  // AI recommendation: Suggest top 3 when many properties selected
+  const showAiRecommendation = properties.length > 3;
+  const topMatches = useMemo(() => {
+    return [...properties].sort((a, b) => b.score.score - a.score.score).slice(0, 3);
+  }, [properties]);
+
+  const avgTopScore = useMemo(() => {
+    if (topMatches.length === 0) return 0;
+    return Math.round(
+      topMatches.reduce((sum, p) => sum + p.score.score, 0) / topMatches.length
+    );
+  }, [topMatches]);
 
   const handleSend = async () => {
     setIsSending(true);
@@ -238,6 +254,49 @@ export function SendPropertiesModal({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* AI Recommendation Banner - Show when >3 properties */}
+          {showAiRecommendation && onSelectTopMatches && (
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-lg p-3">
+              <div className="flex items-start gap-3">
+                <div className="p-1.5 rounded-lg bg-indigo-100 shrink-0">
+                  <Sparkles className="h-4 w-4 text-indigo-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-indigo-900">
+                    Recommendation: Focus on best matches
+                  </p>
+                  <p className="text-xs text-indigo-700 mt-0.5">
+                    Sending fewer, higher-quality matches often gets better responses.
+                    Your top 3 average {avgTopScore}% match score.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 h-7 text-xs bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    onClick={() => {
+                      onSelectTopMatches(3);
+                      onOpenChange(false);
+                    }}
+                  >
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Select Top 3 Instead
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Warning for many properties */}
+          {properties.length > 5 && (
+            <div className="flex items-start gap-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
+              <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                Sending {properties.length} properties at once may overwhelm the buyer.
+                Consider focusing on fewer, better matches for higher engagement.
+              </p>
+            </div>
+          )}
+
           {/* Recipient Info */}
           <div className="bg-muted/50 rounded-lg p-3 space-y-1">
             <p className="text-sm font-medium">Recipient:</p>
@@ -268,10 +327,17 @@ export function SendPropertiesModal({
               placeholder="Add a personal note to include in the email..."
               value={customMessage}
               onChange={(e) => setCustomMessage(e.target.value)}
-              rows={4}
+              rows={3}
               className="resize-none"
             />
           </div>
+
+          {/* Email Preview */}
+          <EmailPreview
+            buyer={buyer}
+            properties={properties}
+            customMessage={customMessage}
+          />
 
           {/* Info */}
           <p className="text-xs text-muted-foreground">

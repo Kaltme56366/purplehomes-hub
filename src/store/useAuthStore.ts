@@ -19,6 +19,9 @@ interface AuthState {
 
 const API_BASE = import.meta.env.PROD ? '/api/ghl' : '/api/ghl';
 
+// Dev bypass - set to true to skip real authentication in development
+const DEV_AUTH_BYPASS = !import.meta.env.PROD;
+
 // Session durations
 const SESSION_DURATION_SHORT = 24 * 60 * 60 * 1000; // 1 day
 const SESSION_DURATION_LONG = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -33,6 +36,26 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email: string, password: string, rememberMe: boolean = false) => {
         set({ isLoading: true });
+
+        // Dev bypass - accept any credentials in development
+        if (DEV_AUTH_BYPASS) {
+          console.log('[Auth] Dev bypass enabled - accepting any credentials');
+          const sessionDuration = rememberMe ? SESSION_DURATION_LONG : SESSION_DURATION_SHORT;
+          const expiry = Date.now() + sessionDuration;
+
+          set({
+            user: {
+              email: email || 'dev@purplehomes.com',
+              name: 'Dev User',
+              role: 'admin',
+            },
+            isAuthenticated: true,
+            isLoading: false,
+            sessionExpiry: expiry,
+          });
+          return true;
+        }
+
         try {
           const response = await fetch(`${API_BASE}?resource=auth&action=login`, {
             method: 'POST',
@@ -49,7 +72,7 @@ export const useAuthStore = create<AuthState>()(
           if (data.authenticated && data.user) {
             const sessionDuration = rememberMe ? SESSION_DURATION_LONG : SESSION_DURATION_SHORT;
             const expiry = Date.now() + sessionDuration;
-            
+
             set({
               user: data.user,
               isAuthenticated: true,

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,10 +18,30 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function Matching() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Core tab and selection state
   const [activeTab, setActiveTab] = useState<'by-buyer' | 'by-property'>('by-buyer');
   const [selectedBuyerId, setSelectedBuyerId] = useState<string | null>(null);
   const [selectedPropertyCode, setSelectedPropertyCode] = useState<string | null>(null);
+
+  // Handle deep linking via URL params
+  useEffect(() => {
+    const buyerId = searchParams.get('buyerId');
+    const propertyCode = searchParams.get('propertyCode');
+
+    if (buyerId) {
+      setSelectedBuyerId(buyerId);
+      setActiveTab('by-buyer');
+      // Clear the URL param after using it
+      setSearchParams({}, { replace: true });
+    } else if (propertyCode) {
+      setSelectedPropertyCode(propertyCode);
+      setActiveTab('by-property');
+      // Clear the URL param after using it
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Cross-tab navigation helpers
   const handleSelectBuyer = (buyerId: string) => {

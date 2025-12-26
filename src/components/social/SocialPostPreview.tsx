@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { 
-  Facebook, Instagram, Linkedin, Heart, MessageCircle, Share2, 
-  Send, Bookmark, MoreHorizontal, ThumbsUp, Repeat2
+import { useState, useEffect } from 'react';
+import {
+  Facebook, Instagram, Linkedin, Heart, MessageCircle, Share2,
+  Send, Bookmark, MoreHorizontal, ThumbsUp, Repeat2, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface SocialPostPreviewProps {
@@ -18,6 +19,8 @@ interface SocialPostPreviewProps {
   accountName?: string;
   accountAvatar?: string;
   className?: string;
+  activeTab?: 'facebook' | 'instagram' | 'linkedin';
+  onTabChange?: (tab: 'facebook' | 'instagram' | 'linkedin') => void;
 }
 
 export function SocialPostPreview({
@@ -26,12 +29,84 @@ export function SocialPostPreview({
   accountName = 'Purple Homes',
   accountAvatar,
   className,
+  activeTab: controlledActiveTab,
+  onTabChange,
 }: SocialPostPreviewProps) {
-  const [activeTab, setActiveTab] = useState<'facebook' | 'instagram' | 'linkedin'>('facebook');
+  const [localActiveTab, setLocalActiveTab] = useState<'facebook' | 'instagram' | 'linkedin'>('facebook');
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Load collapsed state from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('socialPreviewCollapsed');
+    if (stored === 'true') {
+      setIsCollapsed(true);
+    }
+  }, []);
+
+  // Save collapsed state to localStorage
+  const toggleCollapse = () => {
+    const newState = !isCollapsed;
+    setIsCollapsed(newState);
+    localStorage.setItem('socialPreviewCollapsed', String(newState));
+  };
+
+  // Use controlled or local state
+  const activeTab = controlledActiveTab ?? localActiveTab;
+  const handleTabChange = (tab: 'facebook' | 'instagram' | 'linkedin') => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setLocalActiveTab(tab);
+    }
+  };
+
+  // If collapsed, show mini preview
+  if (isCollapsed) {
+    return (
+      <Card className={cn("overflow-hidden", className)}>
+        <CardHeader className="p-4 flex flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm font-medium">Live Preview</CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={toggleCollapse}
+            className="h-8 px-2"
+          >
+            <ChevronDown className="h-4 w-4 mr-1" />
+            <span className="text-xs">Expand</span>
+          </Button>
+        </CardHeader>
+        <div className="px-4 pb-4">
+          <div className="flex items-center gap-2">
+            <Facebook className="h-5 w-5 text-blue-500" />
+            <Instagram className="h-5 w-5 text-pink-500" />
+            <Linkedin className="h-5 w-5 text-blue-700" />
+            <span className="text-xs text-muted-foreground ml-auto">
+              {image ? 'Image ready' : 'No image'}
+            </span>
+          </div>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className={cn("overflow-hidden", className)}>
-      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+      {/* Header with Collapse Button */}
+      <div className="flex items-center justify-between p-3 border-b">
+        <h3 className="text-sm font-medium">Live Preview</h3>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleCollapse}
+          className="h-8 px-2"
+        >
+          <ChevronUp className="h-4 w-4 mr-1" />
+          <span className="text-xs">Collapse</span>
+        </Button>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={(v) => handleTabChange(v as typeof activeTab)}>
         <TabsList className="w-full grid grid-cols-3 rounded-none border-b">
           <TabsTrigger value="facebook" className="gap-2 rounded-none data-[state=active]:border-b-2 data-[state=active]:border-blue-500">
             <Facebook className="h-4 w-4 text-blue-500" />

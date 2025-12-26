@@ -7,7 +7,8 @@
  * - Pipeline Board: Kanban with drag-drop
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import {
@@ -29,6 +30,9 @@ import {
   DealDetailModal,
 } from '@/components/deals';
 
+// Hooks
+import { useDeals } from '@/services/dealsApi';
+
 // Types
 import type { Deal } from '@/types/deals';
 
@@ -36,6 +40,8 @@ type MainView = 'overview' | 'deals' | 'pipeline';
 type DealsSubView = 'list' | 'by-buyer' | 'by-property';
 
 export default function DealPipeline() {
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Navigation state
   const [mainView, setMainView] = useState<MainView>('overview');
   const [dealsSubView, setDealsSubView] = useState<DealsSubView>('list');
@@ -46,6 +52,33 @@ export default function DealPipeline() {
   // Selected deal for modal
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+
+  // Fetch deals for deep linking
+  const { data: deals } = useDeals();
+
+  // Handle deep linking via URL params
+  useEffect(() => {
+    const dealId = searchParams.get('dealId');
+    const buyerId = searchParams.get('buyerId');
+
+    if (dealId && deals) {
+      const deal = deals.find((d) => d.id === dealId);
+      if (deal) {
+        setSelectedDeal(deal);
+        setDetailModalOpen(true);
+        setMainView('pipeline');
+      }
+      // Clear the URL param after using it
+      setSearchParams({}, { replace: true });
+    } else if (buyerId) {
+      // Filter deals by buyer
+      setSearchQuery(buyerId);
+      setMainView('deals');
+      setDealsSubView('by-buyer');
+      // Clear the URL param after using it
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams, deals]);
 
   const handleViewDeal = (deal: Deal) => {
     setSelectedDeal(deal);

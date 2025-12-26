@@ -60,6 +60,8 @@ export const useBuyersWithMatches = (filters?: MatchFilters, pageSize: number = 
       };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes (increased from 2 minutes due to server-side caching)
+    refetchInterval: 60 * 1000, // Poll every 60 seconds
+    refetchIntervalInBackground: false, // Don't poll when tab is inactive
   });
 };
 
@@ -114,6 +116,8 @@ export const usePropertiesWithMatches = (filters?: MatchFilters, pageSize: numbe
       };
     },
     staleTime: 5 * 60 * 1000, // 5 minutes (increased from 2 minutes due to server-side caching)
+    refetchInterval: 60 * 1000, // Poll every 60 seconds
+    refetchIntervalInBackground: false, // Don't poll when tab is inactive
   });
 };
 

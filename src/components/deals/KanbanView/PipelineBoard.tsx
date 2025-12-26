@@ -198,9 +198,9 @@ export function PipelineBoard({ search, onViewDeal }: PipelineBoardProps) {
         </Button>
       </div>
 
-      {/* Kanban board */}
+      {/* Kanban board - horizontal scroll with snap on mobile */}
       <ScrollArea className="w-full">
-        <div className="flex gap-4 pb-4 min-w-max">
+        <div className="flex gap-4 pb-4 min-w-max snap-x snap-mandatory md:snap-none overflow-x-auto scroll-smooth">
           {stagesToShow.map((stage) => {
             const deals = filteredDealsByStage?.[stage] || [];
             const config = STAGE_CONFIGS.find((c) => c.id === stage);
@@ -210,7 +210,7 @@ export function PipelineBoard({ search, onViewDeal }: PipelineBoardProps) {
               <div
                 key={stage}
                 className={cn(
-                  'flex-shrink-0 w-72 bg-muted/30 rounded-lg border-t-4 transition-colors',
+                  'flex-shrink-0 w-[85vw] sm:w-72 bg-muted/30 rounded-lg border-t-4 transition-colors snap-center',
                   COLUMN_COLORS[stage] || 'border-t-gray-400',
                   isDropTarget && 'bg-muted/60 ring-2 ring-primary/20'
                 )}

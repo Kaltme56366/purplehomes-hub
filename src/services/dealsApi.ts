@@ -201,6 +201,8 @@ export const useDeals = (filters?: DealFilters) => {
       return filtered;
     },
     staleTime: 2 * 60 * 1000,
+    refetchInterval: 60 * 1000, // Poll every 60 seconds
+    refetchIntervalInBackground: false, // Don't poll when tab is inactive
   });
 };
 
@@ -300,6 +302,8 @@ export const usePipelineStats = () => {
       return stats;
     },
     staleTime: 2 * 60 * 1000,
+    refetchInterval: 60 * 1000, // Poll every 60 seconds
+    refetchIntervalInBackground: false,
   });
 };
 
@@ -370,6 +374,8 @@ export const useDealsByStage = () => {
       return byStage as Record<MatchDealStage, Deal[]>;
     },
     staleTime: 2 * 60 * 1000,
+    refetchInterval: 60 * 1000, // Poll every 60 seconds
+    refetchIntervalInBackground: false,
   });
 };
 
@@ -438,6 +444,8 @@ export const useDealsByBuyer = () => {
       return result;
     },
     staleTime: 2 * 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 };
 
@@ -524,6 +532,8 @@ export const useDealsByProperty = () => {
       return result;
     },
     staleTime: 2 * 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 };
 
@@ -582,6 +592,8 @@ export const useStaleDeals = (limit: number = 5) => {
       return staleDeals;
     },
     staleTime: 2 * 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 };
 
@@ -634,6 +646,8 @@ export const useUpcomingShowings = (limit: number = 5) => {
       return showingDeals;
     },
     staleTime: 2 * 60 * 1000,
+    refetchInterval: 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 };
 

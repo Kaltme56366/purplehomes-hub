@@ -618,6 +618,102 @@ export const useDeleteSocialPost = () => {
   });
 };
 
+// ============ SOCIAL MEDIA STATISTICS ============
+// Based on GHL API: https://marketplace.gohighlevel.com/docs/ghl/social-planner/get-social-media-statistics
+
+export interface GHLSocialStats {
+  totalPosts: number;
+  totalEngagement: number;
+  totalImpressions: number;
+  totalReach: number;
+  totalClicks: number;
+  platformBreakdown: {
+    facebook?: { posts: number; engagement: number; impressions: number; reach: number };
+    instagram?: { posts: number; engagement: number; impressions: number; reach: number };
+    linkedin?: { posts: number; engagement: number; impressions: number; reach: number };
+    twitter?: { posts: number; engagement: number; impressions: number; reach: number };
+    tiktok?: { posts: number; engagement: number; impressions: number; reach: number };
+    gmb?: { posts: number; engagement: number; impressions: number; reach: number };
+  };
+}
+
+export interface GHLPostStats {
+  id: string;
+  summary: string;
+  media?: { url: string; type: string }[];
+  platforms: string[];
+  status: string;
+  publishedAt?: string;
+  stats: {
+    impressions: number;
+    reach: number;
+    engagement: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    clicks: number;
+  };
+}
+
+/**
+ * Get social media statistics for the location
+ * @param dateRange - 'last7' | 'last30' | 'last90' | 'custom'
+ * @param startDate - ISO date string for custom range
+ * @param endDate - ISO date string for custom range
+ */
+export const useSocialStats = (
+  dateRange: 'last7' | 'last30' | 'last90' | 'custom' = 'last30',
+  startDate?: string,
+  endDate?: string
+) => {
+  return useQuery({
+    queryKey: ['ghl-social-stats', dateRange, startDate, endDate],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      params.set('dateRange', dateRange);
+      if (dateRange === 'custom' && startDate && endDate) {
+        params.set('startDate', startDate);
+        params.set('endDate', endDate);
+      }
+      return fetchGHL<{ stats: GHLSocialStats }>(`social/stats?${params.toString()}`);
+    },
+    enabled: !!getApiConfig().apiKey,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+/**
+ * Get statistics for individual posts
+ * @param status - Filter by post status
+ * @param limit - Number of posts to fetch
+ */
+export const useSocialPostStats = (status?: 'published' | 'scheduled', limit: number = 20) => {
+  return useQuery({
+    queryKey: ['ghl-social-post-stats', status, limit],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (status) params.set('status', status);
+      params.set('limit', limit.toString());
+      return fetchGHL<{ posts: GHLPostStats[] }>(`social/posts/stats?${params.toString()}`);
+    },
+    enabled: !!getApiConfig().apiKey,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+/**
+ * Get scheduled posts from GHL Social Planner
+ * Fetches posts with status 'scheduled' sorted by schedule date
+ */
+export const useScheduledPosts = () => {
+  return useQuery({
+    queryKey: ['ghl-scheduled-posts'],
+    queryFn: () => fetchGHL<{ posts: GHLSocialPost[] }>('social/posts?status=scheduled'),
+    enabled: !!getApiConfig().apiKey,
+    staleTime: 2 * 60 * 1000,
+  });
+};
+
 // ============ CUSTOM FIELDS ============
 
 export const useCustomFields = (model: 'contact' | 'opportunity' | 'all' = 'opportunity') => {

@@ -23,15 +23,35 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { demoProperties, mockProperties, mockSocialAccounts, mockScheduledPosts } from '@/data/mockData.backup';
+import { mockSocialAccounts, mockScheduledPosts } from '@/data/mockData.backup';
 import { toast } from 'sonner';
-import { useSocialAccounts, useCreateSocialPost, getApiConfig, useProperties, ACQUISITION_PIPELINE_ID } from '@/services/ghlApi';
+import { useSocialAccounts, useCreateSocialPost, getApiConfig, useScheduledPosts } from '@/services/ghlApi';
+import { useAirtableProperties } from '@/services/matchingApi';
 import { useAppStore } from '@/store/useAppStore';
 import { SocialAccountSelector } from '@/components/social/SocialAccountSelector';
 import { SocialPostPreview } from '@/components/social/SocialPostPreview';
 import { AICaptionGenerator, type Platform as AIPlatform, type CaptionStyle } from '@/components/social/AICaptionGenerator';
 import { SocialAnalytics } from '@/components/social/SocialAnalytics';
 import { PropertySelector } from '@/components/social/PropertySelector';
+import { ContentSourceCard } from '@/components/social/ContentSourceCard';
+import { CaptionsCard } from '@/components/social/CaptionsCard';
+import { PublishCard } from '@/components/social/PublishCard';
+import { PostReadinessCard } from '@/components/social/PostReadinessCard';
+import { BatchToolbar } from '@/components/social/BatchToolbar';
+import { BatchActionBar } from '@/components/social/BatchActionBar';
+import { BatchPropertyRow } from '@/components/social/BatchPropertyRow';
+import { BatchSummaryFooter } from '@/components/social/BatchSummaryFooter';
+import { BatchProgressOverlay } from '@/components/social/BatchProgressOverlay';
+import { ScheduleViewToggle } from '@/components/social/ScheduleViewToggle';
+import { ScheduleQuickStats } from '@/components/social/ScheduleQuickStats';
+import { ScheduleDetailsPanel } from '@/components/social/ScheduleDetailsPanel';
+import {
+  PostTemplateSelector,
+  PostTemplatePreview,
+  type PostTemplate,
+  fillTemplatePlaceholders,
+} from '@/components/social/templates';
+import ImageTemplateGenerator from '@/components/social/ImageTemplateGenerator';
 import { cn } from '@/lib/utils';
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay,
@@ -112,12 +132,24 @@ export default function SocialMedia() {
   const [batchScheduleTime, setBatchScheduleTime] = useState('');
   const [batchScheduleInterval, setBatchScheduleInterval] = useState('2');
   const [batchCaptionStyle, setBatchCaptionStyle] = useState<CaptionStyle>('professional');
+  const [batchFilter, setBatchFilter] = useState<'all' | 'pending' | 'ready' | 'needs-caption'>('all');
+  const [batchSearchQuery, setBatchSearchQuery] = useState('');
+  const [batchOperationLog, setBatchOperationLog] = useState<Array<{ property: Property; status: 'complete' | 'failed'; message?: string }>>([]);
+  const [currentBatchProperty, setCurrentBatchProperty] = useState<Property | undefined>();
 
   // Schedule state
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [scheduleView, setScheduleView] = useState<'month' | 'list'>('month');
+  const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(null);
 
   // Property selection for captions
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+
+  // Template state
+  const [selectedTemplate, setSelectedTemplate] = useState<PostTemplate | null>(null);
+
+  // Caption mode state
+  const [captionMode, setCaptionMode] = useState<'visual' | 'caption' | 'manual'>('visual'); // visual = image overlay, caption = text templates, manual = write your own
 
   // Check GHL connection
   const ghlConfig = getApiConfig();
@@ -125,12 +157,15 @@ export default function SocialMedia() {
 
   // GHL API hooks
   const { data: socialAccountsData, isLoading: isLoadingAccounts } = useSocialAccounts();
-  const { data: propertiesData } = useProperties(ACQUISITION_PIPELINE_ID);
+  const { data: scheduledPostsData, isLoading: isLoadingScheduled } = useScheduledPosts();
   const createPost = useCreateSocialPost();
+
+  // Airtable properties hook
+  const { data: airtableData, isLoading: isLoadingProperties } = useAirtableProperties(200);
 
   // Get accounts from GHL or fallback to mock
   const ghlAccounts = socialAccountsData?.accounts || [];
-  const accounts = isGhlConnected && ghlAccounts.length > 0 
+  const accounts = isGhlConnected && ghlAccounts.length > 0
     ? ghlAccounts.map(a => ({
         id: a.id,
         platform: a.platform as Platform,
@@ -140,14 +175,82 @@ export default function SocialMedia() {
       }))
     : mockSocialAccounts;
 
-  // Get properties
-  const allProperties = useMemo(() => {
-    const ghlProperties = propertiesData?.properties || [];
-    const liveProperties = isGhlConnected && ghlProperties.length > 0 ? ghlProperties : mockProperties;
-    return [...demoProperties, ...liveProperties];
-  }, [isGhlConnected, propertiesData]);
+  const connectedAccounts = accounts.filter(a => a.connected);
+
+  // Get properties from Airtable - transform to Property type
+  const allProperties: Property[] = useMemo(() => {
+    if (isLoadingProperties || !airtableData?.properties) return [];
+
+    return airtableData.properties.map(p => ({
+      id: p.recordId || p.opportunityId || '',
+      ghlOpportunityId: p.opportunityId,
+      propertyCode: p.propertyCode || 'N/A',
+      address: p.address || '',
+      city: p.city || '',
+      price: p.price || 0,
+      beds: p.beds || 0,
+      baths: p.baths || 0,
+      sqft: p.sqft,
+      condition: p.condition,
+      propertyType: p.propertyType,
+      description: p.notes,
+      heroImage: p.heroImage || '/placeholder.svg',
+      images: p.images || [p.heroImage || '/placeholder.svg'],
+      status: 'pending' as const, // Default to pending for social posting
+      caption: '', // Captions managed per-post
+      downPayment: p.downPayment,
+      monthlyPayment: p.monthlyPayment,
+      lat: p.propertyLat,
+      lng: p.propertyLng,
+      createdAt: p.createdAt || new Date().toISOString(),
+      isDemo: false,
+    }));
+  }, [airtableData, isLoadingProperties]);
 
   const pendingProperties = allProperties.filter(p => p.status === 'pending');
+
+  // Filtered and searched batch properties
+  const filteredBatchProperties = useMemo(() => {
+    let filtered = pendingProperties;
+
+    // Apply filter
+    if (batchFilter !== 'all') {
+      filtered = filtered.filter(p => {
+        if (batchFilter === 'pending') return p.status === 'pending';
+        if (batchFilter === 'ready') return p.heroImage && p.caption;
+        if (batchFilter === 'needs-caption') return !p.caption;
+        return true;
+      });
+    }
+
+    // Apply search
+    if (batchSearchQuery) {
+      const query = batchSearchQuery.toLowerCase();
+      filtered = filtered.filter(p =>
+        p.propertyCode.toLowerCase().includes(query) ||
+        p.address.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [pendingProperties, batchFilter, batchSearchQuery]);
+
+  // Compute readiness for each property
+  const getPropertyReadiness = (property: Property): 'ready' | 'needs-caption' | 'needs-image' | 'demo' => {
+    if (property.isDemo) return 'demo';
+    if (!property.heroImage) return 'needs-image';
+    if (!property.caption) return 'needs-caption';
+    return 'ready';
+  };
+
+  // Count ready/needs caption
+  const readyPropertiesCount = Array.from(selectedPropertyIds)
+    .map(id => allProperties.find(p => p.id === id))
+    .filter(p => p && getPropertyReadiness(p) === 'ready').length;
+
+  const needsCaptionCount = Array.from(selectedPropertyIds)
+    .map(id => allProperties.find(p => p.id === id))
+    .filter(p => p && getPropertyReadiness(p) === 'needs-caption').length;
 
   // Auto-select first account per platform when accounts load
   useEffect(() => {
@@ -243,6 +346,39 @@ export default function SocialMedia() {
     setImage(null);
     setScheduledDate('');
     setScheduledTime('');
+    setSelectedProperty(null);
+  };
+
+  const handleGenerateCaption = async (platform: Platform, style: CaptionStyle) => {
+    if (!selectedProperty) {
+      toast.error('Please select a property first');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/ghl?resource=ai-caption', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property: selectedProperty,
+          platform,
+          style,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to generate caption');
+
+      const data = await response.json();
+      if (data.caption) {
+        updateCaption(platform, data.caption);
+        toast.success(`${platformConfig[platform].label} caption generated!`);
+      }
+    } catch (error) {
+      // Fallback to demo caption
+      const demoCaption = `✨ ${selectedProperty.propertyCode} | ${selectedProperty.address}\n\n🏡 ${selectedProperty.beds} bed, ${selectedProperty.baths} bath\n💰 $${selectedProperty.price.toLocaleString()}\n\nInterested? Contact us today!`;
+      updateCaption(platform, demoCaption);
+      toast.success(`Demo caption generated for ${platformConfig[platform].label}`);
+    }
   };
 
   // ============ BATCH TAB HANDLERS ============
@@ -331,8 +467,46 @@ export default function SocialMedia() {
   const calendarEnd = endOfWeek(monthEnd);
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
+  // Combine GHL scheduled posts with mock data as fallback
+  const scheduledPosts = useMemo(() => {
+    const ghlPosts = scheduledPostsData?.posts || [];
+    if (ghlPosts.length > 0) {
+      // Transform GHL posts to match our format
+      return ghlPosts.map(post => ({
+        id: post.id,
+        scheduledDate: post.scheduleDate || post.createdAt,
+        caption: post.summary,
+        image: post.media?.[0]?.url || '/placeholder.svg',
+        platforms: post.accountIds, // Note: would need to map account IDs to platforms
+        status: post.status,
+        property: null, // GHL posts don't have property linkage by default
+        propertyId: null,
+      }));
+    }
+    // Fallback to mock data
+    return mockScheduledPosts;
+  }, [scheduledPostsData]);
+
   const getPostsForDay = (day: Date) => {
-    return mockScheduledPosts.filter(post => isSameDay(new Date(post.scheduledDate), day));
+    return scheduledPosts.filter(post => isSameDay(new Date(post.scheduledDate), day));
+  };
+
+  // Transform posts for ScheduleDetailsPanel
+  const getFormattedPostsForDate = (date: Date | null) => {
+    if (!date) return [];
+    const posts = getPostsForDay(date);
+    return posts.map(post => ({
+      id: post.id,
+      date: format(new Date(post.scheduledDate), 'yyyy-MM-dd'),
+      time: format(new Date(post.scheduledDate), 'h:mm a'),
+      property: post.property ? {
+        propertyCode: post.property.code || 'N/A',
+        address: post.property.address
+      } : undefined,
+      platforms: post.platforms as ('facebook' | 'instagram' | 'linkedin')[],
+      caption: post.caption || '',
+      status: post.status as 'scheduled' | 'posted' | 'failed'
+    }));
   };
 
   const handlePrevMonth = () => setCurrentDate(subMonths(currentDate, 1));
@@ -340,7 +514,14 @@ export default function SocialMedia() {
   const handleTodayClick = () => setCurrentDate(new Date());
 
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const connectedAccounts = accounts.filter(a => a.connected);
+
+  // Compute post validity for Create tab
+  const hasValidCaption = Object.values(captions).some(c => c.trim().length > 0);
+  const hasValidSchedule = postType === 'now' || (scheduledDate && scheduledTime);
+  const isPostValid = hasValidCaption && selectedAccountIds.length > 0 && hasValidSchedule;
+
+  // Compute actual display image (uploaded or from property)
+  const displayImage = image || selectedProperty?.heroImage || null;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -403,151 +584,210 @@ export default function SocialMedia() {
 
         {/* CREATE TAB */}
         <TabsContent value="create" className="mt-6">
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Editor Column */}
+          <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1fr,400px]">
+            {/* Left Column */}
             <div className="space-y-6">
-              {/* Property Selector */}
-              <PropertySelector
+              {/* Step 1: Content Source */}
+              <ContentSourceCard
                 properties={allProperties}
                 selectedProperty={selectedProperty}
-                onSelect={setSelectedProperty}
+                onSelectProperty={(property) => {
+                  setSelectedProperty(property);
+                  // Clear template when property changes
+                  if (property !== selectedProperty) {
+                    setSelectedTemplate(null);
+                  }
+                }}
+                image={image}
+                onImageChange={setImage}
+                isLoading={isLoadingProperties}
               />
 
-              {/* Image Upload */}
+              {/* Step 2: Choose Post Style */}
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5" />
-                    Image
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {image ? (
-                    <div className="relative">
-                      <img src={image} alt="Upload preview" className="w-full aspect-video object-cover rounded-lg" />
-                      <Button variant="destructive" size="icon" className="absolute top-2 right-2" onClick={handleRemoveImage}>
-                        <X className="h-4 w-4" />
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <CardTitle className="flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-purple-500" />
+                      Step 2: Post Style
+                    </CardTitle>
+                    <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+                      <Button
+                        variant={captionMode === 'visual' ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setCaptionMode('visual')}
+                        className="gap-1 text-xs"
+                      >
+                        <ImageIcon className="h-3 w-3" />
+                        Visual
+                      </Button>
+                      <Button
+                        variant={captionMode === 'caption' ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setCaptionMode('caption')}
+                        className="gap-1 text-xs"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Captions
+                      </Button>
+                      <Button
+                        variant={captionMode === 'manual' ? "default" : "ghost"}
+                        size="sm"
+                        onClick={() => setCaptionMode('manual')}
+                        className="gap-1 text-xs"
+                      >
+                        <Copy className="h-3 w-3" />
+                        Manual
                       </Button>
                     </div>
-                  ) : selectedProperty?.heroImage ? (
-                    <div className="relative">
-                      <img src={selectedProperty.heroImage} alt="Property" className="w-full aspect-video object-cover rounded-lg" />
-                      <Badge className="absolute top-2 left-2 bg-primary/90">From Property</Badge>
-                    </div>
-                  ) : (
-                    <label className="flex flex-col items-center justify-center w-full aspect-video border-2 border-dashed border-muted-foreground/25 rounded-lg cursor-pointer hover:border-primary/50 transition-colors">
-                      <Upload className="h-10 w-10 text-muted-foreground mb-2" />
-                      <span className="text-sm text-muted-foreground">Click or drag to upload image</span>
-                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                    </label>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {captionMode === 'visual' && (
+                    <p className="text-sm text-muted-foreground">
+                      Choose an image overlay template to create branded graphics with your property photo.
+                    </p>
+                  )}
+                  {captionMode === 'caption' && (
+                    <p className="text-sm text-muted-foreground">
+                      Use pre-written caption templates that auto-fill with property details.
+                    </p>
+                  )}
+                  {captionMode === 'manual' && (
+                    <p className="text-sm text-muted-foreground">
+                      Write your own captions below or use AI generation.
+                    </p>
                   )}
                 </CardContent>
               </Card>
 
-              {/* Platform-Specific Captions */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-accent" />
-                      Captions by Platform
-                    </CardTitle>
-                    <AICaptionGenerator
-                      property={selectedProperty || {}}
-                      onCaptionGenerated={(platform, caption) => updateCaption(platform, caption)}
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as Platform)}>
-                    <TabsList className="grid w-full grid-cols-3">
-                      {(['facebook', 'instagram', 'linkedin'] as Platform[]).map((p) => {
-                        const Icon = platformConfig[p].icon;
-                        return (
-                          <TabsTrigger key={p} value={p} className="flex items-center gap-2">
-                            <Icon className="h-4 w-4" />
-                            <span className="hidden sm:inline">{platformConfig[p].label}</span>
-                          </TabsTrigger>
-                        );
-                      })}
-                    </TabsList>
-
-                    {(['facebook', 'instagram', 'linkedin'] as Platform[]).map((platform) => (
-                      <TabsContent key={platform} value={platform} className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs text-muted-foreground">{platformConfig[platform].tips}</p>
-                          <Button variant="ghost" size="sm" onClick={() => copyToAllPlatforms(platform)} disabled={!captions[platform]}>
-                            {copiedFrom === platform ? <Check className="h-4 w-4 mr-1" /> : <Copy className="h-4 w-4 mr-1" />}
-                            Copy to All
-                          </Button>
-                        </div>
-                        <Textarea
-                          value={captions[platform]}
-                          onChange={(e) => updateCaption(platform, e.target.value)}
-                          placeholder={`Write your ${platformConfig[platform].label} caption...`}
-                          className="min-h-[150px]"
-                        />
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <span>{captions[platform].length}/{platformConfig[platform].maxLength}</span>
-                        </div>
-                      </TabsContent>
-                    ))}
-                  </Tabs>
-                </CardContent>
-              </Card>
-
-              {/* Account Selection & Scheduling */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <SocialAccountSelector
-                  accounts={connectedAccounts}
-                  selectedIds={selectedAccountIds}
-                  onSelectionChange={setSelectedAccountIds}
-                  isLoading={isLoadingAccounts}
-                />
-
+              {/* Visual Image Template Generator */}
+              {captionMode === 'visual' && (
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">When to Post</CardTitle>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-sm font-bold">
+                        2
+                      </span>
+                      Create Branded Image
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <RadioGroup value={postType} onValueChange={(v) => setPostType(v as 'now' | 'schedule')}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="now" id="now" />
-                        <Label htmlFor="now">Post Now</Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="schedule" id="schedule" />
-                        <Label htmlFor="schedule">Schedule</Label>
-                      </div>
-                    </RadioGroup>
-
-                    {postType === 'schedule' && (
-                      <div className="grid grid-cols-2 gap-2 pt-2">
-                        <Input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} />
-                        <Input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} />
-                      </div>
-                    )}
+                  <CardContent>
+                    <ImageTemplateGenerator
+                      properties={allProperties}
+                      selectedProperty={selectedProperty}
+                      onImageGenerated={(imageUrl) => {
+                        setImage(imageUrl);
+                        toast.success('Image ready for posting!');
+                      }}
+                    />
                   </CardContent>
                 </Card>
-              </div>
+              )}
 
-              {/* Post Button */}
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={handlePost} disabled={isPosting}>
-                  {isPosting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : 
-                    postType === 'now' ? <Send className="h-4 w-4 mr-2" /> : <Clock className="h-4 w-4 mr-2" />}
-                  {postType === 'now' ? 'Post' : 'Schedule Post'}
-                </Button>
-                <Button variant="outline" onClick={handleClear}>Clear</Button>
-              </div>
+              {/* Caption Template Selector */}
+              {captionMode === 'caption' && (
+                <PostTemplateSelector
+                  selectedTemplate={selectedTemplate}
+                  onSelectTemplate={(template) => {
+                    setSelectedTemplate(template);
+                    // Auto-fill captions when template is selected and property exists
+                    if (template && selectedProperty) {
+                      const propertyData = {
+                        price: selectedProperty.price,
+                        address: selectedProperty.address,
+                        city: selectedProperty.city,
+                        beds: selectedProperty.beds,
+                        baths: selectedProperty.baths,
+                        sqft: selectedProperty.sqft,
+                        propertyCode: selectedProperty.propertyCode,
+                        propertyType: selectedProperty.propertyType,
+                      };
+                      setCaptions({
+                        facebook: fillTemplatePlaceholders(template.captionTemplate.facebook, propertyData),
+                        instagram: fillTemplatePlaceholders(template.captionTemplate.instagram, propertyData) + '\n\n' + template.hashtags.join(' '),
+                        linkedin: fillTemplatePlaceholders(template.captionTemplate.linkedin, propertyData),
+                      });
+                      toast.success(`Applied "${template.name}" template`);
+                    } else if (template && !selectedProperty) {
+                      toast.info('Select a property to auto-fill captions');
+                    }
+                  }}
+                />
+              )}
+
+              {/* Step 3: Captions (Manual or Edit Template) */}
+              <CaptionsCard
+                captions={captions}
+                onCaptionChange={updateCaption}
+                activePlatform={activeTab}
+                onPlatformChange={setActiveTab}
+                selectedProperty={selectedProperty}
+                onGenerateCaption={handleGenerateCaption}
+              />
+
+              {/* Step 4: Publish */}
+              <PublishCard
+                accounts={connectedAccounts}
+                selectedAccountIds={selectedAccountIds}
+                onAccountToggle={(id) => {
+                  setSelectedAccountIds(prev =>
+                    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+                  );
+                }}
+                postType={postType}
+                onPostTypeChange={setPostType}
+                scheduledDate={scheduledDate}
+                scheduledTime={scheduledTime}
+                onScheduleChange={(date, time) => {
+                  setScheduledDate(date);
+                  setScheduledTime(time);
+                }}
+                onPost={handlePost}
+                onClear={handleClear}
+                isPosting={isPosting}
+                isValid={isPostValid}
+              />
             </div>
 
-            {/* Preview Column */}
-            <div className="space-y-6">
-              <SocialPostPreview 
-                captions={captions} 
-                image={image || selectedProperty?.heroImage || undefined} 
-                accountName="Purple Homes" 
+            {/* Right Column - Sticky */}
+            <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
+              {/* Template Preview (when template selected) or Live Preview */}
+              {captionMode === 'caption' && selectedTemplate && selectedProperty ? (
+                <PostTemplatePreview
+                  template={selectedTemplate}
+                  property={{
+                    price: selectedProperty.price,
+                    address: selectedProperty.address,
+                    city: selectedProperty.city,
+                    beds: selectedProperty.beds,
+                    baths: selectedProperty.baths,
+                    sqft: selectedProperty.sqft,
+                    propertyCode: selectedProperty.propertyCode,
+                    propertyType: selectedProperty.propertyType,
+                    heroImage: selectedProperty.heroImage,
+                  }}
+                  activePlatform={activeTab}
+                  onPlatformChange={setActiveTab}
+                />
+              ) : (
+                <SocialPostPreview
+                  captions={captions}
+                  image={displayImage || undefined}
+                  accountName="Purple Homes"
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                />
+              )}
+
+              {/* Post Readiness */}
+              <PostReadinessCard
+                hasImage={!!displayImage}
+                captionLength={captions[activeTab].length}
+                selectedPlatforms={selectedPlatforms}
+                selectedAccountCount={selectedAccountIds.length}
+                postType={postType}
+                hasSchedule={postType === 'now' || !!(scheduledDate && scheduledTime)}
               />
             </div>
           </div>
@@ -555,218 +795,225 @@ export default function SocialMedia() {
 
         {/* BATCH TAB */}
         <TabsContent value="batch" className="mt-6">
-          <div className="grid gap-6 lg:grid-cols-3">
-            {/* Property Selection */}
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle>Select Properties ({selectedPropertyIds.size})</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={handleSelectAllProperties}>Select All Pending</Button>
-                    {selectedPropertyIds.size > 0 && (
-                      <Button variant="ghost" size="sm" onClick={handleClearPropertySelection}>Clear</Button>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                    {pendingProperties.map((property) => {
-                      const status = propertyStatuses[property.id];
-                      const isSelected = selectedPropertyIds.has(property.id);
-                      
-                      return (
-                        <div 
-                          key={property.id}
-                          className={cn(
-                            "flex items-center gap-4 p-3 rounded-lg border transition-colors",
-                            isSelected && !status && "border-primary bg-primary/5",
-                            status === 'complete' && "border-green-500 bg-green-500/5",
-                            status === 'failed' && "border-red-500 bg-red-500/5",
-                            status === 'processing' && "border-yellow-500 bg-yellow-500/5",
-                            !isSelected && !status && "border-border hover:border-primary/50"
-                          )}
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => togglePropertySelection(property.id)}
-                            disabled={operationStatus === 'running' || property.isDemo}
-                          />
-                          <img src={property.heroImage} alt="" className="h-12 w-12 rounded object-cover" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{property.propertyCode}</span>
-                              {property.isDemo && <Badge variant="secondary" className="text-xs">DEMO</Badge>}
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">{property.address}</p>
-                          </div>
-                          {status === 'processing' && <Loader2 className="h-5 w-5 animate-spin text-yellow-500" />}
-                          {status === 'complete' && <Check className="h-5 w-5 text-green-500" />}
-                          {status === 'failed' && <X className="h-5 w-5 text-red-500" />}
-                        </div>
-                      );
-                    })}
-                    {pendingProperties.length === 0 && (
-                      <p className="text-center text-muted-foreground py-8">No pending properties</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+          <div className="space-y-6 pb-24">
+            {/* Toolbar */}
+            <BatchToolbar
+              totalCount={pendingProperties.length}
+              selectedCount={selectedPropertyIds.size}
+              allSelected={selectedPropertyIds.size === filteredBatchProperties.filter(p => !p.isDemo).length && filteredBatchProperties.length > 0}
+              onSelectAll={handleSelectAllProperties}
+              onDeselectAll={handleClearPropertySelection}
+              filter={batchFilter}
+              onFilterChange={setBatchFilter}
+              searchQuery={batchSearchQuery}
+              onSearchChange={setBatchSearchQuery}
+            />
 
-            {/* Actions Panel */}
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Batch Actions</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button className="w-full" onClick={() => startBatchOperation('post')} disabled={selectedPropertyIds.size === 0 || operationStatus === 'running'}>
-                    <Rocket className="h-4 w-4 mr-2" />
-                    Post All ({selectedPropertyIds.size})
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={() => startBatchOperation('schedule')} disabled={selectedPropertyIds.size === 0 || operationStatus === 'running'}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Schedule Selected
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={() => startBatchOperation('captions')} disabled={selectedPropertyIds.size === 0 || operationStatus === 'running'}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Generate AI Captions
-                  </Button>
-                  <Button variant="ghost" className="w-full" onClick={() => startBatchOperation('skip')} disabled={selectedPropertyIds.size === 0 || operationStatus === 'running'}>
-                    <SkipForward className="h-4 w-4 mr-2" />
-                    Skip Selected
-                  </Button>
-                </CardContent>
-              </Card>
+            {/* Contextual Action Bar */}
+            <BatchActionBar
+              selectedCount={selectedPropertyIds.size}
+              onPostAll={() => startBatchOperation('post')}
+              onSchedule={() => startBatchOperation('schedule')}
+              onGenerateCaptions={() => startBatchOperation('captions')}
+              onSkip={() => startBatchOperation('skip')}
+              isProcessing={operationStatus === 'running'}
+            />
 
-              {operationStatus !== 'idle' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Progress</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Progress value={batchProgress} className="h-3" />
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted-foreground">{batchCompletedCount + batchFailedCount} / {selectedPropertyIds.size}</span>
-                      <span className="font-medium">{Math.round(batchProgress)}%</span>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Check className="h-4 w-4 text-green-500" />
-                        <span>{batchCompletedCount} done</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <X className="h-4 w-4 text-red-500" />
-                        <span>{batchFailedCount} failed</span>
-                      </div>
-                    </div>
-                    {operationStatus === 'complete' && (
-                      <Button variant="outline" className="w-full" onClick={resetBatchOperation}>Start New</Button>
-                    )}
-                  </CardContent>
-                </Card>
+            {/* Property List */}
+            <div className="space-y-3">
+              {filteredBatchProperties.map((property) => (
+                <BatchPropertyRow
+                  key={property.id}
+                  property={property}
+                  isSelected={selectedPropertyIds.has(property.id)}
+                  onToggle={() => togglePropertySelection(property.id)}
+                  status={propertyStatuses[property.id] || null}
+                  readiness={getPropertyReadiness(property)}
+                  disabled={operationStatus === 'running'}
+                />
+              ))}
+
+              {filteredBatchProperties.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">No properties found</p>
+                  {batchSearchQuery && (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => setBatchSearchQuery('')}
+                      className="mt-2"
+                    >
+                      Clear search
+                    </Button>
+                  )}
+                </div>
               )}
             </div>
           </div>
+
+          {/* Summary Footer */}
+          <BatchSummaryFooter
+            selectedProperties={Array.from(selectedPropertyIds)
+              .map(id => allProperties.find(p => p.id === id))
+              .filter((p): p is Property => p !== undefined)}
+            selectedAccounts={connectedAccounts.filter(a =>
+              selectedAccountIds.includes(a.id)
+            )}
+            readyCount={readyPropertiesCount}
+            needsCaptionCount={needsCaptionCount}
+            onPost={() => startBatchOperation('post')}
+            isPosting={operationStatus === 'running'}
+          />
+
+          {/* Progress Overlay */}
+          <BatchProgressOverlay
+            isOpen={operationStatus === 'running' || operationStatus === 'complete'}
+            totalCount={selectedPropertyIds.size}
+            completedCount={batchCompletedCount}
+            failedCount={batchFailedCount}
+            currentProperty={currentBatchProperty}
+            log={batchOperationLog}
+            onComplete={resetBatchOperation}
+            canCancel={false}
+          />
         </TabsContent>
 
         {/* SCHEDULE TAB */}
         <TabsContent value="schedule" className="mt-6">
           <div className="space-y-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5" />
-                  {format(currentDate, 'MMMM yyyy')}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleTodayClick}>Today</Button>
-                  <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={handleNextMonth}>
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-7 gap-1 mb-2">
-                  {weekDays.map((day) => (
-                    <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">{day}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-1">
-                  {calendarDays.map((day, index) => {
-                    const posts = getPostsForDay(day);
-                    const isCurrentMonth = isSameMonth(day, currentDate);
-                    return (
-                      <div
-                        key={index}
-                        className={cn(
-                          "min-h-[80px] p-2 rounded-lg border border-transparent transition-colors",
-                          isCurrentMonth ? "bg-muted/30" : "bg-transparent",
-                          isToday(day) && "border-primary",
-                          "hover:border-primary/50 cursor-pointer"
-                        )}
-                      >
-                        <span className={cn("text-sm", !isCurrentMonth && "text-muted-foreground", isToday(day) && "font-bold text-primary")}>
-                          {format(day, 'd')}
-                        </span>
-                        <div className="mt-1 space-y-1">
-                          {posts.slice(0, 2).map((post) => (
-                            <div
-                              key={post.id}
-                              onClick={() => post.propertyId && navigate(`/properties/${post.propertyId}`, { state: { from: '/social#schedule' } })}
-                              className={cn(
-                                "text-xs p-1 rounded truncate cursor-pointer",
-                                post.status === 'scheduled' && "bg-blue-500/20 text-blue-400",
-                                post.status === 'posted' && "bg-green-500/20 text-green-400",
-                                post.status === 'failed' && "bg-red-500/20 text-red-400"
-                              )}
-                            >
-                              {format(new Date(post.scheduledDate), 'h:mm a')}
-                            </div>
-                          ))}
-                          {posts.length > 2 && <span className="text-xs text-muted-foreground">+{posts.length - 2}</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Header with View Toggle */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">Schedule</h2>
+                <p className="text-sm text-muted-foreground">Manage your scheduled posts</p>
+              </div>
+              <ScheduleViewToggle view={scheduleView} onViewChange={setScheduleView} />
+            </div>
 
-            {/* Upcoming Posts */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Upcoming Posts</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {mockScheduledPosts.filter(p => p.status === 'scheduled').slice(0, 5).map((post) => (
-                    <div 
-                      key={post.id}
-                      className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer"
-                      onClick={() => post.propertyId && navigate(`/properties/${post.propertyId}`, { state: { from: '/social#schedule' } })}
-                    >
-                      <img src={post.image} alt="" className="h-12 w-12 rounded-lg object-cover" />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm">{post.property?.address || 'Value Post'}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {post.platforms.map((platform) => (
-                            <Badge key={platform} variant="outline" className="text-xs capitalize">{platform}</Badge>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{format(new Date(post.scheduledDate), 'MMM d')}</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(post.scheduledDate), 'h:mm a')}</p>
-                      </div>
+            {/* Quick Stats */}
+            <ScheduleQuickStats
+              posts={scheduledPosts.map(post => ({
+                id: post.id,
+                date: new Date(post.scheduledDate).toISOString()
+              }))}
+            />
+
+            {/* Month View */}
+            {scheduleView === 'month' && (
+              <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1fr,400px]">
+                {/* Calendar */}
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="h-5 w-5" />
+                      {format(currentDate, 'MMMM yyyy')}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={handleTodayClick}>Today</Button>
+                      <Button variant="ghost" size="icon" onClick={handlePrevMonth}>
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={handleNextMonth}>
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                     </div>
-                  ))}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-7 gap-1 mb-2">
+                      {weekDays.map((day) => (
+                        <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">{day}</div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {calendarDays.map((day, index) => {
+                        const posts = getPostsForDay(day);
+                        const isCurrentMonth = isSameMonth(day, currentDate);
+                        const isSelected = selectedScheduleDate && isSameDay(day, selectedScheduleDate);
+                        return (
+                          <div
+                            key={index}
+                            onClick={() => setSelectedScheduleDate(day)}
+                            className={cn(
+                              "min-h-[80px] p-2 rounded-lg border transition-colors cursor-pointer",
+                              isCurrentMonth ? "bg-muted/30" : "bg-transparent",
+                              isToday(day) && "border-primary",
+                              isSelected && "bg-primary/10 border-primary",
+                              !isSelected && !isToday(day) && "border-transparent hover:border-primary/50"
+                            )}
+                          >
+                            <span className={cn(
+                              "text-sm",
+                              !isCurrentMonth && "text-muted-foreground",
+                              isToday(day) && "font-bold text-primary"
+                            )}>
+                              {format(day, 'd')}
+                            </span>
+                            {posts.length > 0 && (
+                              <div className="mt-1">
+                                <Badge variant="secondary" className="text-xs">
+                                  {posts.length}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Details Panel - Sticky */}
+                <div className="lg:sticky lg:top-6 lg:self-start">
+                  <ScheduleDetailsPanel
+                    selectedDate={selectedScheduleDate}
+                    posts={getFormattedPostsForDate(selectedScheduleDate)}
+                    onEdit={(post) => {
+                      toast.info('Edit functionality coming soon');
+                    }}
+                    onDelete={(post) => {
+                      toast.info('Delete functionality coming soon');
+                    }}
+                  />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            )}
+
+            {/* List View */}
+            {scheduleView === 'list' && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>All Scheduled Posts</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {scheduledPosts
+                      .filter(p => p.status === 'scheduled')
+                      .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())
+                      .map((post) => (
+                        <div
+                          key={post.id}
+                          className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => post.propertyId && navigate(`/properties/${post.propertyId}`, { state: { from: '/social#schedule' } })}
+                        >
+                          <img src={post.image} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm">{post.property?.address || 'Value Post'}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              {post.platforms.map((platform) => (
+                                <Badge key={platform} variant="outline" className="text-xs capitalize">{platform}</Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-sm font-medium">{format(new Date(post.scheduledDate), 'MMM d, yyyy')}</p>
+                            <p className="text-xs text-muted-foreground">{format(new Date(post.scheduledDate), 'h:mm a')}</p>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 

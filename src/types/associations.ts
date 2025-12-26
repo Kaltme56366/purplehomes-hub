@@ -116,6 +116,7 @@ export const MATCH_DEAL_STAGES = [
   'Property Viewed',
   'Offer Made',
   'Under Contract',
+  'Qualified',
   'Closed Deal / Won',
 ] as const;
 
@@ -135,6 +136,7 @@ export const STAGE_ASSOCIATION_IDS: Record<MatchDealStage, string> = {
   'Property Viewed': '69451ea83246701a7740063b',
   'Offer Made': '69451e925fba087bc357502b',
   'Under Contract': '69451e83a6d620ecd98d70d8',
+  'Qualified': '694bbb6fa09d3903b4da9be3',
   'Closed Deal / Won': '69451e67a09d39427b2e7870',
   'Not Interested': '69451e36a09d39271e2e7383',
 };
@@ -159,7 +161,8 @@ export const STAGE_CONFIGS: StageConfig[] = [
   { id: 'Property Viewed', label: 'Property Viewed', shortLabel: 'Viewed', order: 4, isExitState: false, color: 'purple', description: 'Buyer has viewed property' },
   { id: 'Offer Made', label: 'Offer Made', shortLabel: 'Offer', order: 5, isExitState: false, color: 'orange', description: 'Buyer submitted offer' },
   { id: 'Under Contract', label: 'Under Contract', shortLabel: 'Contract', order: 6, isExitState: false, color: 'indigo', description: 'Contract signed' },
-  { id: 'Closed Deal / Won', label: 'Closed Deal / Won', shortLabel: 'Closed', order: 7, isExitState: false, color: 'emerald', description: 'Deal completed successfully' },
+  { id: 'Qualified', label: 'Qualified', shortLabel: 'Qualified', order: 7, isExitState: false, color: 'teal', description: 'Buyer qualified for property' },
+  { id: 'Closed Deal / Won', label: 'Closed Deal / Won', shortLabel: 'Closed', order: 8, isExitState: false, color: 'emerald', description: 'Deal completed successfully' },
   { id: 'Not Interested', label: 'Not Interested', shortLabel: 'Not Interested', order: 99, isExitState: true, color: 'red', description: 'Buyer not interested in property' },
 ];
 

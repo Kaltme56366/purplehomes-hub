@@ -17,6 +17,7 @@ import { MetricCard, formatPipelineValue } from './MetricCard';
 import { PipelineHealthChart } from './PipelineHealthChart';
 import { NeedsAttentionCard } from './NeedsAttentionCard';
 import { UpcomingCard } from './UpcomingCard';
+import { MorningBriefing } from '../MorningBriefing';
 import { BarChart3, DollarSign, Clock, TrendingUp } from 'lucide-react';
 import type { Deal } from '@/types/deals';
 
@@ -37,6 +38,9 @@ export function PipelineOverview({
 
   return (
     <div className="space-y-6">
+      {/* Morning Briefing - Dismissable daily summary */}
+      <MorningBriefing onViewDeal={onViewDeal} />
+
       {/* Key Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <MetricCard

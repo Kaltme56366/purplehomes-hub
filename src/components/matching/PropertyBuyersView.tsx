@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
@@ -33,7 +34,9 @@ import {
 import { usePropertyBuyers, usePropertiesWithMatches } from '@/services/matchingApi';
 import { MatchSectionDivider } from './MatchSectionDivider';
 import { MatchScoreBadge } from './MatchScoreBadge';
+import { StageBadge } from './StageBadge';
 import type { ScoredBuyer, PropertyDetails } from '@/types/matching';
+import type { MatchDealStage } from '@/types/associations';
 
 interface BuyerCardProps {
   scoredBuyer: ScoredBuyer;
@@ -41,7 +44,8 @@ interface BuyerCardProps {
 }
 
 function BuyerCard({ scoredBuyer, property }: BuyerCardProps) {
-  const { buyer, score } = scoredBuyer;
+  const { buyer, score, currentStage } = scoredBuyer;
+  const isInPipeline = !!currentStage;
 
   // Calculate budget ratio if available
   const getBudgetInfo = () => {
@@ -60,7 +64,10 @@ function BuyerCard({ scoredBuyer, property }: BuyerCardProps) {
   const budgetInfo = getBudgetInfo();
 
   return (
-    <Card className="p-4 hover:bg-muted/30 transition-colors">
+    <Card className={cn(
+      "p-4 transition-colors relative",
+      isInPipeline ? "border-l-4 border-l-green-500 bg-green-50/30" : "hover:bg-muted/30"
+    )}>
       <div className="flex gap-4">
         {/* Buyer Avatar */}
         <div className="flex-shrink-0 w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center">
@@ -146,6 +153,11 @@ function BuyerCard({ scoredBuyer, property }: BuyerCardProps) {
               >
                 {budgetInfo.label}
               </Badge>
+            )}
+
+            {/* Stage Badge */}
+            {isInPipeline && currentStage && (
+              <StageBadge stage={currentStage as MatchDealStage} size="sm" showIcon />
             )}
           </div>
 

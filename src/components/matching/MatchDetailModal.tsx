@@ -6,6 +6,7 @@
  */
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Home,
   Bed,
@@ -14,12 +15,15 @@ import {
   Building,
   User,
   MapPin,
+  ArrowRight,
 } from 'lucide-react';
+import { AIInsightCard } from './AIInsightCard';
 import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
 } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
@@ -66,8 +70,17 @@ export function MatchDetailModal({
   viewMode = 'buyer-centric',
 }: MatchDetailModalProps) {
   const [isUpdating, setIsUpdating] = useState(false);
+  const navigate = useNavigate();
 
   if (!match) return null;
+
+  // Check if match is in pipeline (has a status set)
+  const isInPipeline = match.status && match.status !== 'Sent to Buyer';
+
+  const handleViewInPipeline = () => {
+    onOpenChange(false);
+    navigate(`/deals?dealId=${match.id}`);
+  };
 
   const { property, buyer, activities = [] } = match;
 
@@ -96,8 +109,8 @@ export function MatchDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
-        <ScrollArea className="max-h-[90vh]">
+      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-4xl sm:max-h-[90vh] p-0 overflow-hidden rounded-none sm:rounded-lg">
+        <ScrollArea className="h-[100dvh] sm:max-h-[90vh]">
           {/* Hero Image with Overlay */}
           <div className="relative h-64 sm:h-72 bg-gradient-to-br from-purple-100 to-purple-50">
             {property?.heroImage ? (
@@ -262,6 +275,26 @@ export function MatchDetailModal({
               </>
             )}
 
+            {/* AI Insight Section */}
+            {buyer && property && match.score && (
+              <>
+                <AIInsightCard
+                  buyerName={`${buyer.firstName} ${buyer.lastName}`}
+                  propertyAddress={property.address}
+                  score={match.score}
+                  highlights={match.highlights}
+                  concerns={match.concerns}
+                  distanceMiles={match.distance}
+                  stage={currentStage}
+                  price={property.price}
+                  beds={property.beds}
+                  baths={property.baths}
+                />
+
+                <Separator />
+              </>
+            )}
+
             {/* Activity Timeline Section */}
             <div>
               <h3 className="text-base font-semibold mb-4">Activity History</h3>
@@ -287,9 +320,21 @@ export function MatchDetailModal({
 
             {/* Footer Info */}
             <div className="text-xs text-muted-foreground pt-4 border-t flex justify-between items-center">
-              <div>
+              <div className="flex items-center gap-2">
                 {property?.propertyCode && (
                   <span>Property Code: {property.propertyCode}</span>
+                )}
+                {/* View in Pipeline button - shows when match is in pipeline */}
+                {isInPipeline && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleViewInPipeline}
+                    className="ml-2 gap-1"
+                  >
+                    View in Pipeline
+                    <ArrowRight className="h-3 w-3" />
+                  </Button>
                 )}
               </div>
               <div>
