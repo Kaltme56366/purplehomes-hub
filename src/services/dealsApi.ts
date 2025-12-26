@@ -668,6 +668,14 @@ export const useUpdateDealStage = () => {
       syncToGhl = true,
     }: StageChangeRequest): Promise<{ success: boolean; ghlRelationId?: string }> => {
       console.log('[Deals API] Updating deal stage:', { dealId, fromStage, toStage });
+      console.log('[Deals API] toStage type:', typeof toStage, 'value:', JSON.stringify(toStage));
+
+      const requestBody = {
+        fields: {
+          'Match Stage': toStage,
+        },
+      };
+      console.log('[Deals API] Request body:', JSON.stringify(requestBody));
 
       // 1. Update Airtable - use 'Match Stage' field (the deal pipeline stage)
       const updateResponse = await fetch(
@@ -675,11 +683,7 @@ export const useUpdateDealStage = () => {
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            fields: {
-              'Match Stage': toStage,
-            },
-          }),
+          body: JSON.stringify(requestBody),
         }
       );
 

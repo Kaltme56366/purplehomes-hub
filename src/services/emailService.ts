@@ -544,7 +544,6 @@ export async function sendPropertySMS(
       contactId: buyer.contactId,
       type: 'SMS',
       message: message,
-      fromNumber: '+15047561217',
     }),
   });
 
