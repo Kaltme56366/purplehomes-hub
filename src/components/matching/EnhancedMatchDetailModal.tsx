@@ -9,7 +9,7 @@
  * - Smooth transitions and animations
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Home,
@@ -84,12 +84,20 @@ export function EnhancedMatchDetailModal({
 }: EnhancedMatchDetailModalProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<'property' | 'progress' | 'activity'>('property');
+  // Local state for the stage to provide immediate UI feedback after updates
+  const [localStage, setLocalStage] = useState<MatchDealStage | null>(null);
   const navigate = useNavigate();
+
+  // Sync local stage with prop when match changes (e.g., opening a different deal)
+  useEffect(() => {
+    setLocalStage(null);
+  }, [match?.id]);
 
   if (!match) return null;
 
   const { property, buyer, activities = [] } = match;
-  const currentStage: MatchDealStage = match.status || 'Sent to Buyer';
+  // Use local stage if set (after an update), otherwise use the prop value
+  const currentStage: MatchDealStage = localStage ?? match.status ?? 'Sent to Buyer';
 
   // Cross-navigation handlers
   const handleViewInPipeline = () => {
@@ -107,6 +115,8 @@ export function EnhancedMatchDetailModal({
     setIsUpdating(true);
     try {
       await onStageChange(match.id, newStage);
+      // Update local state immediately to reflect the change in the UI
+      setLocalStage(newStage);
     } finally {
       setIsUpdating(false);
     }
