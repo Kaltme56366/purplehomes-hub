@@ -12,6 +12,7 @@ import {
   Eye,
   FileText,
   FileCheck,
+  BadgeCheck,
   Trophy,
   XCircle,
 } from 'lucide-react';
@@ -76,6 +77,14 @@ const STAGE_CONFIGS: Record<MatchDealStage, StageConfig> = {
     bgColor: 'bg-indigo-50',
     textColor: 'text-indigo-700',
     borderColor: 'border-indigo-200',
+  },
+  'Qualified': {
+    icon: BadgeCheck,
+    label: 'Qualified',
+    shortLabel: 'Qualified',
+    bgColor: 'bg-teal-50',
+    textColor: 'text-teal-700',
+    borderColor: 'border-teal-200',
   },
   'Closed Deal / Won': {
     icon: Trophy,

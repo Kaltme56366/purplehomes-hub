@@ -112,14 +112,6 @@ export function MatchQuickActions({
             primary: true,
             action: () => onAdvanceStage('Buyer Responded'),
           },
-          {
-            id: 'resend-email',
-            label: 'Resend Email',
-            icon: Send,
-            variant: 'outline',
-            action: () => onSendEmail?.(),
-            disabled: !onSendEmail,
-          },
           ...baseActions,
         ];
 
@@ -138,14 +130,6 @@ export function MatchQuickActions({
                 onAdvanceStage('Showing Scheduled');
               }
             },
-          },
-          {
-            id: 'send-details',
-            label: 'Send Details',
-            icon: Mail,
-            variant: 'outline',
-            action: () => onSendEmail?.(),
-            disabled: !onSendEmail,
           },
           ...baseActions,
         ];

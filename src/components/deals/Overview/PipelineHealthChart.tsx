@@ -19,6 +19,7 @@ const STAGE_COLORS: Record<string, string> = {
   'Property Viewed': 'bg-purple-500',
   'Offer Made': 'bg-orange-500',
   'Under Contract': 'bg-indigo-500',
+  'Qualified': 'bg-teal-500',
   'Closed Deal / Won': 'bg-emerald-500',
   'Not Interested': 'bg-red-400',
 };

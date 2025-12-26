@@ -13,6 +13,7 @@ import {
   Eye,
   FileText,
   FileCheck,
+  BadgeCheck,
   Trophy,
   XCircle,
   Check,
@@ -108,6 +109,15 @@ const STAGE_UI_CONFIGS: StageUIConfig[] = [
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-100',
     description: 'Contract signed',
+  },
+  {
+    id: 'Qualified',
+    label: 'Qualified',
+    shortLabel: 'Qualified',
+    icon: BadgeCheck,
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-100',
+    description: 'Buyer qualified for property',
   },
   {
     id: 'Closed Deal / Won',

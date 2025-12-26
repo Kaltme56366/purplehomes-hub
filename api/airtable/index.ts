@@ -535,20 +535,15 @@ async function handleUpdateRecord(
     return res.status(400).json({ error: 'fields object is required in request body' });
   }
 
-  console.log(`[Airtable] Updating record ${recordId} in table: ${tableName}`);
-  console.log(`[Airtable] Fields to update:`, JSON.stringify(fields, null, 2));
-  console.log(`[Airtable] Match Stage value type:`, typeof fields['Match Stage'], `value:`, fields['Match Stage']);
+  console.log(`[Airtable] Updating record ${recordId} in table: ${tableName}`, { fields });
 
   try {
-    const bodyPayload = { fields };
-    console.log(`[Airtable] Request body:`, JSON.stringify(bodyPayload));
-
     const response = await fetchWithRetry(
       `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}/${recordId}`,
       {
         method: 'PATCH',
         headers,
-        body: JSON.stringify(bodyPayload),
+        body: JSON.stringify({ fields }),
       }
     );
 
