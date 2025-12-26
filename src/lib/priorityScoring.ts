@@ -19,7 +19,7 @@ export interface BuyerPriority {
 
 // Hot stages - buyer is actively engaged
 const HOT_STAGES: MatchDealStage[] = [
-  'Interested Buyer',
+  'Buyer Responded',
   'Showing Scheduled',
   'Property Viewed',
   'Offer Made',
@@ -28,7 +28,7 @@ const HOT_STAGES: MatchDealStage[] = [
 // Stages that indicate the match is in the pipeline
 const PIPELINE_STAGES: MatchDealStage[] = [
   'Sent to Buyer',
-  'Interested Buyer',
+  'Buyer Responded',
   'Showing Scheduled',
   'Property Viewed',
   'Offer Made',

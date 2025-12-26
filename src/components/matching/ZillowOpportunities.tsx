@@ -260,6 +260,11 @@ export function ZillowOpportunities({ buyer }: ZillowOpportunitiesProps) {
             <div className="bg-white rounded-lg p-3 border border-purple-100">
               <h4 className="text-xs font-semibold text-purple-900 mb-2">Buyer Criteria:</h4>
               <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                {buyer.buyerType && (
+                  <span className="flex items-center gap-1 font-medium text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                    {buyer.buyerType}
+                  </span>
+                )}
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" />
                   {buyer.preferredLocation || buyer.city || 'No location'}

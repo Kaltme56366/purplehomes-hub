@@ -30,7 +30,7 @@ export interface WinProbabilityResult {
  */
 const STAGE_WEIGHTS: Record<MatchDealStage, number> = {
   'Sent to Buyer': 10,
-  'Interested Buyer': 20,
+  'Buyer Responded': 20,
   'Showing Scheduled': 30,
   'Property Viewed': 40,
   'Offer Made': 60,

@@ -234,7 +234,7 @@ function generateRuleBasedInsight(input: InsightRequest): InsightResponse {
   let suggestedAction = 'Send this property to the buyer for their review.';
   if (stage === 'Sent to Buyer') {
     suggestedAction = 'Follow up to gauge interest and answer any questions.';
-  } else if (stage === 'Interested Buyer') {
+  } else if (stage === 'Buyer Responded') {
     suggestedAction = 'Schedule a showing to move this deal forward.';
   } else if (stage === 'Showing Scheduled' || stage === 'Property Viewed') {
     suggestedAction = 'Discuss the property and explore making an offer.';

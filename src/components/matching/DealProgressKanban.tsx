@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import {
   Send,
-  ThumbsUp,
+  MessageSquare,
   Calendar,
   Eye,
   FileText,
@@ -65,13 +65,13 @@ const STAGE_UI_CONFIGS: StageUIConfig[] = [
     description: 'Property details sent to buyer',
   },
   {
-    id: 'Interested Buyer',
-    label: 'Interested Buyer',
-    shortLabel: 'Interested',
-    icon: ThumbsUp,
+    id: 'Buyer Responded',
+    label: 'Buyer Responded',
+    shortLabel: 'Responded',
+    icon: MessageSquare,
     color: 'text-cyan-600',
     bgColor: 'bg-cyan-100',
-    description: 'Buyer expressed interest',
+    description: 'Buyer replied via SMS, call, or email',
   },
   {
     id: 'Showing Scheduled',

@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Send, FileText, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Send, FileText, Loader2, Sparkles, AlertCircle, MessageSquare, Mail, ChevronDown, ChevronUp, Edit, Phone } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,13 +12,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { sendPropertyEmail } from '@/services/emailService';
+import { sendPropertyEmail, sendPropertySMS, generatePropertySMS } from '@/services/emailService';
 import { convertPropertyDetailsToProperty } from '@/lib/propertyTypeAdapter';
 import { syncMatchStageToGhl } from '@/services/ghlAssociationsApi';
 import { STAGE_ASSOCIATION_IDS } from '@/types/associations';
 import { EmailPreview } from './EmailPreview';
-import type { ScoredProperty, BuyerCriteria, MatchActivity } from '@/types/matching';
+import type { ScoredProperty, BuyerCriteria, MatchActivity, MatchActivityType } from '@/types/matching';
 
 const AIRTABLE_API_BASE = '/api/airtable';
 
@@ -38,21 +40,30 @@ interface SendPropertiesModalProps {
 async function updateMatchStages(
   buyer: BuyerCriteria,
   properties: ScoredProperty[],
+  activityType: MatchActivityType = 'email-sent',
   customMessage?: string
 ): Promise<{ updated: number; created: number; synced: number }> {
   let updated = 0;
   let created = 0;
   let synced = 0;
 
+  // Determine the activity details based on type
+  const activityDetails = activityType === 'sms-sent'
+    ? `SMS sent to ${buyer.firstName} ${buyer.lastName}`
+    : activityType === 'sms-email-sent'
+    ? `SMS and Email sent to ${buyer.firstName} ${buyer.lastName}`
+    : `Properties email sent to ${buyer.firstName} ${buyer.lastName}`;
+
   for (const sp of properties) {
     try {
       const newActivity: MatchActivity = {
         id: `act_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'email-sent',
+        type: activityType,
         timestamp: new Date().toISOString(),
-        details: `Properties email sent to ${buyer.firstName} ${buyer.lastName}`,
+        details: activityDetails,
         metadata: {
           recipientEmail: buyer.email,
+          recipientPhone: buyer.phone,
           propertyCount: properties.length,
           customMessage: customMessage || undefined,
         },
@@ -163,6 +174,26 @@ export function SendPropertiesModal({
   const [customMessage, setCustomMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
 
+  // SMS/Email send options
+  const [sendViaSMS, setSendViaSMS] = useState(true); // Default ON
+  const [sendViaEmail, setSendViaEmail] = useState(false); // Default OFF
+  const [smsMessage, setSmsMessage] = useState('');
+  const [showSMSPreview, setShowSMSPreview] = useState(false);
+
+  // Check if buyer has phone/email
+  const canSendSMS = !!buyer.phone;
+  const canSendEmail = !!buyer.email;
+
+  // Generate SMS message when properties change or preview is opened
+  useEffect(() => {
+    if (showSMSPreview && properties.length > 0) {
+      const convertedProperties = properties.map(sp =>
+        convertPropertyDetailsToProperty(sp.property)
+      );
+      setSmsMessage(generatePropertySMS(buyer.firstName, convertedProperties));
+    }
+  }, [showSMSPreview, properties, buyer.firstName]);
+
   // AI recommendation: Suggest top 3 when many properties selected
   const showAiRecommendation = properties.length > 3;
   const topMatches = useMemo(() => {
@@ -177,33 +208,65 @@ export function SendPropertiesModal({
   }, [topMatches]);
 
   const handleSend = async () => {
+    // Validate at least one send method is selected
+    const willSendSMS = sendViaSMS && canSendSMS;
+    const willSendEmail = sendViaEmail && canSendEmail;
+
+    if (!willSendSMS && !willSendEmail) {
+      toast.error('Please select at least one send method');
+      return;
+    }
+
     setIsSending(true);
     try {
-      // Convert properties for email service
+      // Convert properties for services
       const convertedProperties = properties.map(sp =>
         convertPropertyDetailsToProperty(sp.property)
       );
 
-      // Step 1: Send email with PDF
-      await sendPropertyEmail({
-        contactId: buyer.contactId,
-        contactName: `${buyer.firstName} ${buyer.lastName}`,
-        contactEmail: buyer.email,
-        properties: convertedProperties,
-        subject: `Your ${properties.length} Matched Properties from Purple Homes`,
-        customMessage: customMessage || undefined,
-      });
+      const sentMethods: string[] = [];
 
-      // Step 2: Update match stages (this creates deals in the pipeline)
+      // Step 1: Send SMS if enabled
+      if (willSendSMS) {
+        const messageToSend = smsMessage || generatePropertySMS(buyer.firstName, convertedProperties);
+        await sendPropertySMS(
+          { contactId: buyer.contactId, firstName: buyer.firstName, phone: buyer.phone },
+          messageToSend
+        );
+        sentMethods.push('SMS');
+      }
+
+      // Step 2: Send Email if enabled
+      if (willSendEmail) {
+        await sendPropertyEmail({
+          contactId: buyer.contactId,
+          contactName: `${buyer.firstName} ${buyer.lastName}`,
+          contactEmail: buyer.email,
+          properties: convertedProperties,
+          subject: `Your ${properties.length} Matched Properties from Purple Homes`,
+          customMessage: customMessage || undefined,
+        });
+        sentMethods.push('Email');
+      }
+
+      // Determine activity type
+      const activityType: MatchActivityType = willSendSMS && willSendEmail
+        ? 'sms-email-sent'
+        : willSendSMS
+        ? 'sms-sent'
+        : 'email-sent';
+
+      // Step 3: Update match stages (this creates deals in the pipeline)
       const { updated, created, synced } = await updateMatchStages(
         buyer,
         properties,
+        activityType,
         customMessage
       );
 
       console.log(`[SendProperties] Updated ${updated} matches, created ${created} new matches, synced ${synced} to GHL`);
 
-      // Step 3: Invalidate queries so UI updates
+      // Step 4: Invalidate queries so UI updates
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] });
       queryClient.invalidateQueries({ queryKey: ['deals-by-stage'] });
@@ -213,13 +276,14 @@ export function SendPropertiesModal({
       queryClient.invalidateQueries({ queryKey: ['buyer-properties'] });
       queryClient.invalidateQueries({ queryKey: ['cache', 'matches'] });
 
-      // Step 4: Show success toast with View in Pipeline action
+      // Step 5: Show success toast with View in Pipeline action
+      const sentDescription = sentMethods.join(' & ') + ' sent';
       toast.success(
         `Sent ${properties.length} ${properties.length === 1 ? 'property' : 'properties'} to ${buyer.firstName}!`,
         {
           description: synced > 0
-            ? `Email sent • ${updated + created} deals added to pipeline • Synced to GHL`
-            : `Email sent • ${updated + created} deals added to pipeline`,
+            ? `${sentDescription} • ${updated + created} deals added to pipeline • Synced to GHL`
+            : `${sentDescription} • ${updated + created} deals added to pipeline`,
           duration: 6000,
           action: {
             label: 'View in Pipeline',
@@ -236,6 +300,8 @@ export function SendPropertiesModal({
 
       // Reset form
       setCustomMessage('');
+      setSmsMessage('');
+      setShowSMSPreview(false);
     } catch (error) {
       console.error('Failed to send properties:', error);
       toast.error('Failed to send properties', {
@@ -303,7 +369,18 @@ export function SendPropertiesModal({
             <p className="text-sm text-muted-foreground">
               {buyer.firstName} {buyer.lastName}
             </p>
-            <p className="text-sm text-muted-foreground">{buyer.email}</p>
+            {buyer.phone && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <Phone className="h-3 w-3" />
+                {buyer.phone}
+              </p>
+            )}
+            {buyer.email && (
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <Mail className="h-3 w-3" />
+                {buyer.email}
+              </p>
+            )}
           </div>
 
           {/* Properties Count */}
@@ -317,32 +394,134 @@ export function SendPropertiesModal({
             </p>
           </div>
 
-          {/* Custom Message */}
-          <div className="space-y-2">
-            <Label htmlFor="custom-message">
-              Custom Message (Optional)
-            </Label>
-            <Textarea
-              id="custom-message"
-              placeholder="Add a personal note to include in the email..."
-              value={customMessage}
-              onChange={(e) => setCustomMessage(e.target.value)}
-              rows={3}
-              className="resize-none"
-            />
+          {/* Send Via Options */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Send Via:</Label>
+
+            {/* SMS Option */}
+            <div
+              className={cn(
+                'border rounded-lg transition-colors',
+                sendViaSMS && canSendSMS ? 'border-green-300 bg-green-50' : 'hover:bg-muted/50',
+                !canSendSMS && 'opacity-50'
+              )}
+            >
+              <div
+                className="flex items-center space-x-3 p-3 cursor-pointer"
+                onClick={() => canSendSMS && setSendViaSMS(!sendViaSMS)}
+              >
+                <Checkbox
+                  checked={sendViaSMS && canSendSMS}
+                  onCheckedChange={(checked) => canSendSMS && setSendViaSMS(checked as boolean)}
+                  disabled={!canSendSMS}
+                />
+                <div className="flex-1">
+                  <label className="text-sm font-medium flex items-center gap-2 cursor-pointer">
+                    <MessageSquare className="h-4 w-4 text-green-600" />
+                    SMS
+                    {sendViaSMS && canSendSMS && (
+                      <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Default</span>
+                    )}
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {canSendSMS ? 'Recommended - faster response' : 'No phone number on file'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Expandable SMS Preview */}
+              {sendViaSMS && canSendSMS && (
+                <div className="px-3 pb-3 space-y-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    onClick={() => setShowSMSPreview(!showSMSPreview)}
+                    className="w-full justify-between h-8 text-xs"
+                  >
+                    <span className="flex items-center gap-1">
+                      <Edit className="h-3 w-3" />
+                      {showSMSPreview ? 'Hide Preview' : 'Preview & Edit Message'}
+                    </span>
+                    {showSMSPreview ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+
+                  {showSMSPreview && (
+                    <div className="space-y-2">
+                      <Textarea
+                        value={smsMessage}
+                        onChange={(e) => setSmsMessage(e.target.value)}
+                        rows={8}
+                        className="text-sm font-mono bg-white"
+                        placeholder="SMS message..."
+                      />
+                      <div className="flex justify-between text-xs">
+                        <span className={smsMessage.length > 160 ? 'text-amber-600 font-medium' : 'text-muted-foreground'}>
+                          {smsMessage.length} characters
+                        </span>
+                        <span className="text-muted-foreground">
+                          {Math.ceil(smsMessage.length / 160) || 1} SMS segment{Math.ceil(smsMessage.length / 160) !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Email Option */}
+            <div
+              className={cn(
+                'border rounded-lg transition-colors',
+                sendViaEmail && canSendEmail ? 'border-blue-300 bg-blue-50' : 'hover:bg-muted/50',
+                !canSendEmail && 'opacity-50'
+              )}
+            >
+              <div
+                className="flex items-center space-x-3 p-3 cursor-pointer"
+                onClick={() => canSendEmail && setSendViaEmail(!sendViaEmail)}
+              >
+                <Checkbox
+                  checked={sendViaEmail && canSendEmail}
+                  onCheckedChange={(checked) => canSendEmail && setSendViaEmail(checked as boolean)}
+                  disabled={!canSendEmail}
+                />
+                <div className="flex-1">
+                  <label className="text-sm font-medium flex items-center gap-2 cursor-pointer">
+                    <Mail className="h-4 w-4 text-blue-600" />
+                    Email with PDF
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {canSendEmail ? 'Includes detailed property PDF' : 'No email on file'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Email Custom Message & Preview */}
+              {sendViaEmail && canSendEmail && (
+                <div className="px-3 pb-3 space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="custom-message" className="text-xs">
+                      Custom Message (Optional)
+                    </Label>
+                    <Textarea
+                      id="custom-message"
+                      placeholder="Add a personal note to include in the email..."
+                      value={customMessage}
+                      onChange={(e) => setCustomMessage(e.target.value)}
+                      rows={2}
+                      className="resize-none text-sm"
+                    />
+                  </div>
+                  <EmailPreview
+                    buyer={buyer}
+                    properties={properties}
+                    customMessage={customMessage}
+                  />
+                </div>
+              )}
+            </div>
           </div>
-
-          {/* Email Preview */}
-          <EmailPreview
-            buyer={buyer}
-            properties={properties}
-            customMessage={customMessage}
-          />
-
-          {/* Info */}
-          <p className="text-xs text-muted-foreground">
-            A PDF with property details will be automatically generated and attached to the email.
-          </p>
         </div>
 
         <DialogFooter>
@@ -355,7 +534,7 @@ export function SendPropertiesModal({
           </Button>
           <Button
             onClick={handleSend}
-            disabled={isSending}
+            disabled={isSending || ((!sendViaSMS || !canSendSMS) && (!sendViaEmail || !canSendEmail))}
             className="bg-purple-600 hover:bg-purple-700"
           >
             {isSending ? (
@@ -366,7 +545,13 @@ export function SendPropertiesModal({
             ) : (
               <>
                 <Send className="h-4 w-4 mr-2" />
-                Send Email
+                {sendViaSMS && canSendSMS && sendViaEmail && canSendEmail
+                  ? 'Send SMS & Email'
+                  : sendViaSMS && canSendSMS
+                  ? 'Send SMS'
+                  : sendViaEmail && canSendEmail
+                  ? 'Send Email'
+                  : 'Send'}
               </>
             )}
           </Button>

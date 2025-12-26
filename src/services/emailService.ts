@@ -403,12 +403,6 @@ export async function sendPropertyFlyer(options: SendFlyerOptions): Promise<{ su
           <div style="color: #6B7280; font-size: 14px;">
             ${property.beds} bed • ${property.baths} bath${property.sqft ? ` • ${property.sqft.toLocaleString()} sqft` : ''}
           </div>
-
-          ${property.zillowUrl ? `
-            <div style="margin-top: 15px;">
-              <a href="${property.zillowUrl}" style="color: #9333EA; font-size: 13px;">View on Zillow →</a>
-            </div>
-          ` : ''}
         </div>
 
         <p style="color: #4B5563; line-height: 1.6;">
@@ -468,4 +462,90 @@ export async function sendPropertyFlyer(options: SendFlyerOptions): Promise<{ su
   }
 
   return response.json();
+}
+
+/**
+ * Format a number in compact form (e.g., 25000 -> 25K, 1500000 -> 1.5M)
+ */
+function formatCompact(num: number): string {
+  if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(0) + 'K';
+  return num.toLocaleString();
+}
+
+/**
+ * Generate default SMS message for properties
+ */
+export function generatePropertySMS(
+  buyerFirstName: string,
+  properties: Property[]
+): string {
+  let message = `Hi ${buyerFirstName}! 🏠\n\n`;
+
+  if (properties.length === 1) {
+    message += `I found a property that matches what you're looking for:\n\n`;
+  } else {
+    message += `I found ${properties.length} properties that match what you're looking for:\n\n`;
+  }
+
+  properties.forEach((property, index) => {
+    if (properties.length > 1) {
+      message += `${index + 1}. `;
+    }
+    message += `📍 ${property.address}\n`;
+
+    const details: string[] = [];
+    if (property.beds || property.baths) {
+      details.push(`${property.beds || '?'}bd/${property.baths || '?'}ba`);
+    }
+    if (property.downPayment) {
+      details.push(`$${formatCompact(property.downPayment)} down`);
+    }
+    if (property.monthlyPayment) {
+      details.push(`$${formatCompact(property.monthlyPayment)}/mo`);
+    }
+
+    if (details.length > 0) {
+      message += `   ${details.join(' • ')}\n`;
+    }
+    message += '\n';
+  });
+
+  message += `Reply YES if interested or CALL to schedule a showing! 📱`;
+
+  return message;
+}
+
+/**
+ * Send property details via SMS using GHL Conversations API
+ */
+export async function sendPropertySMS(
+  buyer: { contactId: string; firstName: string; phone?: string },
+  message: string
+): Promise<{ success: boolean; messageId?: string }> {
+  if (!buyer.phone) {
+    throw new Error('Buyer does not have a phone number');
+  }
+
+  if (!buyer.contactId) {
+    throw new Error('Buyer does not have a contact ID');
+  }
+
+  const response = await fetch(`${API_BASE}?resource=messages&action=send`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contactId: buyer.contactId,
+      type: 'SMS',
+      message: message,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'SMS send failed' }));
+    throw new Error(error.error || 'Failed to send SMS');
+  }
+
+  const result = await response.json();
+  return { success: true, messageId: result.messageId };
 }

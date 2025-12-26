@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 // Color mapping for stage bars
 const STAGE_COLORS: Record<string, string> = {
   'Sent to Buyer': 'bg-blue-500',
-  'Interested Buyer': 'bg-cyan-500',
+  'Buyer Responded': 'bg-cyan-500',
   'Showing Scheduled': 'bg-amber-500',
   'Property Viewed': 'bg-purple-500',
   'Offer Made': 'bg-orange-500',

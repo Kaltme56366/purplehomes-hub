@@ -474,7 +474,7 @@ export const useDealsByProperty = () => {
       // Define stage order for determining "furthest" stage
       const stageOrder: Record<string, number> = {
         'Sent to Buyer': 1,
-        'Interested Buyer': 2,
+        'Buyer Responded': 2,
         'Showing Scheduled': 3,
         'Property Viewed': 4,
         'Offer Made': 5,

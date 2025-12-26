@@ -74,7 +74,7 @@ export function generateFallbackInsight(input: InsightRequest): AIInsight {
   let suggestedAction = 'Send this property to the buyer for review.';
   if (stage === 'Sent to Buyer') {
     suggestedAction = 'Follow up to gauge interest.';
-  } else if (stage === 'Interested Buyer') {
+  } else if (stage === 'Buyer Responded') {
     suggestedAction = 'Schedule a showing.';
   } else if (stage === 'Showing Scheduled' || stage === 'Property Viewed') {
     suggestedAction = 'Discuss making an offer.';

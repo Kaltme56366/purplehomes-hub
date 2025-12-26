@@ -2,7 +2,7 @@
  * PropertyBuyersView - Two-section buyer view for a selected property
  *
  * Shows ALL buyers scored for a property, split into:
- * - Top Interested Buyers (high scores >= 60)
+ * - Top Engaged Buyers (high scores >= 60)
  * - Other Potential Buyers (scores 30-59)
  */
 
@@ -343,7 +343,7 @@ export function PropertyBuyersView({
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold flex items-center gap-2">
                     <Target className="h-5 w-5 text-purple-500" />
-                    Top Interested Buyers
+                    Top Engaged Buyers
                   </h3>
                   <Badge variant="secondary" className="bg-purple-100 text-purple-700">
                     {interestedBuyers.length} {interestedBuyers.length === 1 ? 'buyer' : 'buyers'}

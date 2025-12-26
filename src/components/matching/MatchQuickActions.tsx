@@ -8,7 +8,6 @@
 import { useState } from 'react';
 import {
   Mail,
-  ThumbsUp,
   Calendar,
   Eye,
   FileText,
@@ -106,12 +105,12 @@ export function MatchQuickActions({
       case 'Sent to Buyer':
         return [
           {
-            id: 'mark-interested',
-            label: 'Mark Interested',
-            icon: ThumbsUp,
+            id: 'mark-responded',
+            label: 'Mark Responded',
+            icon: MessageSquare,
             variant: 'default',
             primary: true,
-            action: () => onAdvanceStage('Interested Buyer'),
+            action: () => onAdvanceStage('Buyer Responded'),
           },
           {
             id: 'resend-email',
@@ -124,7 +123,7 @@ export function MatchQuickActions({
           ...baseActions,
         ];
 
-      case 'Interested Buyer':
+      case 'Buyer Responded':
         return [
           {
             id: 'schedule-showing',

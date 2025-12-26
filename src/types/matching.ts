@@ -12,6 +12,7 @@ export interface BuyerCriteria {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
   monthlyIncome?: number;
   monthlyLiabilities?: number;
   downPayment?: number;
@@ -89,6 +90,8 @@ export interface MatchScore {
 export type MatchActivityType =
   | 'stage-change'
   | 'email-sent'
+  | 'sms-sent'
+  | 'sms-email-sent'
   | 'showing-scheduled'
   | 'showing-completed'
   | 'note-added'

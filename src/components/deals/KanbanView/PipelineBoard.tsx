@@ -25,7 +25,7 @@ import { Eye, EyeOff } from 'lucide-react';
 // Column colors matching stage colors
 const COLUMN_COLORS: Record<string, string> = {
   'Sent to Buyer': 'border-t-blue-500',
-  'Interested Buyer': 'border-t-cyan-500',
+  'Buyer Responded': 'border-t-cyan-500',
   'Showing Scheduled': 'border-t-amber-500',
   'Property Viewed': 'border-t-purple-500',
   'Offer Made': 'border-t-orange-500',

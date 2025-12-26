@@ -111,7 +111,7 @@ export interface CachedAssociationData {
  */
 export const MATCH_DEAL_STAGES = [
   'Sent to Buyer',
-  'Interested Buyer',
+  'Buyer Responded',
   'Showing Scheduled',
   'Property Viewed',
   'Offer Made',
@@ -131,7 +131,7 @@ export type MatchDealStage = typeof MATCH_DEAL_STAGES[number] | typeof MATCH_EXI
  */
 export const STAGE_ASSOCIATION_IDS: Record<MatchDealStage, string> = {
   'Sent to Buyer': '69451ecd5fba08f5525758a6',
-  'Interested Buyer': '693944eb0c32be3d486d83c0',
+  'Buyer Responded': '693944eb0c32be3d486d83c0',
   'Showing Scheduled': '69451eb4a09d396fae2e81fb',
   'Property Viewed': '69451ea83246701a7740063b',
   'Offer Made': '69451e925fba087bc357502b',
@@ -156,7 +156,7 @@ export interface StageConfig {
 
 export const STAGE_CONFIGS: StageConfig[] = [
   { id: 'Sent to Buyer', label: 'Sent to Buyer', shortLabel: 'Sent', order: 1, isExitState: false, color: 'blue', description: 'Property details sent to buyer' },
-  { id: 'Interested Buyer', label: 'Interested Buyer', shortLabel: 'Interested', order: 2, isExitState: false, color: 'cyan', description: 'Buyer expressed interest' },
+  { id: 'Buyer Responded', label: 'Buyer Responded', shortLabel: 'Responded', order: 2, isExitState: false, color: 'cyan', description: 'Buyer replied via SMS, call, or email' },
   { id: 'Showing Scheduled', label: 'Showing Scheduled', shortLabel: 'Scheduled', order: 3, isExitState: false, color: 'amber', description: 'Property showing scheduled' },
   { id: 'Property Viewed', label: 'Property Viewed', shortLabel: 'Viewed', order: 4, isExitState: false, color: 'purple', description: 'Buyer has viewed property' },
   { id: 'Offer Made', label: 'Offer Made', shortLabel: 'Offer', order: 5, isExitState: false, color: 'orange', description: 'Buyer submitted offer' },

@@ -7,7 +7,7 @@
 
 import {
   Send,
-  ThumbsUp,
+  MessageSquare,
   Calendar,
   Eye,
   FileText,
@@ -37,10 +37,10 @@ const STAGE_CONFIGS: Record<MatchDealStage, StageConfig> = {
     textColor: 'text-blue-700',
     borderColor: 'border-blue-200',
   },
-  'Interested Buyer': {
-    icon: ThumbsUp,
-    label: 'Interested',
-    shortLabel: 'Interested',
+  'Buyer Responded': {
+    icon: MessageSquare,
+    label: 'Buyer Responded',
+    shortLabel: 'Responded',
     bgColor: 'bg-cyan-50',
     textColor: 'text-cyan-700',
     borderColor: 'border-cyan-200',

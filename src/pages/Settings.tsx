@@ -425,7 +425,7 @@ export default function Settings() {
                 <p className="font-medium text-foreground mb-1">Expected Labels:</p>
                 <ul className="list-disc list-inside space-y-0.5 text-xs">
                   <li>Sent to Buyer</li>
-                  <li>Interested Buyer</li>
+                  <li>Buyer Responded</li>
                   <li>Showing Scheduled</li>
                   <li>Property Viewed</li>
                   <li>Offer Made</li>
