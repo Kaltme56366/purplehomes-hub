@@ -507,12 +507,42 @@ export const createContactPropertyRelation = async (params: {
 };
 
 /**
+ * Delete a GHL association relation by its ID
+ *
+ * @param relationId - The GHL relation ID to delete
+ * @returns True if deletion was successful, false otherwise
+ */
+export const deleteAssociationRelation = async (relationId: string): Promise<boolean> => {
+  console.log('[GHL Sync] Deleting previous relation:', relationId);
+
+  try {
+    const response = await fetch(
+      `${API_BASE}?resource=objects&objectKey=${PROPERTY_OBJECT_KEY}&action=relations&id=${relationId}`,
+      { method: 'DELETE' }
+    );
+
+    if (response.ok || response.status === 204) {
+      console.log('[GHL Sync] Previous relation deleted successfully');
+      return true;
+    }
+
+    const errorData = await response.json().catch(() => ({}));
+    console.error('[GHL Sync] Failed to delete previous relation:', errorData);
+    return false;
+  } catch (error) {
+    console.error('[GHL Sync] Exception deleting previous relation:', error);
+    return false;
+  }
+};
+
+/**
  * Sync a match stage change to GHL by creating a relation
  *
  * This function orchestrates the full GHL sync process:
- * 1. Gets the association ID for the stage
- * 2. Searches for the property record in GHL
- * 3. Creates the relation between contact and property
+ * 1. Deletes the previous relation if provided (stage change)
+ * 2. Gets the association ID for the stage
+ * 3. Searches for the property record in GHL
+ * 4. Creates the relation between contact and property
  *
  * @param params - Parameters for syncing to GHL
  * @returns The GHL relation ID if successful, or null if sync failed
@@ -523,17 +553,35 @@ export const syncMatchStageToGhl = async (params: {
   propertyAddress: string;
   opportunityId?: string;
   stageAssociationIds: Record<string, string>;
+  previousRelationId?: string; // Previous GHL relation ID to delete when changing stages
 }): Promise<string | null> => {
-  const { stage, contactId, propertyAddress, opportunityId, stageAssociationIds } = params;
+  const { stage, contactId, propertyAddress, opportunityId, stageAssociationIds, previousRelationId } = params;
 
-  // 1. Get association ID for this stage
+  console.log('[GHL Sync] syncMatchStageToGhl called with:', {
+    stage,
+    contactId,
+    propertyAddress,
+    opportunityId,
+    previousRelationId: previousRelationId || '(none - will not delete)',
+    hasStageAssociationIds: !!stageAssociationIds,
+  });
+
+  // 1. Delete previous relation if provided (stage change scenario)
+  if (previousRelationId) {
+    console.log('[GHL Sync] Deleting previous relation:', previousRelationId);
+    await deleteAssociationRelation(previousRelationId);
+  } else {
+    console.log('[GHL Sync] No previous relation ID provided, skipping deletion');
+  }
+
+  // 2. Get association ID for this stage
   const associationId = stageAssociationIds[stage];
   if (!associationId) {
     console.warn(`[GHL Sync] No association ID found for stage: ${stage}`);
     return null;
   }
 
-  // 2. Search for property record in GHL
+  // 3. Search for property record in GHL
   const propertyRecord = await searchPropertyRecord(propertyAddress, opportunityId);
   if (!propertyRecord) {
     console.warn(
@@ -542,7 +590,7 @@ export const syncMatchStageToGhl = async (params: {
     return null;
   }
 
-  // 3. Create relation
+  // 4. Create relation
   const relation = await createContactPropertyRelation({
     contactId,
     propertyRecordId: propertyRecord.id,
