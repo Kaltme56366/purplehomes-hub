@@ -29,14 +29,7 @@ import { useSocialAccounts, useCreateSocialPost, getApiConfig, useScheduledPosts
 import { useAirtableProperties } from '@/services/matchingApi';
 import { useAppStore } from '@/store/useAppStore';
 import { SocialAccountSelector } from '@/components/social/SocialAccountSelector';
-import { SocialPostPreview } from '@/components/social/SocialPostPreview';
-import { AICaptionGenerator, type Platform as AIPlatform, type CaptionStyle } from '@/components/social/AICaptionGenerator';
 import { SocialAnalytics } from '@/components/social/SocialAnalytics';
-import { PropertySelector } from '@/components/social/PropertySelector';
-import { ContentSourceCard } from '@/components/social/ContentSourceCard';
-import { CaptionsCard } from '@/components/social/CaptionsCard';
-import { PublishCard } from '@/components/social/PublishCard';
-import { PostReadinessCard } from '@/components/social/PostReadinessCard';
 import { BatchToolbar } from '@/components/social/BatchToolbar';
 import { BatchActionBar } from '@/components/social/BatchActionBar';
 import { BatchPropertyRow } from '@/components/social/BatchPropertyRow';
@@ -45,13 +38,7 @@ import { BatchProgressOverlay } from '@/components/social/BatchProgressOverlay';
 import { ScheduleViewToggle } from '@/components/social/ScheduleViewToggle';
 import { ScheduleQuickStats } from '@/components/social/ScheduleQuickStats';
 import { ScheduleDetailsPanel } from '@/components/social/ScheduleDetailsPanel';
-import {
-  PostTemplateSelector,
-  PostTemplatePreview,
-  type PostTemplate,
-  fillTemplatePlaceholders,
-} from '@/components/social/templates';
-import ImageTemplateGenerator from '@/components/social/ImageTemplateGenerator';
+import { CreateWizard } from '@/components/social/create-wizard';
 import { cn } from '@/lib/utils';
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay,
@@ -582,215 +569,9 @@ export default function SocialMedia() {
           </TabsTrigger>
         </TabsList>
 
-        {/* CREATE TAB */}
+        {/* CREATE TAB - New Step-by-Step Wizard */}
         <TabsContent value="create" className="mt-6">
-          <div className="grid gap-6 grid-cols-1 lg:grid-cols-[1fr,400px]">
-            {/* Left Column */}
-            <div className="space-y-6">
-              {/* Step 1: Content Source */}
-              <ContentSourceCard
-                properties={allProperties}
-                selectedProperty={selectedProperty}
-                onSelectProperty={(property) => {
-                  setSelectedProperty(property);
-                  // Clear template when property changes
-                  if (property !== selectedProperty) {
-                    setSelectedTemplate(null);
-                  }
-                }}
-                image={image}
-                onImageChange={setImage}
-                isLoading={isLoadingProperties}
-              />
-
-              {/* Step 2: Choose Post Style */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <CardTitle className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-purple-500" />
-                      Step 2: Post Style
-                    </CardTitle>
-                    <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-                      <Button
-                        variant={captionMode === 'visual' ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setCaptionMode('visual')}
-                        className="gap-1 text-xs"
-                      >
-                        <ImageIcon className="h-3 w-3" />
-                        Visual
-                      </Button>
-                      <Button
-                        variant={captionMode === 'caption' ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setCaptionMode('caption')}
-                        className="gap-1 text-xs"
-                      >
-                        <Sparkles className="h-3 w-3" />
-                        Captions
-                      </Button>
-                      <Button
-                        variant={captionMode === 'manual' ? "default" : "ghost"}
-                        size="sm"
-                        onClick={() => setCaptionMode('manual')}
-                        className="gap-1 text-xs"
-                      >
-                        <Copy className="h-3 w-3" />
-                        Manual
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {captionMode === 'visual' && (
-                    <p className="text-sm text-muted-foreground">
-                      Choose an image overlay template to create branded graphics with your property photo.
-                    </p>
-                  )}
-                  {captionMode === 'caption' && (
-                    <p className="text-sm text-muted-foreground">
-                      Use pre-written caption templates that auto-fill with property details.
-                    </p>
-                  )}
-                  {captionMode === 'manual' && (
-                    <p className="text-sm text-muted-foreground">
-                      Write your own captions below or use AI generation.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Visual Image Template Generator */}
-              {captionMode === 'visual' && (
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-sm font-bold">
-                        2
-                      </span>
-                      Create Branded Image
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ImageTemplateGenerator
-                      properties={allProperties}
-                      selectedProperty={selectedProperty}
-                      onImageGenerated={(imageUrl) => {
-                        setImage(imageUrl);
-                        toast.success('Image ready for posting!');
-                      }}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Caption Template Selector */}
-              {captionMode === 'caption' && (
-                <PostTemplateSelector
-                  selectedTemplate={selectedTemplate}
-                  onSelectTemplate={(template) => {
-                    setSelectedTemplate(template);
-                    // Auto-fill captions when template is selected and property exists
-                    if (template && selectedProperty) {
-                      const propertyData = {
-                        price: selectedProperty.price,
-                        address: selectedProperty.address,
-                        city: selectedProperty.city,
-                        beds: selectedProperty.beds,
-                        baths: selectedProperty.baths,
-                        sqft: selectedProperty.sqft,
-                        propertyCode: selectedProperty.propertyCode,
-                        propertyType: selectedProperty.propertyType,
-                      };
-                      setCaptions({
-                        facebook: fillTemplatePlaceholders(template.captionTemplate.facebook, propertyData),
-                        instagram: fillTemplatePlaceholders(template.captionTemplate.instagram, propertyData) + '\n\n' + template.hashtags.join(' '),
-                        linkedin: fillTemplatePlaceholders(template.captionTemplate.linkedin, propertyData),
-                      });
-                      toast.success(`Applied "${template.name}" template`);
-                    } else if (template && !selectedProperty) {
-                      toast.info('Select a property to auto-fill captions');
-                    }
-                  }}
-                />
-              )}
-
-              {/* Step 3: Captions (Manual or Edit Template) */}
-              <CaptionsCard
-                captions={captions}
-                onCaptionChange={updateCaption}
-                activePlatform={activeTab}
-                onPlatformChange={setActiveTab}
-                selectedProperty={selectedProperty}
-                onGenerateCaption={handleGenerateCaption}
-              />
-
-              {/* Step 4: Publish */}
-              <PublishCard
-                accounts={connectedAccounts}
-                selectedAccountIds={selectedAccountIds}
-                onAccountToggle={(id) => {
-                  setSelectedAccountIds(prev =>
-                    prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-                  );
-                }}
-                postType={postType}
-                onPostTypeChange={setPostType}
-                scheduledDate={scheduledDate}
-                scheduledTime={scheduledTime}
-                onScheduleChange={(date, time) => {
-                  setScheduledDate(date);
-                  setScheduledTime(time);
-                }}
-                onPost={handlePost}
-                onClear={handleClear}
-                isPosting={isPosting}
-                isValid={isPostValid}
-              />
-            </div>
-
-            {/* Right Column - Sticky */}
-            <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-              {/* Template Preview (when template selected) or Live Preview */}
-              {captionMode === 'caption' && selectedTemplate && selectedProperty ? (
-                <PostTemplatePreview
-                  template={selectedTemplate}
-                  property={{
-                    price: selectedProperty.price,
-                    address: selectedProperty.address,
-                    city: selectedProperty.city,
-                    beds: selectedProperty.beds,
-                    baths: selectedProperty.baths,
-                    sqft: selectedProperty.sqft,
-                    propertyCode: selectedProperty.propertyCode,
-                    propertyType: selectedProperty.propertyType,
-                    heroImage: selectedProperty.heroImage,
-                  }}
-                  activePlatform={activeTab}
-                  onPlatformChange={setActiveTab}
-                />
-              ) : (
-                <SocialPostPreview
-                  captions={captions}
-                  image={displayImage || undefined}
-                  accountName="Purple Homes"
-                  activeTab={activeTab}
-                  onTabChange={setActiveTab}
-                />
-              )}
-
-              {/* Post Readiness */}
-              <PostReadinessCard
-                hasImage={!!displayImage}
-                captionLength={captions[activeTab].length}
-                selectedPlatforms={selectedPlatforms}
-                selectedAccountCount={selectedAccountIds.length}
-                postType={postType}
-                hasSchedule={postType === 'now' || !!(scheduledDate && scheduledTime)}
-              />
-            </div>
-          </div>
+          <CreateWizard />
         </TabsContent>
 
         {/* BATCH TAB */}

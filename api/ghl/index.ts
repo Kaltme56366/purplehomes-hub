@@ -1653,41 +1653,256 @@ if (resource === 'opportunities') {
           return res.status(500).json({ error: 'OpenAI API key not configured' });
         }
 
-        const { property, platform, style } = body;
-        
-        const stylePrompts: Record<string, string> = {
-          professional: 'Write in a professional, trustworthy tone suitable for serious real estate investors.',
-          witty: 'Write in a witty, clever tone with wordplay and humor while still being informative.',
-          powerful: 'Write in a powerful, action-oriented tone that creates urgency and excitement.',
-          friendly: 'Write in a warm, friendly, approachable tone like talking to a neighbor.',
-          luxury: 'Write in an elegant, sophisticated tone emphasizing exclusivity and premium quality.',
-          casual: 'Write in a casual, conversational tone like texting a friend about a great find.',
+        // Support both old (style) and new (tone) parameter names
+        const { property, platform, style, tone, context, templateType, postIntent } = body;
+        const effectiveTone = tone || style || 'professional';
+        const effectiveIntent = postIntent || templateType || 'just-listed';
+
+        // ===== WORLD-CLASS COPYWRITING SYSTEM =====
+
+        const systemPrompt = `You are the lead copywriter for Purple Homes, a real estate brand.
+
+===== PRIORITY ORDER =====
+
+#1 PRIORITY: TONE (The voice/style - must match EXACTLY)
+- PROFESSIONAL = formal, data-focused, no drama, clean
+- CASUAL = texting a friend, slang ok, fun, relaxed
+- URGENT = time-sensitive facts, action-oriented, direct
+- FRIENDLY = warm, neighborly, lifestyle-focused, inviting
+- LUXURY = understated elegance, sophisticated, refined
+- INVESTOR = numbers-first, analytical, ROI-focused
+
+#2 PRIORITY: HOOKS (Scroll-stopping openers)
+Every caption opens with a hook that grabs attention:
+- Bold statement: "This one won't last the weekend."
+- Scene-setting: "6 AM. Coffee in hand. This view."
+- Question: "What's your non-negotiable in a home?"
+- Observation: "The backyard sold them before they saw the kitchen."
+
+#3 PRIORITY: STACCATO RHYTHM (Punchy, scannable)
+- Short sentences. Then longer ones for flow.
+- Lots of line breaks.
+- Easy to scan on mobile.
+
+===== PURPLE HOMES BRAND =====
+- Confident but not arrogant
+- Specific, never generic
+- Always end with "Purple Homes 💜"
+
+===== AVOID =====
+- "This stunning home..." (boring opener)
+- "Don't miss out!" / "Act fast!" (desperate)
+- Copy-pasting context verbatim
+- Wall of text
+- More than 2-3 emojis
+
+GOLDEN RULE: Each tone should sound COMPLETELY DIFFERENT.`;
+
+        // Tone instructions - VERY DIFFERENT styles for each tone
+        const toneInstructions: Record<string, string> = {
+          professional: `
+TONE: PROFESSIONAL (Polished & Authoritative)
+Write like a top-producing agent presenting to serious buyers.
+- Confident, factual, market-savvy
+- Focus on VALUE and INVESTMENT potential
+- Clean, structured format
+- NO dramatic language, NO poetry, NO lifestyle fluff
+- Example: "New to market: 2,000 SF single-family in prime SF location. 2BR/5BA, move-in ready. Asking $800K. Strong comparables support pricing. Contact for showing."`,
+
+          casual: `
+TONE: CASUAL (Texting a Friend)
+Write like you're sending a text to a friend about a cool place you found.
+- Use "you", contractions, casual phrases
+- Can use "lol", "honestly", "lowkey", "ngl"
+- Short sentences, conversational
+- Light, fun energy - NOT dramatic or poetic
+- Example: "ok wait you HAVE to see this place 😍 mountain views, fully furnished, and honestly? way nicer than it looks in photos. 800k for SF is kinda wild. lmk if you wanna check it out!"`,
+
+          urgent: `
+TONE: URGENT (Time-Sensitive Reality)
+Create real urgency through facts, not hype.
+- Lead with timing/scarcity facts
+- "Just listed", "Open house this weekend only"
+- Direct, action-oriented
+- NO poetic descriptions - just urgency
+- Example: "Just hit the market this morning. 3 showings already scheduled. SF mountain views, fully furnished, $800K. Open house Saturday only. Book your slot now."`,
+
+          friendly: `
+TONE: FRIENDLY (Warm & Neighborly)
+Write like a friendly neighbor recommending their favorite spot.
+- Warm, welcoming, community-focused
+- Talk about the LIFESTYLE, not just features
+- Paint a picture of daily life there
+- Use "imagine", "picture this"
+- Example: "Picture this: Sunday morning, coffee in hand, watching the fog roll over the city from YOUR living room. This place just feels like home. 2 beds, mountain views, and a kitchen made for hosting friends. Want to come see it?"`,
+
+          luxury: `
+TONE: LUXURY (Understated Elegance)
+Write for discerning buyers who appreciate subtlety.
+- Less is more - let quality speak
+- Sophisticated vocabulary
+- NO exclamation points, NO hype
+- Refined, exclusive, curated
+- Example: "A residence of distinction. Perched above the city, this fully furnished sanctuary offers 2,000 square feet of refined living. For those who appreciate the exceptional. Private viewings by appointment."`,
+
+          investor: `
+TONE: INVESTOR (Numbers-First Analysis)
+Write for analytical buyers who care about ROI.
+- Lead with numbers: price, sqft, $/sqft
+- Mention potential: rental income, appreciation, ARV
+- Business-like, analytical
+- NO emotional language - just data
+- Example: "Investment analysis: $800K / 2,000 SF = $400/SF. SF mountain location. 2BR/5BA. Furnished turnkey rental potential. Comparable sales trending +8% YoY. Serious inquiries only."`,
         };
 
+        // Platform instructions
         const platformInstructions: Record<string, string> = {
-          facebook: 'For Facebook: Use 40-80 characters for best engagement. Include emojis, questions to encourage comments, and a clear call-to-action.',
-          instagram: 'For Instagram: Write engaging first line (most important). Use up to 30 relevant hashtags at the end. Include emojis throughout.',
-          linkedin: 'For LinkedIn: Use professional language with line breaks for readability. Focus on investment value and ROI. Include 3-5 professional hashtags.',
+          facebook: `
+FACEBOOK:
+- 100-200 words. Story-driven.
+- Hook → Story → Facts → CTA → Purple Homes 💜
+- 2 emojis max. No hashtags in body.`,
+          instagram: `
+INSTAGRAM:
+- 80-150 words. Punchy. Scannable.
+- First line = HOOK (before "...more")
+- Lots of line breaks. Visual rhythm.
+- 2-3 emojis. Hashtags at END only.`,
+          linkedin: `
+LINKEDIN:
+- 100-180 words. Professional but human.
+- Market insight angle works well.
+- 1 emoji max. Minimal hashtags.
+- End with question or clear CTA.`,
         };
 
-        const systemPrompt = `You are a real estate social media expert. Generate compelling property captions that drive engagement and leads.
+        // Post Intent instructions - What type of announcement is this?
+        const intentInstructions: Record<string, string> = {
+          'just-listed': `
+POST INTENT: JUST LISTED
+This is a NEW LISTING announcement. Your caption MUST:
+- Make it clear this property JUST hit the market
+- Create "first to know" energy
+- Include phrases like: "just listed", "new to market", "just hit the market"
+- Build excitement about the opportunity to see it first
+- Invite engagement (tours, showings, questions)`,
 
-${stylePrompts[style] || stylePrompts.professional}
+          'sold': `
+POST INTENT: SOLD
+This is a SOLD/CLOSED celebration. Your caption MUST:
+- Celebrate the successful sale
+- Subtly demonstrate your effectiveness as an agent
+- Include phrases like: "SOLD", "closed", "new owners", "keys handed over"
+- Invite others who want similar results to reach out`,
+
+          'under-contract': `
+POST INTENT: UNDER CONTRACT
+This is an UNDER CONTRACT announcement. Your caption MUST:
+- Create FOMO without being obnoxious
+- Make it clear the property is no longer available
+- Include phrases like: "under contract", "pending", "accepted offer"
+- Invite buyers who missed out to reach out for similar properties`,
+
+          'price-reduced': `
+POST INTENT: PRICE REDUCED
+This is a PRICE REDUCTION announcement. Your caption MUST:
+- Frame as opportunity, NOT desperation
+- Emphasize the value is still there at a better price
+- Include phrases like: "price reduced", "new price", "now asking"
+- Create urgency around the new price point
+- NEVER say "price slashed" or sound desperate`,
+
+          'open-house': `
+POST INTENT: OPEN HOUSE
+This is an OPEN HOUSE invitation. Your caption MUST:
+- Clearly mention it's an open house event
+- Make it feel like an event worth attending
+- Include phrases like: "open house", "come see", "tour", "showing"
+- Paint a picture of what visitors will experience`,
+
+          'coming-soon': `
+POST INTENT: COMING SOON
+This is a COMING SOON teaser. Your caption MUST:
+- Build anticipation and curiosity
+- Reveal just enough to intrigue
+- Include phrases like: "coming soon", "sneak peek", "stay tuned", "hitting the market"
+- Encourage people to follow for updates
+- Create exclusivity ("be the first to know")`,
+
+          'investment': `
+POST INTENT: INVESTMENT OPPORTUNITY
+This is an INVESTMENT OPPORTUNITY post. Your caption MUST:
+- Lead with numbers that matter (price, ARV, potential profit, cap rate)
+- Speak to investor mindset
+- Include phrases like: "investment opportunity", "ROI", "cash flow", "ARV"
+- Be specific with projections and numbers
+- Appeal to analytical decision-makers`,
+
+          'market-update': `
+POST INTENT: MARKET UPDATE
+This is a MARKET UPDATE/INSIGHT post. Your caption MUST:
+- Position you as a local market expert
+- Share genuine, useful insight
+- Connect market data to buyer/seller decisions
+- Be educational without being boring
+- End with how you can help people navigate the market`,
+
+          'general': `
+POST INTENT: GENERAL POST
+This is a general engagement post. Your caption should:
+- Be engaging and valuable to your audience
+- Reflect your brand voice
+- Include a clear purpose (inform, entertain, engage)
+- End with appropriate engagement or CTA`,
+        };
+
+        // Build property details
+        let propertyDetails = '';
+        if (property) {
+          propertyDetails = `
+PROPERTY DATA:
+- Address: ${property.address || 'Not provided'}
+- City: ${property.city || 'Not provided'}
+- State: ${property.state || 'Not provided'}
+- Price: ${property.price ? `$${property.price.toLocaleString()}` : 'Not provided'}
+- Bedrooms: ${property.beds || 'Not provided'}
+- Bathrooms: ${property.baths || 'Not provided'}
+- Square Feet: ${property.sqft ? property.sqft.toLocaleString() : 'Not provided'}
+- Property Type: ${property.propertyType || 'Not provided'}
+- Condition: ${property.condition || 'Not provided'}
+${property.description ? `- Description: ${property.description}` : ''}`;
+        }
+
+        // Context section - CRITICAL: tell AI not to copy-paste
+        const contextSection = context
+          ? `\nADDITIONAL CONTEXT (use to inform your writing, do NOT copy verbatim):\n${context}`
+          : '';
+
+        const userPrompt = `Write a Purple Homes ${platform?.toUpperCase() || 'FACEBOOK'} caption.
+
+${propertyDetails}
+${contextSection}
+
+═══════════════════════════════════════════════════════════════
+POST INTENT: ${effectiveIntent.toUpperCase()}
+${intentInstructions[effectiveIntent] || intentInstructions['just-listed']}
+═══════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════════
+TONE: ${effectiveTone.toUpperCase()}
+${toneInstructions[effectiveTone] || toneInstructions.professional}
+═══════════════════════════════════════════════════════════════
 
 ${platformInstructions[platform] || platformInstructions.facebook}
 
-Property Details:
-- Address: ${property.address || 'N/A'}
-- City: ${property.city || 'N/A'}
-- Price: $${property.price?.toLocaleString() || 'N/A'}
-- Beds: ${property.beds || 'N/A'}
-- Baths: ${property.baths || 'N/A'}
-- Sqft: ${property.sqft || 'N/A'}
-- Property Type: ${property.propertyType || 'N/A'}
-- Condition: ${property.condition || 'N/A'}
-- Description: ${property.description || 'N/A'}
+CRITICAL INSTRUCTIONS:
+1. Your caption MUST clearly serve the POST INTENT above
+2. Your caption MUST use the TONE's voice/style above
+3. Both POST INTENT and TONE must be present and work together
+4. Weave in property details naturally — never copy-paste
+5. End with "Purple Homes 💜"
 
-Generate ONLY the caption text, nothing else.`;
+Write the caption now. Output ONLY the caption.`;
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -1696,10 +1911,10 @@ Generate ONLY the caption text, nothing else.`;
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4o-mini',
+            model: 'gpt-4o',
             messages: [
               { role: 'system', content: systemPrompt },
-              { role: 'user', content: `Generate a ${style} ${platform} caption for this property listing.` }
+              { role: 'user', content: userPrompt }
             ],
             max_tokens: 500,
             temperature: 0.8,
@@ -1713,9 +1928,92 @@ Generate ONLY the caption text, nothing else.`;
         }
 
         const data = await response.json();
-        const caption = data.choices?.[0]?.message?.content || '';
-        
-        return res.status(200).json({ caption, platform, style });
+        const caption = data.choices?.[0]?.message?.content?.trim() || '';
+
+        return res.status(200).json({ caption, platform, tone: effectiveTone });
+      }
+    }
+
+    // ============ ENHANCE CAPTION WITH CONTEXT ============
+    if (resource === 'enhance-caption') {
+      if (method === 'POST') {
+        if (!OPENAI_API_KEY) {
+          return res.status(500).json({ error: 'OpenAI API key not configured' });
+        }
+
+        const { captions, context, property } = body;
+
+        if (!captions || !context) {
+          return res.status(400).json({ error: 'Captions and context required' });
+        }
+
+        const systemPrompt = `You are a world-class real estate copywriter for Purple Homes. Your job is to enhance existing caption templates by naturally weaving in additional context provided by the agent.
+
+RULES:
+1. Keep the template's structure and style intact
+2. WEAVE the context details naturally into the existing copy - don't just append them
+3. Replace generic phrases with specific details from the context
+4. The result should read like one cohesive piece, not template + context bolted together
+5. Keep Purple Homes branding where it exists
+6. Don't add new sections - integrate into existing flow
+
+Example of BAD (just appending):
+"Beautiful home in the city... Purple Homes | Your Partner
+
+built on a mountain with great views"
+
+Example of GOOD (woven in):
+"This mountain-top retreat offers views you'll never tire of... Purple Homes | Your Partner"`;
+
+        const enhancedCaptions: Record<string, string> = {};
+
+        // Enhance each platform's caption
+        for (const platform of ['facebook', 'instagram', 'linkedin']) {
+          if (!captions[platform]) continue;
+
+          const userPrompt = `Enhance this ${platform.toUpperCase()} caption by naturally weaving in the context. Keep the template structure but integrate the unique selling points.
+
+ORIGINAL CAPTION:
+${captions[platform]}
+
+CONTEXT TO WEAVE IN (do NOT copy-paste, integrate naturally):
+${context}
+
+${property?.description ? `PROPERTY DESCRIPTION: ${property.description}` : ''}
+
+Output ONLY the enhanced caption, nothing else.`;
+
+          try {
+            const response = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: userPrompt }
+                ],
+                max_tokens: 500,
+                temperature: 0.7,
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              enhancedCaptions[platform] = data.choices?.[0]?.message?.content?.trim() || captions[platform];
+            } else {
+              enhancedCaptions[platform] = captions[platform];
+            }
+          } catch (error) {
+            console.error(`Failed to enhance ${platform} caption:`, error);
+            enhancedCaptions[platform] = captions[platform];
+          }
+        }
+
+        return res.status(200).json({ captions: enhancedCaptions });
       }
     }
 

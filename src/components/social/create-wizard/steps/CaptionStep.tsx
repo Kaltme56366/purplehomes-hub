@@ -1,0 +1,136 @@
+import React from 'react';
+import { Info } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+import { PostIntentSubstep, ToneSubstep, EditCaptionSubstep } from './caption-substeps';
+import type { WizardState, CaptionSubstep } from '../types';
+import { CAPTION_SUBSTEPS, CAPTION_SUBSTEP_CONFIG } from '../types';
+
+interface CaptionStepProps {
+  state: WizardState;
+  updateState: (updates: Partial<WizardState>) => void;
+}
+
+export default function CaptionStep({ state, updateState }: CaptionStepProps) {
+  const currentSubstepIndex = CAPTION_SUBSTEPS.indexOf(state.captionSubstep);
+
+  const goToSubstep = (substep: CaptionSubstep) => {
+    updateState({ captionSubstep: substep });
+  };
+
+  const goNextSubstep = () => {
+    const nextIndex = currentSubstepIndex + 1;
+    if (nextIndex < CAPTION_SUBSTEPS.length) {
+      updateState({ captionSubstep: CAPTION_SUBSTEPS[nextIndex] });
+    }
+  };
+
+  const goPrevSubstep = () => {
+    const prevIndex = currentSubstepIndex - 1;
+    if (prevIndex >= 0) {
+      updateState({ captionSubstep: CAPTION_SUBSTEPS[prevIndex] });
+    }
+  };
+
+  const renderSubstep = () => {
+    switch (state.captionSubstep) {
+      case 'intent':
+        return (
+          <PostIntentSubstep
+            state={state}
+            updateState={updateState}
+            onNext={goNextSubstep}
+          />
+        );
+      case 'tone':
+        return (
+          <ToneSubstep
+            state={state}
+            updateState={updateState}
+            onNext={goNextSubstep}
+            onBack={goPrevSubstep}
+          />
+        );
+      case 'edit':
+        return (
+          <EditCaptionSubstep
+            state={state}
+            updateState={updateState}
+            onBack={goPrevSubstep}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-2">
+          <h2 className="text-xl font-semibold">Caption</h2>
+          <Tooltip>
+            <TooltipTrigger>
+              <Info className="h-4 w-4 text-muted-foreground" />
+            </TooltipTrigger>
+            <TooltipContent>
+              Choose your post intent, tone, and write your caption
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
+        {/* Sub-step Progress */}
+        <div className="flex items-center gap-2 pb-4 border-b">
+          {CAPTION_SUBSTEPS.map((substep, index) => {
+            const config = CAPTION_SUBSTEP_CONFIG[substep];
+            const isCompleted = index < currentSubstepIndex;
+            const isCurrent = index === currentSubstepIndex;
+            const isClickable = index <= currentSubstepIndex;
+
+            return (
+              <React.Fragment key={substep}>
+                <button
+                  onClick={() => isClickable && goToSubstep(substep)}
+                  disabled={!isClickable}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-all",
+                    isCompleted && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+                    isCurrent && "bg-purple-600 text-white",
+                    !isCompleted && !isCurrent && "bg-muted text-muted-foreground",
+                    isClickable ? "cursor-pointer hover:opacity-80" : "cursor-not-allowed"
+                  )}
+                >
+                  <span className={cn(
+                    "w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium",
+                    isCompleted && "bg-purple-600 text-white",
+                    isCurrent && "bg-white text-purple-600",
+                    !isCompleted && !isCurrent && "bg-muted-foreground/20"
+                  )}>
+                    {isCompleted ? '✓' : index + 1}
+                  </span>
+                  <span className="hidden sm:inline">{config.title}</span>
+                </button>
+
+                {index < CAPTION_SUBSTEPS.length - 1 && (
+                  <div className={cn(
+                    "w-8 h-0.5",
+                    index < currentSubstepIndex ? "bg-purple-600" : "bg-muted"
+                  )} />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
+
+        {/* Substep Content */}
+        {renderSubstep()}
+      </div>
+    </TooltipProvider>
+  );
+}
