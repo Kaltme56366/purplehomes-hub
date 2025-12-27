@@ -48,6 +48,48 @@ async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
+ * Upload PDF attachment to GHL and get URL for use in messages
+ * GHL requires attachments to be uploaded first to get a URL, then the URL is used in the message
+ */
+async function uploadPdfAttachment(pdfBase64: string, filename: string): Promise<string[]> {
+  const response = await fetch(`${API_BASE}?resource=messages&action=upload`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      fileData: pdfBase64,
+      fileName: filename,
+      fileType: 'application/pdf',
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to upload attachment' }));
+    throw new Error(error.message || error.error || `Failed to upload attachment: ${response.status}`);
+  }
+
+  const result = await response.json();
+
+  // The upload endpoint returns urls as an array
+  if (result.urls && Array.isArray(result.urls)) {
+    return result.urls;
+  }
+
+  // Handle single URL response
+  if (result.url) {
+    return [result.url];
+  }
+
+  // If the response has a different structure, try to extract URLs from data
+  if (result.data?.urls) {
+    return Array.isArray(result.data.urls) ? result.data.urls : [result.data.urls];
+  }
+
+  throw new Error('Upload succeeded but no URL was returned');
+}
+
+/**
  * Send property matches via HighLevel email with PDF attachment
  */
 export async function sendPropertyEmail(options: SendPropertyEmailOptions): Promise<{ success: boolean; messageId?: string }> {
@@ -76,6 +118,9 @@ export async function sendPropertyEmail(options: SendPropertyEmailOptions): Prom
   // Convert to base64
   const pdfBase64 = await blobToBase64(pdfBlob);
   const filename = `Purple-Homes-Properties-${contactName.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
+
+  // Upload PDF to GHL and get URL (required for attachments)
+  const attachmentUrls = await uploadPdfAttachment(pdfBase64, filename);
 
   // Prepare email body
   const emailBody = `
@@ -170,14 +215,7 @@ export async function sendPropertyEmail(options: SendPropertyEmailOptions): Prom
       to: contactEmail,
       subject,
       html: emailBody,
-      attachments: [
-        {
-          filename,
-          content: pdfBase64,
-          encoding: 'base64',
-          contentType: 'application/pdf',
-        },
-      ],
+      attachments: attachmentUrls,
       // Use dedicated email header if configured
       useDedicatedHeader: true,
     }),
@@ -360,6 +398,9 @@ export async function sendPropertyFlyer(options: SendFlyerOptions): Promise<{ su
   const pdfBase64 = await blobToBase64(pdfBlob);
   const filename = `Purple-Homes-Flyer-${property.address.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
 
+  // Upload PDF to GHL and get URL (required for attachments)
+  const attachmentUrls = await uploadPdfAttachment(pdfBase64, filename);
+
   // Prepare email body
   const emailBody = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -444,14 +485,7 @@ export async function sendPropertyFlyer(options: SendFlyerOptions): Promise<{ su
       to: contactEmail,
       subject: `Property Opportunity: ${property.address}`,
       html: emailBody,
-      attachments: [
-        {
-          filename,
-          content: pdfBase64,
-          encoding: 'base64',
-          contentType: 'application/pdf',
-        },
-      ],
+      attachments: attachmentUrls,
       useDedicatedHeader: true,
     }),
   });
