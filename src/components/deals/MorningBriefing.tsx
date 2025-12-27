@@ -116,7 +116,7 @@ function PriorityItem({
     },
   };
 
-  const config = typeConfig[item.type];
+  const config = typeConfig[item.type] || typeConfig.hot;
   const Icon = config.icon;
 
   return (

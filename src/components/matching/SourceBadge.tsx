@@ -32,14 +32,15 @@ export function SourceBadge({ source, size = 'sm' }: SourceBadgeProps) {
     },
   };
 
-  const Icon = config[source].icon;
+  const sourceConfig = config[source] || config.Inventory;
+  const Icon = sourceConfig.icon;
   const iconSize = size === 'sm' ? 'h-3 w-3' : 'h-4 w-4';
   const textSize = size === 'sm' ? 'text-xs' : 'text-sm';
 
   return (
     <Badge
       variant="outline"
-      className={`${config[source].className} ${textSize}`}
+      className={`${sourceConfig.className} ${textSize}`}
     >
       <Icon className={`${iconSize} mr-1`} />
       {source}

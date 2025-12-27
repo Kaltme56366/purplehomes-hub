@@ -35,17 +35,18 @@ export function ZillowTypeBadge({ type, size = 'sm' }: ZillowTypeBadgeProps) {
     },
   };
 
-  const Icon = config[type].icon;
+  const typeConfig = config[type] || config.Keywords;
+  const Icon = typeConfig.icon;
   const iconSize = size === 'sm' ? 'h-3 w-3' : 'h-4 w-4';
   const textSize = size === 'sm' ? 'text-xs' : 'text-sm';
 
   return (
     <Badge
       variant="outline"
-      className={`${config[type].className} ${textSize}`}
+      className={`${typeConfig.className} ${textSize}`}
     >
       <Icon className={`${iconSize} mr-1`} />
-      {config[type].label}
+      {typeConfig.label}
     </Badge>
   );
 }
