@@ -747,7 +747,8 @@ export const useUpdateDealStage = () => {
             console.log('[Deals API] GHL relation created:', relationId);
 
             // Save GHL Relation ID back to Airtable
-            await fetch(
+            console.log('[Deals API] Saving GHL Relation ID to Airtable:', { dealId, relationId });
+            const saveResponse = await fetch(
               `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${dealId}`,
               {
                 method: 'POST',
@@ -757,6 +758,14 @@ export const useUpdateDealStage = () => {
                 }),
               }
             );
+            if (saveResponse.ok) {
+              console.log('[Deals API] GHL Relation ID saved to Airtable successfully');
+            } else {
+              const saveError = await saveResponse.json().catch(() => ({}));
+              console.error('[Deals API] Failed to save GHL Relation ID to Airtable:', saveError);
+            }
+          } else {
+            console.warn('[Deals API] No relation ID returned from GHL sync');
           }
         } catch (ghlError) {
           console.error('[Deals API] GHL sync failed:', ghlError);
