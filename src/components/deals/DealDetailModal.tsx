@@ -32,6 +32,14 @@ export function DealDetailModal({
     const fromStage = deal.status;
 
     try {
+      console.log('[DealDetailModal] Changing stage:', {
+        dealId: matchId,
+        fromStage,
+        toStage: newStage,
+        ghlRelationId: deal.ghlRelationId || '(none)',
+        dealObject: deal,
+      });
+
       const result = await updateStage.mutateAsync({
         dealId: matchId,
         fromStage,
@@ -40,6 +48,7 @@ export function DealDetailModal({
         propertyAddress: deal.property?.address,
         opportunityId: deal.property?.opportunityId,
         syncToGhl: true,
+        ghlRelationId: deal.ghlRelationId, // Pass previous relation ID to delete
       });
 
       toast.success(
@@ -58,6 +67,7 @@ export function DealDetailModal({
                   propertyAddress: deal.property?.address,
                   opportunityId: deal.property?.opportunityId,
                   syncToGhl: true,
+                  ghlRelationId: result.ghlRelationId, // Pass new relation ID to delete when undoing
                 });
                 toast.success('Undone');
               } catch {
