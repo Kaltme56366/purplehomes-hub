@@ -776,22 +776,27 @@ export const useUpdateDealStage = () => {
       return { success: true, ghlRelationId: newGhlRelationId };
     },
     onSuccess: (data, variables) => {
-      // Update the deal in the cache with the new ghlRelationId
-      // This ensures the next stage change can delete the old relation
+      // Update the deal in the cache with the new ghlRelationId AND new stage
+      // IMPORTANT: Do NOT invalidate 'deals' query - that would trigger a refetch
+      // which returns stale server data and overwrites the ghlRelationId we just set
+      queryClient.setQueryData(['deals'], (oldData: Deal[] | undefined) => {
+        if (!oldData) return oldData;
+        return oldData.map(deal =>
+          deal.id === variables.dealId
+            ? {
+                ...deal,
+                ghlRelationId: data.ghlRelationId,
+                status: variables.toStage, // Also update the stage
+              }
+            : deal
+        );
+      });
+
       if (data.ghlRelationId) {
-        queryClient.setQueryData(['deals'], (oldData: Deal[] | undefined) => {
-          if (!oldData) return oldData;
-          return oldData.map(deal =>
-            deal.id === variables.dealId
-              ? { ...deal, ghlRelationId: data.ghlRelationId }
-              : deal
-          );
-        });
         console.log('[Deals API] Updated deal cache with new ghlRelationId:', data.ghlRelationId);
       }
 
-      // Invalidate all deal queries
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
+      // Invalidate other queries (but NOT 'deals' - we updated it manually above)
       queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] });
       queryClient.invalidateQueries({ queryKey: ['deals-by-stage'] });
       queryClient.invalidateQueries({ queryKey: ['deals-by-buyer'] });
