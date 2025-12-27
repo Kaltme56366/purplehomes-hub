@@ -4,6 +4,7 @@
  * Integrates with the deals API for stage changes and activity logging.
  */
 
+import React from 'react';
 import { EnhancedMatchDetailModal } from '@/components/matching/EnhancedMatchDetailModal';
 import { useUpdateDealStage } from '@/services/dealsApi';
 import { useAddMatchActivity } from '@/services/matchingApi';
@@ -25,19 +26,28 @@ export function DealDetailModal({
   const updateStage = useUpdateDealStage();
   const addActivity = useAddMatchActivity();
 
+  // Track the current GHL relation ID locally
+  // This is needed because the deal prop may not update between stage changes
+  const currentGhlRelationIdRef = React.useRef<string | undefined>(deal?.ghlRelationId);
+
+  // Update ref when deal changes (e.g., when modal reopens with different deal)
+  React.useEffect(() => {
+    currentGhlRelationIdRef.current = deal?.ghlRelationId;
+  }, [deal?.id, deal?.ghlRelationId]);
+
   // Handle stage change
   const handleStageChange = async (matchId: string, newStage: MatchDealStage) => {
     if (!deal) return;
 
     const fromStage = deal.status;
+    const previousRelationId = currentGhlRelationIdRef.current;
 
     try {
       console.log('[DealDetailModal] Changing stage:', {
         dealId: matchId,
         fromStage,
         toStage: newStage,
-        ghlRelationId: deal.ghlRelationId || '(none)',
-        dealObject: deal,
+        ghlRelationId: previousRelationId || '(none)',
       });
 
       const result = await updateStage.mutateAsync({
@@ -48,8 +58,14 @@ export function DealDetailModal({
         propertyAddress: deal.property?.address,
         opportunityId: deal.property?.opportunityId,
         syncToGhl: true,
-        ghlRelationId: deal.ghlRelationId, // Pass previous relation ID to delete
+        ghlRelationId: previousRelationId, // Pass previous relation ID to delete
       });
+
+      // Update the ref with the new relation ID for subsequent changes
+      if (result.ghlRelationId) {
+        console.log('[DealDetailModal] Updated local ghlRelationId:', result.ghlRelationId);
+        currentGhlRelationIdRef.current = result.ghlRelationId;
+      }
 
       toast.success(
         `Stage updated to ${newStage}${result.ghlRelationId ? ' (synced to GHL)' : ''}`,
