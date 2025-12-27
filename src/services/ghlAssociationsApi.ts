@@ -516,8 +516,9 @@ export const deleteAssociationRelation = async (relationId: string): Promise<boo
   console.log('[GHL Sync] Deleting previous relation:', relationId);
 
   try {
+    // Use the associations API endpoint: DELETE /associations/relations/:relationId
     const response = await fetch(
-      `${API_BASE}?resource=objects&objectKey=${PROPERTY_OBJECT_KEY}&action=relations&id=${relationId}`,
+      `${API_BASE}?resource=associations&action=relations&id=${relationId}`,
       { method: 'DELETE' }
     );
 

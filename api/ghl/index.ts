@@ -1501,6 +1501,30 @@ if (resource === 'opportunities') {
         console.log('[ASSOCIATIONS] Create relation response:', response.status, JSON.stringify(data).substring(0, 500));
         return res.status(response.ok ? 201 : response.status).json(data);
       }
+
+      // DELETE /associations/relations/:relationId - Delete a relation by ID
+      // Used for removing previous stage association when changing stages
+      if (method === 'DELETE' && action === 'relations' && id) {
+        console.log('[ASSOCIATIONS] Deleting relation:', id);
+        console.log('[ASSOCIATIONS] Using Objects API Key:', GHL_OBJECTS_API_KEY?.substring(0, 15) + '...');
+
+        const response = await fetch(
+          `${GHL_API_URL}/associations/relations/${id}`,
+          {
+            method: 'DELETE',
+            headers: objectsHeaders,
+          }
+        );
+
+        if (response.ok || response.status === 204) {
+          console.log('[ASSOCIATIONS] Relation deleted successfully');
+          return res.status(204).end();
+        }
+
+        const data = await response.json().catch(() => ({}));
+        console.error('[ASSOCIATIONS] Delete relation failed:', response.status, data);
+        return res.status(response.status).json(data);
+      }
     }
 
     // NOTE: Uses objectsHeaders with GHL_OBJECTS_API_KEY for all objects operations
