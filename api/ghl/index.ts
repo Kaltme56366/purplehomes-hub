@@ -1507,14 +1507,21 @@ if (resource === 'opportunities') {
       if (method === 'DELETE' && action === 'relations' && id) {
         console.log('[ASSOCIATIONS] Deleting relation:', id);
         console.log('[ASSOCIATIONS] Using Objects API Key:', GHL_OBJECTS_API_KEY?.substring(0, 15) + '...');
+        console.log('[ASSOCIATIONS] Location ID:', GHL_LOCATION_ID);
+
+        // Include locationId as query parameter for authorization
+        const deleteUrl = `${GHL_API_URL}/associations/relations/${id}?locationId=${GHL_LOCATION_ID}`;
+        console.log('[ASSOCIATIONS] Delete URL:', deleteUrl);
 
         const response = await fetch(
-          `${GHL_API_URL}/associations/relations/${id}`,
+          deleteUrl,
           {
             method: 'DELETE',
             headers: objectsHeaders,
           }
         );
+
+        console.log('[ASSOCIATIONS] Delete response status:', response.status);
 
         if (response.ok || response.status === 204) {
           console.log('[ASSOCIATIONS] Relation deleted successfully');
