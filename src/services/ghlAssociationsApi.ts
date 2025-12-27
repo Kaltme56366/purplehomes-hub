@@ -513,7 +513,9 @@ export const createContactPropertyRelation = async (params: {
  * @returns True if deletion was successful, false otherwise
  */
 export const deleteAssociationRelation = async (relationId: string): Promise<boolean> => {
-  console.log('[GHL Sync] Deleting previous relation:', relationId);
+  console.log('[GHL Sync] ========== DELETING RELATION ==========');
+  console.log('[GHL Sync] Relation ID to delete:', relationId);
+  console.log('[GHL Sync] API URL:', `${API_BASE}?resource=associations&action=relations&id=${relationId}`);
 
   try {
     // Use the associations API endpoint: DELETE /associations/relations/:relationId
@@ -522,16 +524,18 @@ export const deleteAssociationRelation = async (relationId: string): Promise<boo
       { method: 'DELETE' }
     );
 
+    console.log('[GHL Sync] Delete response status:', response.status);
+
     if (response.ok || response.status === 204) {
-      console.log('[GHL Sync] Previous relation deleted successfully');
+      console.log('[GHL Sync] ✅ Previous relation deleted successfully');
       return true;
     }
 
     const errorData = await response.json().catch(() => ({}));
-    console.error('[GHL Sync] Failed to delete previous relation:', errorData);
+    console.error('[GHL Sync] ❌ Failed to delete previous relation:', response.status, errorData);
     return false;
   } catch (error) {
-    console.error('[GHL Sync] Exception deleting previous relation:', error);
+    console.error('[GHL Sync] ❌ Exception deleting previous relation:', error);
     return false;
   }
 };
