@@ -666,8 +666,9 @@ export const useUpdateDealStage = () => {
       propertyAddress,
       opportunityId,
       syncToGhl = true,
+      ghlRelationId,
     }: StageChangeRequest): Promise<{ success: boolean; ghlRelationId?: string }> => {
-      console.log('[Deals API] Updating deal stage:', { dealId, fromStage, toStage });
+      console.log('[Deals API] Updating deal stage:', { dealId, fromStage, toStage, previousRelationId: ghlRelationId });
 
       // 1. Update Airtable - use 'Match Stage' field (the deal pipeline stage)
       const updateResponse = await fetch(
@@ -726,7 +727,7 @@ export const useUpdateDealStage = () => {
       }
 
       // 3. Sync to GHL if enabled
-      let ghlRelationId: string | undefined;
+      let newGhlRelationId: string | undefined;
 
       if (syncToGhl && contactId && propertyAddress) {
         try {
@@ -738,10 +739,11 @@ export const useUpdateDealStage = () => {
             propertyAddress,
             opportunityId,
             stageAssociationIds: STAGE_ASSOCIATION_IDS,
+            previousRelationId: ghlRelationId, // Now correctly uses the parameter (previous relation ID)
           });
 
           if (relationId) {
-            ghlRelationId = relationId;
+            newGhlRelationId = relationId;
             console.log('[Deals API] GHL relation created:', relationId);
 
             // Save GHL Relation ID back to Airtable
@@ -762,7 +764,7 @@ export const useUpdateDealStage = () => {
         }
       }
 
-      return { success: true, ghlRelationId };
+      return { success: true, ghlRelationId: newGhlRelationId };
     },
     onSuccess: () => {
       // Invalidate all deal queries

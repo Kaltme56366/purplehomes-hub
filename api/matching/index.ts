@@ -1410,6 +1410,7 @@ async function handleAggregatedBuyers(
           isPriority: match.fields['Is Priority'],
           status: match.fields['Match Status'] || 'Active',
           stage: match.fields['Match Stage'] || null,
+          ghlRelationId: match.fields['GHL Relation ID'] || null,
           property: property ? {
             recordId: property.id,
             propertyCode: property.fields['Property Code'] || '',
@@ -1629,6 +1630,7 @@ async function handleAggregatedProperties(
           isPriority: match.fields['Is Priority'],
           status: match.fields['Match Status'] || 'Active',
           stage: match.fields['Match Stage'] || null,
+          ghlRelationId: match.fields['GHL Relation ID'] || null,
           buyer: buyer ? {
             contactId: buyer.fields['Contact ID'] || '',
             recordId: buyer.id,
