@@ -37,7 +37,7 @@ const SYNC_TYPE_CONFIG: Record<SyncType, { icon: typeof Users; label: string; co
 
 function SyncLogItem({ entry }: { entry: SyncLogEntry }) {
   const [isOpen, setIsOpen] = useState(false);
-  const config = SYNC_TYPE_CONFIG[entry.type];
+  const config = SYNC_TYPE_CONFIG[entry.type] || SYNC_TYPE_CONFIG.contacts;
   const Icon = config.icon;
 
   return (

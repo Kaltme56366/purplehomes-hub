@@ -141,7 +141,7 @@ export function PostTemplateSelector({
         {/* Template Grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
           {filteredTemplates.map((template) => {
-            const config = categoryConfig[template.category];
+            const config = categoryConfig[template.category] || categoryConfig.listing;
             const isSelected = selectedTemplate?.id === template.id;
 
             return (
