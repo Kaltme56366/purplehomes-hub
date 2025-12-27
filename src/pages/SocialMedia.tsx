@@ -39,6 +39,7 @@ import { ScheduleViewToggle } from '@/components/social/ScheduleViewToggle';
 import { ScheduleQuickStats } from '@/components/social/ScheduleQuickStats';
 import { ScheduleDetailsPanel } from '@/components/social/ScheduleDetailsPanel';
 import { CreateWizard } from '@/components/social/create-wizard';
+import { BatchWizard } from '@/components/social/batch-wizard';
 import { cn } from '@/lib/utils';
 import { 
   format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay,
@@ -574,89 +575,9 @@ export default function SocialMedia() {
           <CreateWizard />
         </TabsContent>
 
-        {/* BATCH TAB */}
+        {/* BATCH TAB - New Step-by-Step Wizard */}
         <TabsContent value="batch" className="mt-6">
-          <div className="space-y-6 pb-24">
-            {/* Toolbar */}
-            <BatchToolbar
-              totalCount={pendingProperties.length}
-              selectedCount={selectedPropertyIds.size}
-              allSelected={selectedPropertyIds.size === filteredBatchProperties.filter(p => !p.isDemo).length && filteredBatchProperties.length > 0}
-              onSelectAll={handleSelectAllProperties}
-              onDeselectAll={handleClearPropertySelection}
-              filter={batchFilter}
-              onFilterChange={setBatchFilter}
-              searchQuery={batchSearchQuery}
-              onSearchChange={setBatchSearchQuery}
-            />
-
-            {/* Contextual Action Bar */}
-            <BatchActionBar
-              selectedCount={selectedPropertyIds.size}
-              onPostAll={() => startBatchOperation('post')}
-              onSchedule={() => startBatchOperation('schedule')}
-              onGenerateCaptions={() => startBatchOperation('captions')}
-              onSkip={() => startBatchOperation('skip')}
-              isProcessing={operationStatus === 'running'}
-            />
-
-            {/* Property List */}
-            <div className="space-y-3">
-              {filteredBatchProperties.map((property) => (
-                <BatchPropertyRow
-                  key={property.id}
-                  property={property}
-                  isSelected={selectedPropertyIds.has(property.id)}
-                  onToggle={() => togglePropertySelection(property.id)}
-                  status={propertyStatuses[property.id] || null}
-                  readiness={getPropertyReadiness(property)}
-                  disabled={operationStatus === 'running'}
-                />
-              ))}
-
-              {filteredBatchProperties.length === 0 && (
-                <div className="text-center py-12">
-                  <p className="text-muted-foreground">No properties found</p>
-                  {batchSearchQuery && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      onClick={() => setBatchSearchQuery('')}
-                      className="mt-2"
-                    >
-                      Clear search
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Summary Footer */}
-          <BatchSummaryFooter
-            selectedProperties={Array.from(selectedPropertyIds)
-              .map(id => allProperties.find(p => p.id === id))
-              .filter((p): p is Property => p !== undefined)}
-            selectedAccounts={connectedAccounts.filter(a =>
-              selectedAccountIds.includes(a.id)
-            )}
-            readyCount={readyPropertiesCount}
-            needsCaptionCount={needsCaptionCount}
-            onPost={() => startBatchOperation('post')}
-            isPosting={operationStatus === 'running'}
-          />
-
-          {/* Progress Overlay */}
-          <BatchProgressOverlay
-            isOpen={operationStatus === 'running' || operationStatus === 'complete'}
-            totalCount={selectedPropertyIds.size}
-            completedCount={batchCompletedCount}
-            failedCount={batchFailedCount}
-            currentProperty={currentBatchProperty}
-            log={batchOperationLog}
-            onComplete={resetBatchOperation}
-            canCancel={false}
-          />
+          <BatchWizard />
         </TabsContent>
 
         {/* SCHEDULE TAB */}
