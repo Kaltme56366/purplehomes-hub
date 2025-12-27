@@ -2,8 +2,7 @@
  * DealsListView - Sortable table view of all deals
  *
  * Features:
- * - Search by property address or buyer name
- * - Filter by stage
+ * - Filter by stage, score, stale status
  * - Sortable columns
  * - Click row to open deal detail
  */
@@ -11,15 +10,7 @@
 import { useState, useMemo } from 'react';
 import { useDeals } from '@/services/dealsApi';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -29,7 +20,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { StageBadge } from '@/components/matching/StageBadge';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
@@ -37,40 +28,64 @@ import { UrgencyIndicator, getUrgencyType } from '../Shared/UrgencyIndicator';
 import { NoDealsEmptyState, NoResultsEmptyState } from '../Shared/DealEmptyState';
 import { MATCH_DEAL_STAGES } from '@/types/associations';
 import type { Deal, DealSortField, DealSortDirection } from '@/types/deals';
+import type { DealPipelineFilters } from '@/pages/DealPipeline';
 import { formatDistanceToNow } from 'date-fns';
 
 interface DealsListViewProps {
-  search?: string;
-  onSearchChange?: (search: string) => void;
+  filters?: DealPipelineFilters;
   onViewDeal?: (deal: Deal) => void;
 }
 
 export function DealsListView({
-  search: externalSearch,
-  onSearchChange,
+  filters,
   onViewDeal,
 }: DealsListViewProps) {
-  // Local state for search if not controlled
-  const [localSearch, setLocalSearch] = useState('');
-  const search = externalSearch ?? localSearch;
-  const handleSearchChange = onSearchChange ?? setLocalSearch;
-
-  // Filter and sort state
-  const [stageFilter, setStageFilter] = useState<string>('all');
+  // Sort state
   const [sortField, setSortField] = useState<DealSortField>('lastActivity');
   const [sortDirection, setSortDirection] = useState<DealSortDirection>('desc');
 
-  // Fetch deals
-  const { data: deals, isLoading, error } = useDeals({
-    stage: stageFilter === 'all' ? undefined : (stageFilter as any),
-    search: search || undefined,
-  });
+  // Fetch all deals
+  const { data: deals, isLoading, error } = useDeals();
 
-  // Sort deals
-  const sortedDeals = useMemo(() => {
+  // Filter and sort deals
+  const filteredAndSortedDeals = useMemo(() => {
     if (!deals) return [];
 
-    return [...deals].sort((a, b) => {
+    let filtered = [...deals];
+
+    // Apply search filter (buyer name or property address)
+    if (filters?.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter((deal) => {
+        const buyerName = `${deal.buyer?.firstName || ''} ${deal.buyer?.lastName || ''}`.toLowerCase();
+        const propertyAddress = (deal.property?.address || '').toLowerCase();
+        const propertyCity = (deal.property?.city || '').toLowerCase();
+        return (
+          buyerName.includes(searchLower) ||
+          propertyAddress.includes(searchLower) ||
+          propertyCity.includes(searchLower)
+        );
+      });
+    }
+
+    // Apply stage filter
+    if (filters?.stage && filters.stage !== 'all') {
+      filtered = filtered.filter((deal) => deal.status === filters.stage);
+    }
+
+    // Apply min score filter
+    if (filters?.minScore && filters.minScore !== 'all') {
+      const minScore = parseInt(filters.minScore, 10);
+      filtered = filtered.filter((deal) => deal.score >= minScore);
+    }
+
+    // Apply stale only filter
+    if (filters?.staleOnly) {
+      filtered = filtered.filter((deal) => deal.isStale);
+    }
+
+    // Sort filtered deals
+    return filtered.sort((a, b) => {
       let comparison = 0;
 
       switch (sortField) {
@@ -111,7 +126,15 @@ export function DealsListView({
 
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [deals, sortField, sortDirection]);
+  }, [deals, filters, sortField, sortDirection]);
+
+  // Check if filters are active
+  const hasActiveFilters = filters && (
+    filters.search !== '' ||
+    filters.stage !== 'all' ||
+    filters.minScore !== 'all' ||
+    filters.staleOnly
+  );
 
   // Handle sort click
   const handleSort = (field: DealSortField) => {
@@ -139,10 +162,7 @@ export function DealsListView({
   if (isLoading) {
     return (
       <Card className="p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Skeleton className="h-10 flex-1" />
-          <Skeleton className="h-10 w-40" />
-        </div>
+        <Skeleton className="h-5 w-24 mb-4" />
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />
@@ -163,78 +183,28 @@ export function DealsListView({
 
   // No deals at all
   if (!deals || deals.length === 0) {
-    if (!search && stageFilter === 'all') {
+    if (!hasActiveFilters) {
       return <NoDealsEmptyState />;
     }
+  }
+
+  // No results after filtering
+  if (filteredAndSortedDeals.length === 0 && hasActiveFilters) {
     return (
       <Card className="p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search deals..."
-              value={search}
-              onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Select value={stageFilter} onValueChange={setStageFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filter by stage" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Stages</SelectItem>
-              {MATCH_DEAL_STAGES.map((stage) => (
-                <SelectItem key={stage} value={stage}>
-                  {stage}
-                </SelectItem>
-              ))}
-              <SelectItem value="Not Interested">Not Interested</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <NoResultsEmptyState
-          onClear={() => {
-            handleSearchChange('');
-            setStageFilter('all');
-          }}
-        />
+        <NoResultsEmptyState />
       </Card>
     );
   }
 
   return (
     <Card className="p-6">
-      {/* Filters */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search deals..."
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={stageFilter} onValueChange={setStageFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by stage" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Stages</SelectItem>
-            {MATCH_DEAL_STAGES.map((stage) => (
-              <SelectItem key={stage} value={stage}>
-                {stage}
-              </SelectItem>
-            ))}
-            <SelectItem value="Not Interested">Not Interested</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Results count */}
       <p className="text-sm text-muted-foreground mb-4">
-        {sortedDeals.length} deal{sortedDeals.length !== 1 ? 's' : ''}
+        {filteredAndSortedDeals.length} deal{filteredAndSortedDeals.length !== 1 ? 's' : ''}
+        {hasActiveFilters && deals && filteredAndSortedDeals.length !== deals.length && (
+          <span> of {deals.length}</span>
+        )}
       </p>
 
       {/* Table */}
@@ -301,7 +271,7 @@ export function DealsListView({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedDeals.map((deal) => (
+            {filteredAndSortedDeals.map((deal) => (
               <TableRow
                 key={deal.id}
                 className="cursor-pointer hover:bg-muted/50"
