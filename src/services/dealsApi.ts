@@ -775,7 +775,21 @@ export const useUpdateDealStage = () => {
 
       return { success: true, ghlRelationId: newGhlRelationId };
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
+      // Update the deal in the cache with the new ghlRelationId
+      // This ensures the next stage change can delete the old relation
+      if (data.ghlRelationId) {
+        queryClient.setQueryData(['deals'], (oldData: Deal[] | undefined) => {
+          if (!oldData) return oldData;
+          return oldData.map(deal =>
+            deal.id === variables.dealId
+              ? { ...deal, ghlRelationId: data.ghlRelationId }
+              : deal
+          );
+        });
+        console.log('[Deals API] Updated deal cache with new ghlRelationId:', data.ghlRelationId);
+      }
+
       // Invalidate all deal queries
       queryClient.invalidateQueries({ queryKey: ['deals'] });
       queryClient.invalidateQueries({ queryKey: ['pipeline-stats'] });
