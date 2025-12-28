@@ -7,18 +7,23 @@
  * - Pipeline Board: Kanban with drag-drop
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Input } from '@/components/ui/input';
 import {
   LayoutDashboard,
   List,
   Columns,
-  Search,
   Users,
   Home,
 } from 'lucide-react';
+import {
+  SearchInput,
+  FilterSelect,
+  FilterCheckbox,
+  FilterBar,
+} from '@/components/filters';
+import { MATCH_DEAL_STAGES, MATCH_EXIT_STAGES } from '@/types/associations';
 
 // Deal components
 import {
@@ -39,6 +44,29 @@ import type { Deal } from '@/types/deals';
 type MainView = 'overview' | 'deals' | 'pipeline';
 type DealsSubView = 'list' | 'by-buyer' | 'by-property';
 
+// Filter options
+const STAGE_OPTIONS = [
+  { value: 'all', label: 'All Stages' },
+  ...MATCH_DEAL_STAGES.map((stage) => ({ value: stage, label: stage })),
+  ...MATCH_EXIT_STAGES.map((stage) => ({ value: stage, label: stage })),
+];
+
+const MIN_SCORE_OPTIONS = [
+  { value: 'all', label: 'All Scores' },
+  { value: '50', label: '50+' },
+  { value: '60', label: '60+' },
+  { value: '70', label: '70+' },
+  { value: '80', label: '80+' },
+  { value: '90', label: '90+' },
+];
+
+export interface DealPipelineFilters {
+  search: string;
+  stage: string;
+  minScore: string;
+  staleOnly: boolean;
+}
+
 export default function DealPipeline() {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -46,8 +74,33 @@ export default function DealPipeline() {
   const [mainView, setMainView] = useState<MainView>('overview');
   const [dealsSubView, setDealsSubView] = useState<DealsSubView>('list');
 
-  // Search
-  const [searchQuery, setSearchQuery] = useState('');
+  // Filter state
+  const [filters, setFilters] = useState<DealPipelineFilters>({
+    search: '',
+    stage: 'all',
+    minScore: 'all',
+    staleOnly: false,
+  });
+
+  // Check if any filters are active
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.search !== '' ||
+      filters.stage !== 'all' ||
+      filters.minScore !== 'all' ||
+      filters.staleOnly
+    );
+  }, [filters]);
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setFilters({
+      search: '',
+      stage: 'all',
+      minScore: 'all',
+      staleOnly: false,
+    });
+  };
 
   // Selected deal for modal
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
@@ -90,7 +143,7 @@ export default function DealPipeline() {
       setSearchParams({}, { replace: true });
     } else if (buyerId) {
       // Filter deals by buyer
-      setSearchQuery(buyerId);
+      setFilters((f) => ({ ...f, search: buyerId }));
       setMainView('deals');
       setDealsSubView('by-buyer');
       // Clear the URL param after using it
@@ -113,9 +166,9 @@ export default function DealPipeline() {
 
   // Handle viewing stale deals from overview
   const handleViewStaleDeals = () => {
+    setFilters((f) => ({ ...f, staleOnly: true }));
     setMainView('deals');
     setDealsSubView('list');
-    // Could add a filter for stale deals here
   };
 
   return (
@@ -128,20 +181,36 @@ export default function DealPipeline() {
             Manage your buyer-property deals through the sales funnel
           </p>
         </div>
-
-        {/* Search - visible on deals and pipeline tabs */}
-        {mainView !== 'overview' && (
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search deals..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-        )}
       </div>
+
+      {/* Filter Bar - visible on deals and pipeline tabs */}
+      {mainView !== 'overview' && (
+        <FilterBar hasActiveFilters={hasActiveFilters} onClearAll={clearAllFilters}>
+          <SearchInput
+            value={filters.search}
+            onChange={(value) => setFilters((f) => ({ ...f, search: value }))}
+            placeholder="Search by buyer name or property address..."
+            className="w-full sm:w-72"
+          />
+          <FilterSelect
+            label="Stage"
+            value={filters.stage}
+            options={STAGE_OPTIONS}
+            onChange={(value) => setFilters((f) => ({ ...f, stage: value }))}
+          />
+          <FilterSelect
+            label="Min Score"
+            value={filters.minScore}
+            options={MIN_SCORE_OPTIONS}
+            onChange={(value) => setFilters((f) => ({ ...f, minScore: value }))}
+          />
+          <FilterCheckbox
+            label="Stale Only"
+            checked={filters.staleOnly}
+            onChange={(checked) => setFilters((f) => ({ ...f, staleOnly: checked }))}
+          />
+        </FilterBar>
+      )}
 
       {/* Main Navigation Tabs */}
       <Tabs
@@ -199,22 +268,21 @@ export default function DealPipeline() {
 
             <TabsContent value="list" className="mt-4">
               <DealsListView
-                search={searchQuery}
-                onSearchChange={setSearchQuery}
+                filters={filters}
                 onViewDeal={handleViewDeal}
               />
             </TabsContent>
 
             <TabsContent value="by-buyer" className="mt-4">
               <DealsByBuyerView
-                search={searchQuery}
+                filters={filters}
                 onViewDeal={handleViewDeal}
               />
             </TabsContent>
 
             <TabsContent value="by-property" className="mt-4">
               <DealsByPropertyView
-                search={searchQuery}
+                filters={filters}
                 onViewDeal={handleViewDeal}
               />
             </TabsContent>
@@ -223,7 +291,7 @@ export default function DealPipeline() {
 
         {/* Pipeline Board Tab */}
         <TabsContent value="pipeline" className="mt-6">
-          <PipelineBoard search={searchQuery} onViewDeal={handleViewDeal} />
+          <PipelineBoard filters={filters} onViewDeal={handleViewDeal} />
         </TabsContent>
       </Tabs>
 

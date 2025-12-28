@@ -6,7 +6,8 @@
  * - More Properties to Explore (beyond 50mi)
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import type { MatchingFilters } from '@/pages/Matching';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -287,11 +288,13 @@ function PropertyCard({
 interface BuyerPropertiesViewProps {
   selectedBuyerId?: string | null;
   onBuyerSelect?: (buyerId: string | null) => void;
+  filters?: MatchingFilters;
 }
 
 export function BuyerPropertiesView({
   selectedBuyerId: externalBuyerId,
   onBuyerSelect,
+  filters,
 }: BuyerPropertiesViewProps = {}) {
   // Use internal state as fallback when no external state is provided
   const [internalBuyerId, setInternalBuyerId] = useState<string | null>(null);
@@ -311,6 +314,70 @@ export function BuyerPropertiesView({
   const navigate = useNavigate();
   const { data: buyersList, isLoading: loadingBuyers } = useBuyersList();
   const { data: buyerProperties, isLoading: loadingProperties, error } = useBuyerProperties(buyerId);
+
+  // Filter buyers list based on search
+  const filteredBuyersList = useMemo(() => {
+    if (!buyersList || !filters?.search) return buyersList;
+    const searchLower = filters.search.toLowerCase();
+    return buyersList.filter((buyer) => {
+      const firstName = buyer.firstName?.toLowerCase() || '';
+      const lastName = buyer.lastName?.toLowerCase() || '';
+      const email = buyer.email?.toLowerCase() || '';
+      const city = buyer.city?.toLowerCase() || '';
+      return (
+        firstName.includes(searchLower) ||
+        lastName.includes(searchLower) ||
+        email.includes(searchLower) ||
+        city.includes(searchLower)
+      );
+    });
+  }, [buyersList, filters?.search]);
+
+  // Filter properties based on filters
+  const filteredProperties = useMemo(() => {
+    if (!buyerProperties) return null;
+
+    const allProperties = [...buyerProperties.priorityMatches, ...buyerProperties.exploreMatches];
+
+    let filtered = allProperties;
+
+    // Filter by search (address, city, property code)
+    if (filters?.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter((sp) => {
+        const address = sp.property.address?.toLowerCase() || '';
+        const city = sp.property.city?.toLowerCase() || '';
+        const propertyCode = sp.property.propertyCode?.toLowerCase() || '';
+        return (
+          address.includes(searchLower) ||
+          city.includes(searchLower) ||
+          propertyCode.includes(searchLower)
+        );
+      });
+    }
+
+    // Filter by min score
+    if (filters?.minScore && filters.minScore !== 'all') {
+      const minScore = parseInt(filters.minScore, 10);
+      filtered = filtered.filter((sp) => sp.score.score >= minScore);
+    }
+
+    // Filter by beds
+    if (filters?.beds && filters.beds !== 'all') {
+      const minBeds = parseInt(filters.beds, 10);
+      filtered = filtered.filter((sp) => sp.property.beds >= minBeds);
+    }
+
+    // Filter by priority only
+    if (filters?.priorityOnly) {
+      filtered = filtered.filter((sp) => sp.score.isPriority);
+    }
+
+    // Sort by score descending
+    filtered.sort((a, b) => b.score.score - a.score.score);
+
+    return filtered;
+  }, [buyerProperties, filters]);
 
   // State for property selection
   const [selectedPropertyIds, setSelectedPropertyIds] = useState<Set<string>>(new Set());
@@ -363,8 +430,10 @@ export function BuyerPropertiesView({
             <SelectContent>
               {loadingBuyers ? (
                 <div className="p-2 text-sm text-muted-foreground">Loading buyers...</div>
+              ) : filteredBuyersList?.length === 0 ? (
+                <div className="p-2 text-sm text-muted-foreground">No buyers match your search</div>
               ) : (
-                buyersList?.map((buyer) => (
+                filteredBuyersList?.map((buyer) => (
                   <SelectItem key={buyer.recordId || buyer.contactId} value={buyer.recordId || buyer.contactId}>
                     {buyer.firstName} {buyer.lastName}
                     <span className="text-muted-foreground ml-2 text-xs">{buyer.email}</span>
@@ -451,27 +520,33 @@ export function BuyerPropertiesView({
                 In Your System
               </h2>
               <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-                {buyerProperties.totalCount}
+                {filteredProperties?.length ?? 0}
+                {filteredProperties && filteredProperties.length !== buyerProperties.totalCount && (
+                  <span className="ml-1 text-muted-foreground">/ {buyerProperties.totalCount}</span>
+                )}
               </Badge>
             </div>
 
-            {buyerProperties.totalCount > 0 ? (
+            {filteredProperties && filteredProperties.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {[...buyerProperties.priorityMatches, ...buyerProperties.exploreMatches]
-                  .sort((a, b) => b.score.score - a.score.score)
-                  .map((sp) => (
-                    <PropertyCard
-                      key={sp.property.recordId}
-                      scoredProperty={sp}
-                      buyer={buyerProperties.buyer}
-                      isSelected={selectedPropertyIds.has(sp.property.recordId)}
-                      onToggleSelect={() => togglePropertySelection(sp.property.recordId)}
-                      onViewDetails={() => {
-                        setSelectedProperty(sp);
-                        setDetailModalOpen(true);
-                      }}
-                    />
-                  ))}
+                {filteredProperties.map((sp) => (
+                  <PropertyCard
+                    key={sp.property.recordId}
+                    scoredProperty={sp}
+                    buyer={buyerProperties.buyer}
+                    isSelected={selectedPropertyIds.has(sp.property.recordId)}
+                    onToggleSelect={() => togglePropertySelection(sp.property.recordId)}
+                    onViewDetails={() => {
+                      setSelectedProperty(sp);
+                      setDetailModalOpen(true);
+                    }}
+                  />
+                ))}
+              </div>
+            ) : buyerProperties.totalCount > 0 ? (
+              <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg">
+                <Home className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p>No properties match the current filters</p>
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg">
@@ -488,7 +563,7 @@ export function BuyerPropertiesView({
 
           {/* Stats Footer */}
           <div className="text-center text-sm text-muted-foreground pt-4 border-t">
-            Showing {buyerProperties.totalCount} properties in system
+            Showing {filteredProperties?.length ?? 0} of {buyerProperties.totalCount} properties
             {buyerProperties.stats.timeMs && ` • Scored in ${buyerProperties.stats.timeMs}ms`}
           </div>
         </>

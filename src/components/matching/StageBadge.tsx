@@ -62,18 +62,18 @@ const STAGE_CONFIGS: Record<MatchDealStage, StageConfig> = {
     textColor: 'text-purple-700',
     borderColor: 'border-purple-200',
   },
-  'Offer Made': {
+  'Underwriting': {
     icon: FileText,
-    label: 'Offer Made',
-    shortLabel: 'Offer',
+    label: 'Underwriting',
+    shortLabel: 'Underwriting',
     bgColor: 'bg-orange-50',
     textColor: 'text-orange-700',
     borderColor: 'border-orange-200',
   },
-  'Under Contract': {
+  'Contracts': {
     icon: FileCheck,
-    label: 'Under Contract',
-    shortLabel: 'Contract',
+    label: 'Contracts',
+    shortLabel: 'Contracts',
     bgColor: 'bg-indigo-50',
     textColor: 'text-indigo-700',
     borderColor: 'border-indigo-200',
@@ -88,7 +88,7 @@ const STAGE_CONFIGS: Record<MatchDealStage, StageConfig> = {
   },
   'Closed Deal / Won': {
     icon: Trophy,
-    label: 'Closed Won',
+    label: 'Closed Deal / Won',
     shortLabel: 'Closed',
     bgColor: 'bg-emerald-50',
     textColor: 'text-emerald-700',

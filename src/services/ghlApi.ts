@@ -69,8 +69,10 @@ export interface GHLMedia {
 
 export interface GHLSocialAccount {
   id: string;
+  profileId: string;
   platform: 'facebook' | 'instagram' | 'linkedin' | 'twitter' | 'tiktok' | 'gmb';
   accountName: string;
+  name?: string;
   avatar?: string;
   isActive: boolean;
 }

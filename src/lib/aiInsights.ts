@@ -78,8 +78,8 @@ export function generateFallbackInsight(input: InsightRequest): AIInsight {
     suggestedAction = 'Schedule a showing.';
   } else if (stage === 'Showing Scheduled' || stage === 'Property Viewed') {
     suggestedAction = 'Discuss making an offer.';
-  } else if (stage === 'Offer Made') {
-    suggestedAction = 'Monitor offer status.';
+  } else if (stage === 'Underwriting') {
+    suggestedAction = 'Monitor underwriting progress.';
   } else if (score >= 85) {
     suggestedAction = 'Prioritize sending immediately.';
   }

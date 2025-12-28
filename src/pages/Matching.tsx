@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,37 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  SearchInput,
+  FilterSelect,
+  FilterCheckbox,
+  FilterBar,
+} from '@/components/filters';
+
+// Filter options
+const MIN_SCORE_OPTIONS = [
+  { value: 'all', label: 'All Scores' },
+  { value: '50', label: '50+' },
+  { value: '60', label: '60+' },
+  { value: '70', label: '70+' },
+  { value: '80', label: '80+' },
+  { value: '90', label: '90+' },
+];
+
+const BEDS_OPTIONS = [
+  { value: 'all', label: 'Any Beds' },
+  { value: '1', label: '1+' },
+  { value: '2', label: '2+' },
+  { value: '3', label: '3+' },
+  { value: '4', label: '4+' },
+];
+
+export interface MatchingFilters {
+  search: string;
+  minScore: string;
+  beds: string;
+  priorityOnly: boolean;
+}
 
 export default function Matching() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -24,6 +55,34 @@ export default function Matching() {
   const [activeTab, setActiveTab] = useState<'by-buyer' | 'by-property'>('by-buyer');
   const [selectedBuyerId, setSelectedBuyerId] = useState<string | null>(null);
   const [selectedPropertyCode, setSelectedPropertyCode] = useState<string | null>(null);
+
+  // Filter state
+  const [filters, setFilters] = useState<MatchingFilters>({
+    search: '',
+    minScore: 'all',
+    beds: 'all',
+    priorityOnly: false,
+  });
+
+  // Check if any filters are active
+  const hasActiveFilters = useMemo(() => {
+    return (
+      filters.search !== '' ||
+      filters.minScore !== 'all' ||
+      filters.beds !== 'all' ||
+      filters.priorityOnly
+    );
+  }, [filters]);
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setFilters({
+      search: '',
+      minScore: 'all',
+      beds: 'all',
+      priorityOnly: false,
+    });
+  };
 
   // Handle deep linking via URL params
   useEffect(() => {
@@ -200,6 +259,35 @@ export default function Matching() {
         </div>
       </div>
 
+      {/* Filter Bar */}
+      <div className="px-6">
+        <FilterBar hasActiveFilters={hasActiveFilters} onClearAll={clearAllFilters}>
+          <SearchInput
+            value={filters.search}
+            onChange={(value) => setFilters((f) => ({ ...f, search: value }))}
+            placeholder="Search buyers or properties..."
+            className="w-full sm:w-64"
+          />
+          <FilterSelect
+            label="Min Score"
+            value={filters.minScore}
+            options={MIN_SCORE_OPTIONS}
+            onChange={(value) => setFilters((f) => ({ ...f, minScore: value }))}
+          />
+          <FilterSelect
+            label="Beds"
+            value={filters.beds}
+            options={BEDS_OPTIONS}
+            onChange={(value) => setFilters((f) => ({ ...f, beds: value }))}
+          />
+          <FilterCheckbox
+            label="Priority Only"
+            checked={filters.priorityOnly}
+            onChange={(checked) => setFilters((f) => ({ ...f, priorityOnly: checked }))}
+          />
+        </FilterBar>
+      </div>
+
       {/* Content Area */}
       <div className="px-6">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'by-buyer' | 'by-property')}>
@@ -231,6 +319,7 @@ export default function Matching() {
                   <BuyerPropertiesView
                     selectedBuyerId={selectedBuyerId}
                     onBuyerSelect={setSelectedBuyerId}
+                    filters={filters}
                   />
                 </div>
               </div>
@@ -248,6 +337,7 @@ export default function Matching() {
                 <BuyerPropertiesView
                   selectedBuyerId={selectedBuyerId}
                   onBuyerSelect={setSelectedBuyerId}
+                  filters={filters}
                 />
               </div>
             )}
@@ -258,6 +348,7 @@ export default function Matching() {
             <PropertyBuyersView
               selectedPropertyCode={selectedPropertyCode}
               onPropertySelect={setSelectedPropertyCode}
+              filters={filters}
             />
           </TabsContent>
 

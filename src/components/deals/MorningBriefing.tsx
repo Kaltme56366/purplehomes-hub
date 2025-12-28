@@ -257,8 +257,8 @@ export function MorningBriefing({
           priority: 100 + winProb.probability,
         });
       }
-      // Closing soon: Under Contract or Qualified
-      else if (deal.status === 'Under Contract' || deal.status === 'Qualified') {
+      // Closing soon: Contracts or Qualified
+      else if (deal.status === 'Contracts' || deal.status === 'Qualified') {
         priorities.push({
           deal,
           reason: `${deal.status} - ready to close`,
@@ -287,8 +287,8 @@ export function MorningBriefing({
   const healthIndicators = useMemo(() => {
     if (!stats) return [];
 
-    const hotDeals = (stats.byStage?.['Offer Made'] || 0) +
-                     (stats.byStage?.['Under Contract'] || 0) +
+    const hotDeals = (stats.byStage?.['Underwriting'] || 0) +
+                     (stats.byStage?.['Contracts'] || 0) +
                      (stats.byStage?.['Qualified'] || 0);
     const staleCount = stats.needsAttention || 0;
     const totalActive = stats.totalDeals || 0;

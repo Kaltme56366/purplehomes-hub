@@ -26,6 +26,8 @@ import {
   Phone,
   ArrowRight,
   ExternalLink,
+  ClipboardList,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -38,6 +40,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { StageBadge } from './StageBadge';
 import {
@@ -47,7 +50,6 @@ import {
 } from '@/components/matching/MatchTags';
 import { DealProgressKanban } from './DealProgressKanban';
 import { MatchActivityTimeline } from './MatchActivityTimeline';
-import { MatchQuickActions } from './MatchQuickActions';
 import { WinProbability } from '@/components/deals/WinProbability';
 import { AIInsightCard } from './AIInsightCard';
 import {
@@ -86,6 +88,9 @@ export function EnhancedMatchDetailModal({
   const [activeTab, setActiveTab] = useState<'property' | 'progress' | 'activity'>('property');
   // Local state for the stage to provide immediate UI feedback after updates
   const [localStage, setLocalStage] = useState<MatchDealStage | null>(null);
+  // State for inline note input
+  const [noteText, setNoteText] = useState('');
+  const [isAddingNote, setIsAddingNote] = useState(false);
   const navigate = useNavigate();
 
   // Sync local stage with prop when match changes (e.g., opening a different deal)
@@ -122,9 +127,15 @@ export function EnhancedMatchDetailModal({
     }
   };
 
-  const handleAddNote = async (note: string) => {
-    if (!onAddNote) return;
-    await onAddNote(match.id, note);
+  const handleAddNote = async () => {
+    if (!onAddNote || !noteText.trim()) return;
+    setIsAddingNote(true);
+    try {
+      await onAddNote(match.id, noteText.trim());
+      setNoteText('');
+    } finally {
+      setIsAddingNote(false);
+    }
   };
 
   const handleSendEmail = async () => {
@@ -143,7 +154,7 @@ export function EnhancedMatchDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:max-w-5xl sm:max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col rounded-none sm:rounded-lg">
+      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:w-[900px] sm:max-w-[95vw] sm:max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col rounded-none sm:rounded-lg">
         {/* Sticky Header */}
         <div className="sticky top-0 z-20 bg-background border-b px-6 py-4">
           <div className="flex items-start justify-between gap-4">
@@ -379,12 +390,43 @@ export function EnhancedMatchDetailModal({
 
                 <Separator />
 
-                {/* Activity Timeline */}
+                {/* Activity Timeline with Inline Note Input */}
                 <div className="space-y-4">
                   <h3 className="text-base font-semibold flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-purple-600" />
+                    <ClipboardList className="h-4 w-4 text-purple-600" />
                     Activity History
                   </h3>
+
+                  {/* Inline Add Note Input */}
+                  {onAddNote && (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add a note..."
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleAddNote();
+                          }
+                        }}
+                        className="flex-1"
+                        disabled={isAddingNote}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleAddNote}
+                        disabled={!noteText.trim() || isAddingNote}
+                      >
+                        {isAddingNote ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Add'
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
                   <MatchActivityTimeline
                     activities={activities}
                     maxVisible={10}
@@ -488,7 +530,37 @@ export function EnhancedMatchDetailModal({
                   </div>
                 </TabsContent>
 
-                <TabsContent value="activity" className="p-6 mt-0">
+                <TabsContent value="activity" className="p-6 mt-0 space-y-4">
+                  {/* Inline Add Note Input - Mobile */}
+                  {onAddNote && (
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add a note..."
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleAddNote();
+                          }
+                        }}
+                        className="flex-1"
+                        disabled={isAddingNote}
+                      />
+                      <Button
+                        size="sm"
+                        onClick={handleAddNote}
+                        disabled={!noteText.trim() || isAddingNote}
+                      >
+                        {isAddingNote ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          'Add'
+                        )}
+                      </Button>
+                    </div>
+                  )}
+
                   <MatchActivityTimeline
                     activities={activities}
                     maxVisible={20}
@@ -500,44 +572,31 @@ export function EnhancedMatchDetailModal({
           </div>
         </div>
 
-        {/* Sticky Footer - Quick Actions + Navigation */}
-        <div className="sticky bottom-0 z-20 bg-background border-t px-6 py-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <MatchQuickActions
-              currentStage={currentStage}
-              onAdvanceStage={handleStageChange}
-              onSendEmail={onSendEmail ? handleSendEmail : undefined}
-              onAddNote={onAddNote ? handleAddNote : undefined}
-              onMarkNotInterested={() => handleStageChange('Not Interested')}
-              isLoading={isUpdating}
-              className="justify-center lg:justify-start"
-            />
-
-            {/* Cross-navigation links */}
-            <div className="flex items-center gap-2 justify-center lg:justify-end">
-              {match.status && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleViewInPipeline}
-                  className="gap-1"
-                >
-                  View in Pipeline
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              )}
-              {buyer?.contactId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleViewMatchDetails}
-                  className="gap-1 text-muted-foreground"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                  All Matches
-                </Button>
-              )}
-            </div>
+        {/* Sticky Footer - Navigation Only */}
+        <div className="sticky bottom-0 z-20 bg-background border-t px-6 py-3">
+          <div className="flex items-center justify-end gap-2">
+            {match.status && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleViewInPipeline}
+                className="gap-1"
+              >
+                View in Pipeline
+                <ArrowRight className="h-3 w-3" />
+              </Button>
+            )}
+            {buyer?.contactId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleViewMatchDetails}
+                className="gap-1 text-muted-foreground"
+              >
+                <ExternalLink className="h-3 w-3" />
+                All Matches
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

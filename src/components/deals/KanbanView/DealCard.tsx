@@ -60,13 +60,14 @@ export function DealCard({ deal, onClick, isDragging, onAddNote, onSendFollowup 
     const toastId = toast.loading(`Moving to ${nextStageConfig?.shortLabel || nextStage}...`);
 
     try {
-      await updateStage.mutateAsync({
+      const result = await updateStage.mutateAsync({
         dealId: deal.id,
         fromStage: deal.status,
         toStage: nextStage,
         contactId: deal.buyer?.contactId,
         propertyAddress: deal.property?.address,
         opportunityId: deal.property?.opportunityId,
+        ghlRelationId: deal.ghlRelationId, // Pass previous relation ID to delete
       });
 
       toast.success(`Moved to ${nextStageConfig?.shortLabel || nextStage}`, {
@@ -81,6 +82,7 @@ export function DealCard({ deal, onClick, isDragging, onAddNote, onSendFollowup 
               contactId: deal.buyer?.contactId,
               propertyAddress: deal.property?.address,
               opportunityId: deal.property?.opportunityId,
+              ghlRelationId: result.ghlRelationId, // Pass new relation ID to delete when undoing
             });
           },
         },
@@ -95,13 +97,14 @@ export function DealCard({ deal, onClick, isDragging, onAddNote, onSendFollowup 
     const toastId = toast.loading('Marking as not interested...');
 
     try {
-      await updateStage.mutateAsync({
+      const result = await updateStage.mutateAsync({
         dealId: deal.id,
         fromStage: deal.status,
         toStage: 'Not Interested',
         contactId: deal.buyer?.contactId,
         propertyAddress: deal.property?.address,
         opportunityId: deal.property?.opportunityId,
+        ghlRelationId: deal.ghlRelationId, // Pass previous relation ID to delete
       });
 
       toast.success('Marked as not interested', {
@@ -116,6 +119,7 @@ export function DealCard({ deal, onClick, isDragging, onAddNote, onSendFollowup 
               contactId: deal.buyer?.contactId,
               propertyAddress: deal.property?.address,
               opportunityId: deal.property?.opportunityId,
+              ghlRelationId: result.ghlRelationId, // Pass new relation ID to delete when undoing
             });
           },
         },

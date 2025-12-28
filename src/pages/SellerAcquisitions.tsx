@@ -17,8 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { KanbanBoard, type KanbanColumn } from '@/components/kanban/KanbanBoard';
-import { OpportunityCard } from '@/components/kanban/OpportunityCard';
+import { UnifiedPipelineBoard, UnifiedPipelineCard, type PipelineColumn } from '@/components/pipeline';
 import { useOpportunities, useUpdateOpportunityStage, GHLOpportunity } from '@/services/ghlApi';
 import type { SellerAcquisitionStage } from '@/types';
 import { format } from 'date-fns';
@@ -110,7 +109,6 @@ export default function SellerAcquisitions() {
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [selectedAcquisition, setSelectedAcquisition] = useState<SellerAcquisition | null>(null);
-  const [draggedItem, setDraggedItem] = useState<SellerAcquisition | null>(null);
 
   // Fetch real data from GHL
   const { data: opportunities, isLoading, error, refetch } = useOpportunities('seller-acquisition');
@@ -134,44 +132,15 @@ export default function SellerAcquisitions() {
     );
   }, [acquisitions, search]);
 
-  const kanbanColumns: KanbanColumn<SellerAcquisition>[] = useMemo(() => {
+  const pipelineColumns: PipelineColumn<SellerAcquisition>[] = useMemo(() => {
     return stages.map((stage) => ({
       id: stage.id,
       label: stage.label,
-      color: stage.color,
+      color: stage.color.replace('bg-', ''), // Convert 'bg-blue-500' to 'blue-500' for border
       items: filteredAcquisitions.filter((a) => a.stage === stage.id),
+      isHidden: stage.id === 'lost',
     }));
   }, [filteredAcquisitions]);
-
-  const handleDragStart = (e: React.DragEvent, acquisition: SellerAcquisition) => {
-    setDraggedItem(acquisition);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetStage: string) => {
-    e.preventDefault();
-    if (!draggedItem) return;
-
-    const targetStageConfig = stages.find(s => s.id === targetStage);
-    if (!targetStageConfig) {
-      toast.error('Unable to find target stage');
-      setDraggedItem(null);
-      return;
-    }
-    
-    try {
-      await updateStageMutation.mutateAsync({
-        opportunityId: draggedItem.id,
-        stageId: targetStageConfig.ghlId,
-        pipelineType: 'seller-acquisition',
-      });
-      toast.success(`Moved to ${targetStageConfig.label}`);
-    } catch (err) {
-      toast.error('Failed to update stage in GHL');
-    }
-    
-    setDraggedItem(null);
-  };
 
   const moveToNextStage = async (acquisition: SellerAcquisition) => {
     const currentIndex = stages.findIndex((s) => s.id === acquisition.stage);
@@ -208,21 +177,21 @@ export default function SellerAcquisitions() {
   };
 
   const renderCard = (acquisition: SellerAcquisition) => (
-    <div className="group">
-      <OpportunityCard
-        id={acquisition.id}
-        title={acquisition.propertyAddress || acquisition.sellerName}
-        subtitle={acquisition.sellerName}
-        location={`${acquisition.city}${acquisition.state ? `, ${acquisition.state}` : ''} ${acquisition.zipCode}`.trim()}
-        amount={acquisition.askingPrice}
-        type={acquisition.propertyType}
-        date={acquisition.createdAt}
-        onClick={() => setSelectedAcquisition(acquisition)}
-        onMoveNext={() => moveToNextStage(acquisition)}
-        onMarkLost={() => markAsLost(acquisition)}
-        variant="seller"
-      />
-    </div>
+    <UnifiedPipelineCard
+      id={acquisition.id}
+      title={acquisition.propertyAddress || acquisition.sellerName}
+      subtitle={acquisition.sellerName}
+      location={`${acquisition.city}${acquisition.state ? `, ${acquisition.state}` : ''} ${acquisition.zipCode}`.trim()}
+      amount={acquisition.askingPrice}
+      type={acquisition.propertyType}
+      date={acquisition.createdAt}
+      dateFormat="absolute"
+      onClick={() => setSelectedAcquisition(acquisition)}
+      onAdvance={() => moveToNextStage(acquisition)}
+      onMarkLost={() => markAsLost(acquisition)}
+      variant="property"
+      imageFallbackIcon="building"
+    />
   );
 
   const activeCount = filteredAcquisitions.filter((a) => a.stage !== 'lost' && a.stage !== 'closed-acquired').length;
@@ -308,13 +277,28 @@ export default function SellerAcquisitions() {
 
       {/* Kanban View */}
       {!isLoading && viewMode === 'kanban' && (
-        <KanbanBoard
-          columns={kanbanColumns}
+        <UnifiedPipelineBoard
+          columns={pipelineColumns}
           renderCard={renderCard}
-          onDragStart={handleDragStart}
-          onDrop={handleDrop}
-          emptyMessage="Drop here"
-          maxVisibleColumns={5}
+          onDrop={(item, columnId) => {
+            const targetStageConfig = stages.find(s => s.id === columnId);
+            if (!targetStageConfig) {
+              toast.error('Unable to find target stage');
+              return;
+            }
+            updateStageMutation.mutateAsync({
+              opportunityId: item.id,
+              stageId: targetStageConfig.ghlId,
+              pipelineType: 'seller-acquisition',
+            }).then(() => {
+              toast.success(`Moved to ${targetStageConfig.label}`);
+            }).catch(() => {
+              toast.error('Failed to update stage in GHL');
+            });
+          }}
+          isLoading={isLoading}
+          hiddenColumnLabel="Won / Lost"
+          emptyStateMessage="No opportunities in this stage"
         />
       )}
 

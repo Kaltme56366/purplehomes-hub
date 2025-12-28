@@ -158,12 +158,12 @@ export function MatchQuickActions({
       case 'Property Viewed':
         return [
           {
-            id: 'offer-received',
-            label: 'Offer Received',
+            id: 'start-underwriting',
+            label: 'Start Underwriting',
             icon: FileText,
             variant: 'default',
             primary: true,
-            action: () => onAdvanceStage('Offer Made'),
+            action: () => onAdvanceStage('Underwriting'),
           },
           {
             id: 'schedule-another',
@@ -176,20 +176,33 @@ export function MatchQuickActions({
           ...baseActions,
         ];
 
-      case 'Offer Made':
+      case 'Underwriting':
         return [
           {
-            id: 'under-contract',
-            label: 'Under Contract',
+            id: 'move-to-contracts',
+            label: 'Move to Contracts',
             icon: FileText,
             variant: 'default',
             primary: true,
-            action: () => onAdvanceStage('Under Contract'),
+            action: () => onAdvanceStage('Contracts'),
           },
           ...baseActions,
         ];
 
-      case 'Under Contract':
+      case 'Contracts':
+        return [
+          {
+            id: 'mark-qualified',
+            label: 'Mark Qualified',
+            icon: ArrowRight,
+            variant: 'default',
+            primary: true,
+            action: () => onAdvanceStage('Qualified'),
+          },
+          ...baseActions,
+        ];
+
+      case 'Qualified':
         return [
           {
             id: 'close-deal',

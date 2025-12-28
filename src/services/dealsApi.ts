@@ -291,7 +291,7 @@ export const usePipelineStats = () => {
       const stats: PipelineStats = {
         totalDeals: deals.length,
         pipelineValue,
-        closingSoon: byStage['Under Contract'] || 0,
+        closingSoon: byStage['Contracts'] || 0,
         needsAttention,
         newThisWeek,
         byStage: byStage as Record<MatchDealStage, number>,
@@ -477,9 +477,10 @@ export const useDealsByProperty = () => {
         'Buyer Responded': 2,
         'Showing Scheduled': 3,
         'Property Viewed': 4,
-        'Offer Made': 5,
-        'Under Contract': 6,
-        'Closed Deal / Won': 7,
+        'Underwriting': 5,
+        'Contracts': 6,
+        'Qualified': 7,
+        'Closed Deal / Won': 8,
         'Not Interested': 0,
       };
 

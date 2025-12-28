@@ -19,10 +19,9 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { OpportunityCard } from '@/components/kanban/OpportunityCard';
 import { BuyerDetailModal } from '@/components/buyers/BuyerDetailModal';
 import { EmptyState } from '@/components/ui/empty-state';
-import { KanbanBoard, type KanbanColumn } from '@/components/kanban/KanbanBoard';
+import { UnifiedPipelineBoard, UnifiedPipelineCard, type PipelineColumn } from '@/components/pipeline';
 import { useOpportunities, useUpdateOpportunityStage, useUpdateOpportunityCustomFields, GHLOpportunity } from '@/services/ghlApi';
 import type { Buyer, BuyerStage, BuyerStatus, BuyerChecklist } from '@/types';
 import { toast } from 'sonner';
@@ -233,7 +232,6 @@ export default function Buyers() {
   const [selectedBuyer, setSelectedBuyer] = useState<ExtendedBuyer | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [localBuyers, setLocalBuyers] = useState<Record<string, Partial<Buyer>>>({});
-  const [draggedItem, setDraggedItem] = useState<ExtendedBuyer | null>(null);
 
   // Fetch real data from GHL
   const { data: opportunities, isLoading, isError, refetch } = useOpportunities('deal-acquisition');
@@ -276,44 +274,14 @@ export default function Buyers() {
     });
   }, [buyers, search, statusFilter]);
 
-  const kanbanColumns: KanbanColumn<ExtendedBuyer>[] = useMemo(() => {
+  const pipelineColumns: PipelineColumn<ExtendedBuyer>[] = useMemo(() => {
     return stages.map((stage) => ({
       id: stage.id,
       label: stage.label,
-      color: stage.color,
+      color: stage.color.replace('bg-', ''), // Convert 'bg-amber-500' to 'amber-500' for border
       items: filteredBuyers.filter((b) => b.stage === stage.id),
     }));
   }, [filteredBuyers]);
-
-  const handleDragStart = (e: React.DragEvent, buyer: ExtendedBuyer) => {
-    setDraggedItem(buyer);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDrop = async (e: React.DragEvent, targetStage: string) => {
-    e.preventDefault();
-    if (!draggedItem) return;
-
-    const targetStageConfig = stages.find(s => s.id === targetStage);
-    if (!targetStageConfig) {
-      toast.error('Unable to find target stage');
-      setDraggedItem(null);
-      return;
-    }
-    
-    try {
-      await updateStageMutation.mutateAsync({
-        opportunityId: draggedItem.id,
-        stageId: targetStageConfig.ghlId,
-        pipelineType: 'deal-acquisition',
-      });
-      toast.success(`Moved to ${targetStageConfig.label}`);
-    } catch (err) {
-      toast.error('Failed to update stage in GHL');
-    }
-    
-    setDraggedItem(null);
-  };
 
   const handleMoveToNextStage = async (buyer: ExtendedBuyer) => {
     const currentIndex = stages.findIndex((s) => s.id === buyer.stage);
@@ -415,25 +383,21 @@ export default function Buyers() {
     }
   };
 
-  const renderKanbanCard = (buyer: ExtendedBuyer) => (
-    <div className="group">
-      <OpportunityCard
-        id={buyer.id}
-        title={buyer.name}
-        subtitle={buyer.email || buyer.phone}
-        location={buyer.location}
-        amount={buyer.maxBudget}
-        type={buyer.dealType}
-        date={buyer.createdAt}
-        onClick={() => handleBuyerClick(buyer)}
-        onMoveNext={() => handleMoveToNextStage(buyer)}
-        onMarkLost={() => {
-          // Mark as closed for buyers pipeline
-          toast.info('Mark as closed functionality coming soon');
-        }}
-        variant="buyer"
-      />
-    </div>
+  const renderCard = (buyer: ExtendedBuyer) => (
+    <UnifiedPipelineCard
+      id={buyer.id}
+      title={buyer.name}
+      subtitle={buyer.email || buyer.phone}
+      location={buyer.location}
+      amount={buyer.maxBudget}
+      type={buyer.dealType}
+      date={buyer.createdAt}
+      dateFormat="absolute"
+      onClick={() => handleBuyerClick(buyer)}
+      onAdvance={() => handleMoveToNextStage(buyer)}
+      variant="contact"
+      imageFallbackIcon="user"
+    />
   );
 
   const getStatusColor = (status: string) => {
@@ -553,13 +517,28 @@ export default function Buyers() {
         <>
           {/* Kanban View */}
           {viewMode === 'kanban' && (
-            <KanbanBoard
-              columns={kanbanColumns}
-              renderCard={renderKanbanCard}
-              onDragStart={(e, buyer) => handleDragStart(e, buyer as ExtendedBuyer)}
-              onDrop={handleDrop}
-              emptyMessage="No buyers in this stage"
-              maxVisibleColumns={3}
+            <UnifiedPipelineBoard
+              columns={pipelineColumns}
+              renderCard={renderCard}
+              onDrop={(item, columnId) => {
+                const targetStageConfig = stages.find(s => s.id === columnId);
+                if (!targetStageConfig) {
+                  toast.error('Unable to find target stage');
+                  return;
+                }
+                updateStageMutation.mutateAsync({
+                  opportunityId: item.id,
+                  stageId: targetStageConfig.ghlId,
+                  pipelineType: 'deal-acquisition',
+                }).then(() => {
+                  toast.success(`Moved to ${targetStageConfig.label}`);
+                }).catch(() => {
+                  toast.error('Failed to update stage in GHL');
+                });
+              }}
+              isLoading={isLoading}
+              showHiddenToggle={false}
+              emptyStateMessage="No buyers in this stage"
             />
           )}
 

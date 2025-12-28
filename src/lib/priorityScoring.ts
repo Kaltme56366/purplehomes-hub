@@ -22,7 +22,7 @@ const HOT_STAGES: MatchDealStage[] = [
   'Buyer Responded',
   'Showing Scheduled',
   'Property Viewed',
-  'Offer Made',
+  'Underwriting',
 ];
 
 // Stages that indicate the match is in the pipeline
@@ -31,8 +31,8 @@ const PIPELINE_STAGES: MatchDealStage[] = [
   'Buyer Responded',
   'Showing Scheduled',
   'Property Viewed',
-  'Offer Made',
-  'Under Contract',
+  'Underwriting',
+  'Contracts',
   'Qualified',
 ];
 

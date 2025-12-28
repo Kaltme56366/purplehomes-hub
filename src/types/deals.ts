@@ -101,4 +101,5 @@ export interface StageChangeRequest {
   propertyAddress: string;
   opportunityId?: string;
   syncToGhl?: boolean;
+  ghlRelationId?: string; // Previous GHL relation ID to delete when changing stages
 }

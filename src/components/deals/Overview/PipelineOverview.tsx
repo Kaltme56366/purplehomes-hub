@@ -71,7 +71,7 @@ export function PipelineOverview({
           icon={Clock}
           label="Closing Soon"
           value={loadingStats ? '...' : stats?.closingSoon || 0}
-          subtext="Under Contract"
+          subtext="In Contracts"
           iconColor="text-amber-600"
           iconBg="bg-amber-100"
         />

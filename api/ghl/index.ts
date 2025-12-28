@@ -1038,8 +1038,8 @@ if (resource === 'opportunities') {
             });
           }
 
-          // GHL API uses 'accounts' not 'accountIds' in body
-          const requestBody: Record<string, unknown> = { accounts: accountIds };
+          // GHL API uses 'profileIds' - these should be profileId values from /accounts endpoint
+          const requestBody: Record<string, unknown> = { profileIds: accountIds };
           if (fromDate) requestBody.fromDate = fromDate;
           if (toDate) requestBody.toDate = toDate;
 

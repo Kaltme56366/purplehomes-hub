@@ -20,34 +20,86 @@ import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
 import { NoDealsEmptyState, NoResultsEmptyState } from '../Shared/DealEmptyState';
 import { formatPipelineValue } from '../Overview/MetricCard';
+import { MATCH_DEAL_STAGES } from '@/types/associations';
 import type { Deal } from '@/types/deals';
+import type { DealPipelineFilters } from '@/pages/DealPipeline';
+import type { MatchDealStage } from '@/types/associations';
 import { Home, Users, ChevronRight } from 'lucide-react';
 
 interface DealsByPropertyViewProps {
-  search?: string;
+  filters?: DealPipelineFilters;
   onViewDeal?: (deal: Deal) => void;
 }
 
-export function DealsByPropertyView({ search, onViewDeal }: DealsByPropertyViewProps) {
+export function DealsByPropertyView({ filters, onViewDeal }: DealsByPropertyViewProps) {
   const { data: propertyGroups, isLoading, error } = useDealsByProperty();
 
-  // Filter by search
+  // Filter by all filter criteria
   const filteredGroups = useMemo(() => {
     if (!propertyGroups) return [];
-    if (!search) return propertyGroups;
 
-    const searchLower = search.toLowerCase();
-    return propertyGroups.filter((group) => {
-      // Check property address
-      if (group.property?.address?.toLowerCase().includes(searchLower)) return true;
+    return propertyGroups
+      .map((group) => {
+        // First filter deals within each group
+        let filteredDeals = [...group.deals];
 
-      // Check buyer names
-      return group.deals.some((deal) => {
-        const buyerName = `${deal.buyer?.firstName} ${deal.buyer?.lastName}`.toLowerCase();
-        return buyerName.includes(searchLower);
-      });
-    });
-  }, [propertyGroups, search]);
+        // Filter by search (property address or buyer name)
+        if (filters?.search) {
+          const searchLower = filters.search.toLowerCase();
+          const propertyMatches =
+            group.property?.address?.toLowerCase().includes(searchLower) ||
+            group.property?.city?.toLowerCase().includes(searchLower);
+
+          if (!propertyMatches) {
+            // Only show deals that match buyer name
+            filteredDeals = filteredDeals.filter((deal) => {
+              const buyerName = `${deal.buyer?.firstName} ${deal.buyer?.lastName}`.toLowerCase();
+              return buyerName.includes(searchLower);
+            });
+          }
+        }
+
+        // Filter by stage
+        if (filters?.stage && filters.stage !== 'all') {
+          filteredDeals = filteredDeals.filter((deal) => deal.status === filters.stage);
+        }
+
+        // Filter by min score
+        if (filters?.minScore && filters.minScore !== 'all') {
+          const minScore = parseInt(filters.minScore, 10);
+          filteredDeals = filteredDeals.filter((deal) => deal.score >= minScore);
+        }
+
+        // Filter by stale only
+        if (filters?.staleOnly) {
+          filteredDeals = filteredDeals.filter((deal) => deal.isStale);
+        }
+
+        // Find the furthest stage among filtered deals
+        const furthestStage = filteredDeals.reduce((maxStage, deal) => {
+          const dealStageOrder = MATCH_DEAL_STAGES.indexOf(deal.status as MatchDealStage);
+          const maxStageOrder = MATCH_DEAL_STAGES.indexOf(maxStage);
+          return dealStageOrder > maxStageOrder ? (deal.status as MatchDealStage) : maxStage;
+        }, filteredDeals[0]?.status as MatchDealStage || 'Sent to Buyer');
+
+        return {
+          ...group,
+          deals: filteredDeals,
+          totalBuyers: filteredDeals.length,
+          highestScore: Math.max(...filteredDeals.map((d) => d.score), 0),
+          furthestStage,
+        };
+      })
+      .filter((group) => group.deals.length > 0); // Only show groups with matching deals
+  }, [propertyGroups, filters]);
+
+  // Check if filters are active
+  const hasActiveFilters = filters && (
+    filters.search !== '' ||
+    filters.stage !== 'all' ||
+    filters.minScore !== 'all' ||
+    filters.staleOnly
+  );
 
   // Loading state
   if (isLoading) {
@@ -81,11 +133,13 @@ export function DealsByPropertyView({ search, onViewDeal }: DealsByPropertyViewP
 
   // No deals
   if (!propertyGroups || propertyGroups.length === 0) {
-    return <NoDealsEmptyState />;
+    if (!hasActiveFilters) {
+      return <NoDealsEmptyState />;
+    }
   }
 
-  // No search results
-  if (filteredGroups.length === 0) {
+  // No filter results
+  if (filteredGroups.length === 0 && hasActiveFilters) {
     return (
       <Card className="p-6">
         <NoResultsEmptyState />
@@ -97,6 +151,9 @@ export function DealsByPropertyView({ search, onViewDeal }: DealsByPropertyViewP
     <Card className="p-6">
       <p className="text-sm text-muted-foreground mb-4">
         {filteredGroups.length} propert{filteredGroups.length !== 1 ? 'ies' : 'y'} with active deals
+        {hasActiveFilters && propertyGroups && filteredGroups.length !== propertyGroups.length && (
+          <span> of {propertyGroups.length}</span>
+        )}
       </p>
 
       <Accordion type="multiple" className="space-y-2">

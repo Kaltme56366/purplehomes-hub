@@ -13,11 +13,13 @@ import { useDealsByStage, useUpdateDealStage } from '@/services/dealsApi';
 import { MATCH_DEAL_STAGES, STAGE_CONFIGS } from '@/types/associations';
 import type { MatchDealStage } from '@/types/associations';
 import type { Deal } from '@/types/deals';
+import type { DealPipelineFilters } from '@/pages/DealPipeline';
 import { DealCard } from './DealCard';
-import { EmptyStageState, NoDealsEmptyState } from '../Shared/DealEmptyState';
+import { EmptyStageState, NoDealsEmptyState, NoResultsEmptyState } from '../Shared/DealEmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Eye, EyeOff } from 'lucide-react';
@@ -28,19 +30,19 @@ const COLUMN_COLORS: Record<string, string> = {
   'Buyer Responded': 'border-t-cyan-500',
   'Showing Scheduled': 'border-t-amber-500',
   'Property Viewed': 'border-t-purple-500',
-  'Offer Made': 'border-t-orange-500',
-  'Under Contract': 'border-t-indigo-500',
+  'Underwriting': 'border-t-orange-500',
+  'Contracts': 'border-t-indigo-500',
   'Qualified': 'border-t-teal-500',
   'Closed Deal / Won': 'border-t-emerald-500',
   'Not Interested': 'border-t-red-400',
 };
 
 interface PipelineBoardProps {
-  search?: string;
+  filters?: DealPipelineFilters;
   onViewDeal?: (deal: Deal) => void;
 }
 
-export function PipelineBoard({ search, onViewDeal }: PipelineBoardProps) {
+export function PipelineBoard({ filters, onViewDeal }: PipelineBoardProps) {
   const { data: dealsByStage, isLoading, error } = useDealsByStage();
   const updateStage = useUpdateDealStage();
 
@@ -50,26 +52,59 @@ export function PipelineBoard({ search, onViewDeal }: PipelineBoardProps) {
   // Track dragging state
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
-  // Filter deals by search
+  // Filter deals by all filter criteria
   const filteredDealsByStage = useMemo(() => {
     if (!dealsByStage) return null;
-    if (!search) return dealsByStage;
 
-    const searchLower = search.toLowerCase();
     const filtered: Record<string, Deal[]> = {};
 
     Object.entries(dealsByStage).forEach(([stage, deals]) => {
-      filtered[stage] = deals.filter(
-        (deal) =>
-          deal.property?.address?.toLowerCase().includes(searchLower) ||
-          `${deal.buyer?.firstName} ${deal.buyer?.lastName}`
-            .toLowerCase()
-            .includes(searchLower)
-      );
+      let filteredDeals = [...deals];
+
+      // Filter by search (buyer name or property address)
+      if (filters?.search) {
+        const searchLower = filters.search.toLowerCase();
+        filteredDeals = filteredDeals.filter(
+          (deal) =>
+            deal.property?.address?.toLowerCase().includes(searchLower) ||
+            deal.property?.city?.toLowerCase().includes(searchLower) ||
+            `${deal.buyer?.firstName} ${deal.buyer?.lastName}`
+              .toLowerCase()
+              .includes(searchLower)
+        );
+      }
+
+      // Filter by stage (when stage filter is set, only show that stage's column)
+      if (filters?.stage && filters.stage !== 'all') {
+        if (stage !== filters.stage) {
+          filteredDeals = [];
+        }
+      }
+
+      // Filter by min score
+      if (filters?.minScore && filters.minScore !== 'all') {
+        const minScore = parseInt(filters.minScore, 10);
+        filteredDeals = filteredDeals.filter((deal) => deal.score >= minScore);
+      }
+
+      // Filter by stale only
+      if (filters?.staleOnly) {
+        filteredDeals = filteredDeals.filter((deal) => deal.isStale);
+      }
+
+      filtered[stage] = filteredDeals;
     });
 
     return filtered as Record<MatchDealStage, Deal[]>;
-  }, [dealsByStage, search]);
+  }, [dealsByStage, filters]);
+
+  // Check if filters are active
+  const hasActiveFilters = filters && (
+    filters.search !== '' ||
+    filters.stage !== 'all' ||
+    filters.minScore !== 'all' ||
+    filters.staleOnly
+  );
 
   // Handle drop - stage change
   const handleDrop = async (e: React.DragEvent, toStage: MatchDealStage) => {
@@ -99,6 +134,7 @@ export function PipelineBoard({ search, onViewDeal }: PipelineBoardProps) {
         propertyAddress: deal.property?.address,
         opportunityId: deal.property?.opportunityId,
         syncToGhl: true,
+        ghlRelationId: deal.ghlRelationId, // Pass previous relation ID to delete
       });
 
       // Show success with undo option
@@ -119,6 +155,7 @@ export function PipelineBoard({ search, onViewDeal }: PipelineBoardProps) {
                   propertyAddress: deal.property?.address,
                   opportunityId: deal.property?.opportunityId,
                   syncToGhl: true,
+                  ghlRelationId: result.ghlRelationId, // Pass new relation ID to delete when undoing
                 });
                 toast.success('Undone');
               } catch {
@@ -166,8 +203,20 @@ export function PipelineBoard({ search, onViewDeal }: PipelineBoardProps) {
     0
   );
 
-  if (totalDeals === 0 && !search) {
+  const originalTotalDeals = dealsByStage
+    ? Object.values(dealsByStage).reduce((sum, deals) => sum + deals.length, 0)
+    : 0;
+
+  if (originalTotalDeals === 0 && !hasActiveFilters) {
     return <NoDealsEmptyState />;
+  }
+
+  if (totalDeals === 0 && hasActiveFilters) {
+    return (
+      <Card className="p-6">
+        <NoResultsEmptyState />
+      </Card>
+    );
   }
 
   // Get stages to show

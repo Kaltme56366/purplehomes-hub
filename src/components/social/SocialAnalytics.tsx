@@ -100,14 +100,21 @@ export function SocialAnalytics() {
     };
   }, [datePreset]);
 
-  // Fetch statistics
+  // Map selected account IDs to profileIds for statistics API
+  const selectedProfileIds = useMemo(() => {
+    return selectedAccountIds
+      .map(id => accounts.find(a => a.id === id)?.profileId)
+      .filter((id): id is string => !!id);
+  }, [selectedAccountIds, accounts]);
+
+  // Fetch statistics using profileIds
   const {
     data: statisticsData,
     isLoading: isLoadingStats,
     refetch: refetchStats,
     isRefetching,
   } = useSocialStatistics(
-    selectedAccountIds,
+    selectedProfileIds,
     dateRange.fromDate,
     dateRange.toDate
   );

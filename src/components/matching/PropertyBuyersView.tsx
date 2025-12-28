@@ -6,7 +6,8 @@
  * - Other Potential Buyers (scores 30-59)
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import type { MatchingFilters } from '@/pages/Matching';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -30,20 +31,23 @@ import {
   DollarSign,
   User,
   Mail,
+  Eye,
 } from 'lucide-react';
 import { usePropertyBuyers, usePropertiesWithMatches } from '@/services/matchingApi';
 import { MatchSectionDivider } from './MatchSectionDivider';
 import { MatchScoreBadge } from './MatchScoreBadge';
 import { StageBadge } from './StageBadge';
+import { MatchDetailModal } from './MatchDetailModal';
 import type { ScoredBuyer, PropertyDetails } from '@/types/matching';
 import type { MatchDealStage } from '@/types/associations';
 
 interface BuyerCardProps {
   scoredBuyer: ScoredBuyer;
   property?: PropertyDetails;
+  onViewDetails?: () => void;
 }
 
-function BuyerCard({ scoredBuyer, property }: BuyerCardProps) {
+function BuyerCard({ scoredBuyer, property, onViewDetails }: BuyerCardProps) {
   const { buyer, score, currentStage } = scoredBuyer;
   const isInPipeline = !!currentStage;
 
@@ -64,10 +68,14 @@ function BuyerCard({ scoredBuyer, property }: BuyerCardProps) {
   const budgetInfo = getBudgetInfo();
 
   return (
-    <Card className={cn(
-      "p-4 transition-colors relative",
-      isInPipeline ? "border-l-4 border-l-green-500 bg-green-50/30" : "hover:bg-muted/30"
-    )}>
+    <Card
+      className={cn(
+        "p-4 transition-colors relative group",
+        isInPipeline ? "border-l-4 border-l-green-500 bg-green-50/30" : "hover:bg-muted/30",
+        onViewDetails && "cursor-pointer hover:border-purple-300"
+      )}
+      onClick={onViewDetails}
+    >
       <div className="flex gap-4">
         {/* Buyer Avatar */}
         <div className="flex-shrink-0 w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-purple-100 to-purple-50 flex items-center justify-center">
@@ -176,6 +184,24 @@ function BuyerCard({ scoredBuyer, property }: BuyerCardProps) {
           )}
         </div>
       </div>
+
+      {/* View Details Button */}
+      {onViewDetails && (
+        <div className="absolute bottom-3 right-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs bg-white hover:bg-purple-50 hover:border-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewDetails();
+            }}
+          >
+            <Eye className="h-3 w-3 mr-1" />
+            View
+          </Button>
+        </div>
+      )}
     </Card>
   );
 }
@@ -183,14 +209,20 @@ function BuyerCard({ scoredBuyer, property }: BuyerCardProps) {
 interface PropertyBuyersViewProps {
   selectedPropertyCode?: string | null;
   onPropertySelect?: (propertyCode: string | null) => void;
+  filters?: MatchingFilters;
 }
 
 export function PropertyBuyersView({
   selectedPropertyCode: externalPropertyCode,
   onPropertySelect,
+  filters,
 }: PropertyBuyersViewProps = {}) {
   // Use internal state as fallback when no external state is provided
   const [internalPropertyCode, setInternalPropertyCode] = useState<string | null>(null);
+
+  // State for match detail modal
+  const [selectedBuyer, setSelectedBuyer] = useState<ScoredBuyer | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   // Use external state if provided, otherwise use internal state
   const propertyCode = externalPropertyCode !== undefined ? externalPropertyCode : internalPropertyCode;
@@ -211,9 +243,66 @@ export function PropertyBuyersView({
   // Fetch buyers for selected property
   const { data: propertyBuyersData, isLoading: loadingBuyers, error } = usePropertyBuyers(propertyCode);
 
-  // Split buyers into interested (score >= 60) and potential (30-59)
-  const interestedBuyers = propertyBuyersData?.buyers.filter((sb) => sb.score.score >= 60) || [];
-  const potentialBuyers = propertyBuyersData?.buyers.filter((sb) => sb.score.score < 60) || [];
+  // Filter properties list based on search
+  const filteredPropertiesList = useMemo(() => {
+    if (!propertiesList || !filters?.search) return propertiesList;
+    const searchLower = filters.search.toLowerCase();
+    return propertiesList.filter((property) => {
+      const address = property.address?.toLowerCase() || '';
+      const city = property.city?.toLowerCase() || '';
+      const propertyCode = property.propertyCode?.toLowerCase() || '';
+      return (
+        address.includes(searchLower) ||
+        city.includes(searchLower) ||
+        propertyCode.includes(searchLower)
+      );
+    });
+  }, [propertiesList, filters?.search]);
+
+  // Filter buyers based on filters
+  const filteredBuyers = useMemo(() => {
+    if (!propertyBuyersData) return { interested: [], potential: [], total: 0 };
+
+    let allBuyers = [...propertyBuyersData.buyers];
+
+    // Filter by search (first name, last name, email, city)
+    if (filters?.search) {
+      const searchLower = filters.search.toLowerCase();
+      allBuyers = allBuyers.filter((sb) => {
+        const firstName = sb.buyer.firstName?.toLowerCase() || '';
+        const lastName = sb.buyer.lastName?.toLowerCase() || '';
+        const email = sb.buyer.email?.toLowerCase() || '';
+        const city = sb.buyer.city?.toLowerCase() || '';
+        return (
+          firstName.includes(searchLower) ||
+          lastName.includes(searchLower) ||
+          email.includes(searchLower) ||
+          city.includes(searchLower)
+        );
+      });
+    }
+
+    // Filter by min score
+    if (filters?.minScore && filters.minScore !== 'all') {
+      const minScore = parseInt(filters.minScore, 10);
+      allBuyers = allBuyers.filter((sb) => sb.score.score >= minScore);
+    }
+
+    // Filter by priority only
+    if (filters?.priorityOnly) {
+      allBuyers = allBuyers.filter((sb) => sb.score.isPriority);
+    }
+
+    // Split into interested (score >= 60) and potential (30-59)
+    const interested = allBuyers.filter((sb) => sb.score.score >= 60);
+    const potential = allBuyers.filter((sb) => sb.score.score < 60);
+
+    return { interested, potential, total: allBuyers.length };
+  }, [propertyBuyersData, filters]);
+
+  // For backward compatibility
+  const interestedBuyers = filteredBuyers.interested;
+  const potentialBuyers = filteredBuyers.potential;
 
   return (
     <div className="space-y-6">
@@ -234,8 +323,10 @@ export function PropertyBuyersView({
             <SelectContent>
               {loadingProperties ? (
                 <div className="p-2 text-sm text-muted-foreground">Loading properties...</div>
+              ) : filteredPropertiesList.length === 0 ? (
+                <div className="p-2 text-sm text-muted-foreground">No properties match your search</div>
               ) : (
-                propertiesList.map((property) => (
+                filteredPropertiesList.map((property) => (
                   <SelectItem key={property.recordId} value={property.recordId}>
                     {property.address}
                     <span className="text-muted-foreground ml-2 text-xs">
@@ -356,6 +447,10 @@ export function PropertyBuyersView({
                       key={scoredBuyer.buyer.recordId || scoredBuyer.buyer.contactId}
                       scoredBuyer={scoredBuyer}
                       property={propertyBuyersData.property}
+                      onViewDetails={() => {
+                        setSelectedBuyer(scoredBuyer);
+                        setDetailModalOpen(true);
+                      }}
                     />
                   ))}
                 </div>
@@ -380,6 +475,10 @@ export function PropertyBuyersView({
                   key={scoredBuyer.buyer.recordId || scoredBuyer.buyer.contactId}
                   scoredBuyer={scoredBuyer}
                   property={propertyBuyersData.property}
+                  onViewDetails={() => {
+                    setSelectedBuyer(scoredBuyer);
+                    setDetailModalOpen(true);
+                  }}
                 />
               ))}
             </div>
@@ -391,9 +490,13 @@ export function PropertyBuyersView({
               <div className="rounded-full bg-gray-100 p-4 mb-4">
                 <User className="h-8 w-8 text-gray-400" />
               </div>
-              <h3 className="font-semibold text-lg mb-1">No Matching Buyers</h3>
+              <h3 className="font-semibold text-lg mb-1">
+                {propertyBuyersData.totalCount > 0 ? 'No Buyers Match Filters' : 'No Matching Buyers'}
+              </h3>
               <p className="text-sm text-muted-foreground max-w-md">
-                No buyers currently match this property's criteria. Try running the matching algorithm to find potential buyers.
+                {propertyBuyersData.totalCount > 0
+                  ? 'Try adjusting your filters to see more buyers.'
+                  : 'No buyers currently match this property\'s criteria. Try running the matching algorithm to find potential buyers.'}
               </p>
             </div>
           )}
@@ -401,10 +504,28 @@ export function PropertyBuyersView({
           {/* Stats Footer */}
           <div className="border-t pt-4">
             <p className="text-xs text-muted-foreground text-center">
-              Showing {propertyBuyersData.totalCount} total {propertyBuyersData.totalCount === 1 ? 'buyer' : 'buyers'} •
+              Showing {filteredBuyers.total} of {propertyBuyersData.totalCount} {propertyBuyersData.totalCount === 1 ? 'buyer' : 'buyers'} •
               Scored in {propertyBuyersData.stats.timeMs}ms
             </p>
           </div>
+
+          {/* Match Detail Modal (Read-only view) */}
+          <MatchDetailModal
+            match={selectedBuyer ? {
+              id: selectedBuyer.matchId || `${propertyBuyersData.property.recordId}-${selectedBuyer.buyer.recordId || selectedBuyer.buyer.contactId}`,
+              propertyId: propertyBuyersData.property.recordId || '',
+              buyerId: selectedBuyer.buyer.recordId || selectedBuyer.buyer.contactId,
+              score: selectedBuyer.score.score,
+              reasoning: selectedBuyer.score.reasoning,
+              distance: selectedBuyer.score.distanceMiles,
+              isPriority: selectedBuyer.score.isPriority,
+              property: propertyBuyersData.property,
+              buyer: selectedBuyer.buyer,
+            } : null}
+            open={detailModalOpen}
+            onOpenChange={setDetailModalOpen}
+            viewMode="property-centric"
+          />
         </div>
       )}
     </div>
