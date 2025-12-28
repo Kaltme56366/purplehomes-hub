@@ -1039,18 +1039,20 @@ if (resource === 'opportunities') {
           }
 
           // GHL API uses 'profileIds' - these should be profileId values from /accounts endpoint
-          const requestBody: Record<string, unknown> = { profileIds: accountIds };
-          if (fromDate) requestBody.fromDate = fromDate;
-          if (toDate) requestBody.toDate = toDate;
+          // Also requires 'platforms' array
+          const requestBody: Record<string, unknown> = {
+            profileIds: accountIds,
+            platforms: ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok']
+          };
 
-          // Statistics endpoint uses locationId as query param, not path param
           const response = await fetch(
-            `${GHL_API_URL}/social-media-posting/statistics?locationId=${GHL_LOCATION_ID}`,
+            `${GHL_API_URL}/social-media-posting/statistics`,
             {
               method: 'POST',
               headers: {
                 ...headers,
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'Version': '2021-07-28'
               },
               body: JSON.stringify(requestBody)
