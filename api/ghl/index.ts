@@ -1039,10 +1039,10 @@ if (resource === 'opportunities') {
           }
 
           // GHL API uses 'profileIds' - these should be profileId values from /accounts endpoint
-          // Also requires 'platforms' array
+          // Valid platforms: facebook, instagram, linkedin, google, pinterest, youtube, tiktok, threads, bluesky
           const requestBody: Record<string, unknown> = {
             profileIds: accountIds,
-            platforms: ['facebook', 'instagram', 'linkedin', 'twitter', 'tiktok']
+            platforms: ['facebook', 'instagram', 'linkedin', 'google', 'pinterest', 'youtube', 'tiktok', 'threads', 'bluesky']
           };
 
           const response = await fetch(
