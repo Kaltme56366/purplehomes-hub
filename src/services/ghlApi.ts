@@ -119,26 +119,46 @@ const fetchGHL = async <T>(
   options?: RequestInit & { params?: Record<string, string> }
 ): Promise<T> => {
   const config = getApiConfig();
-  
+
   // Build query string from resource path and additional params
   const [resourcePath, queryString] = resource.split('?');
   const params = new URLSearchParams(queryString || '');
-  
-  // Parse resource path (e.g., 'opportunities/123' -> resource=opportunities, id=123)
+
+  // Parse resource path:
+  // - 'opportunities/123' -> resource=opportunities, id=123
+  // - 'social/accounts' -> resource=social, action=accounts
+  // - 'social/posts/123' -> resource=social, action=posts, id=123
   const pathParts = resourcePath.split('/');
   const resourceName = pathParts[0];
-  const resourceId = pathParts[1];
-  
+
   params.set('resource', resourceName);
-  if (resourceId) params.set('id', resourceId);
-  
+
+  // For resources with sub-actions (social/accounts, social/posts, etc.)
+  if (pathParts.length >= 2) {
+    // Check if second part is a UUID/ID or an action name
+    const secondPart = pathParts[1];
+    const isId = /^[a-zA-Z0-9]{10,}$/.test(secondPart) || /^[0-9a-f-]{36}$/.test(secondPart);
+
+    if (isId) {
+      // Simple resource/id pattern (e.g., opportunities/abc123)
+      params.set('id', secondPart);
+    } else {
+      // Resource/action pattern (e.g., social/accounts, social/posts)
+      params.set('action', secondPart);
+      // If there's a third part, it's the ID (e.g., social/posts/123)
+      if (pathParts[2]) {
+        params.set('id', pathParts[2]);
+      }
+    }
+  }
+
   // Add any additional params
   if (options?.params) {
     Object.entries(options.params).forEach(([key, value]) => {
       params.set(key, value);
     });
   }
-  
+
   const response = await fetch(`${API_BASE}?${params.toString()}`, {
     ...options,
     headers: {
