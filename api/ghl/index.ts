@@ -948,8 +948,8 @@ if (resource === 'opportunities') {
       if (action === 'posts') {
         if (method === 'GET') {
           // Build request body for POST /posts/list endpoint
+          // Note: GHL doesn't support status filter in body, we filter on our side
           const listBody: Record<string, unknown> = {};
-          if (query.status) listBody.status = query.status;
           if (query.limit) listBody.limit = parseInt(query.limit as string, 10);
           if (query.skip) listBody.skip = parseInt(query.skip as string, 10);
 
@@ -961,7 +961,13 @@ if (resource === 'opportunities') {
               body: JSON.stringify(listBody)
             }
           );
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
+          const data = await response.json();
+          // Normalize response and filter by status if requested
+          let posts = data.results?.posts || data.posts || [];
+          if (query.status) {
+            posts = posts.filter((p: Record<string, unknown>) => p.status === query.status);
+          }
+          return res.status(response.ok ? 200 : response.status).json({ posts });
         }
 
         if (method === 'POST') {
@@ -1037,10 +1043,10 @@ if (resource === 'opportunities') {
           if (toDate) requestBody.toDate = toDate;
 
           const response = await fetch(
-            `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/statistics`,
+            `${GHL_API_URL}/social-media-posting/statistics`,
             {
               method: 'POST',
-              headers,
+              headers: { ...headers, 'Content-Type': 'application/json' },
               body: JSON.stringify(requestBody)
             }
           );
