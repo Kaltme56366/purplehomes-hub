@@ -923,7 +923,16 @@ if (resource === 'opportunities') {
           const response = await fetch(
             `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/accounts`, { headers }
           );
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
+          const data = await response.json();
+          // GHL returns { results: { accounts: [...] } }, normalize to { accounts: [...] }
+          const accounts = data.results?.accounts || data.accounts || [];
+          // Add isActive field based on isExpired and deleted status
+          const normalizedAccounts = accounts.map((acc: Record<string, unknown>) => ({
+            ...acc,
+            isActive: !acc.isExpired && !acc.deleted,
+            accountName: acc.name || acc.accountName,
+          }));
+          return res.status(response.ok ? 200 : response.status).json({ accounts: normalizedAccounts });
         }
         if (method === 'DELETE' && id) {
           const response = await fetch(
@@ -935,23 +944,30 @@ if (resource === 'opportunities') {
       }
       
       // Social Posts
+      // GHL API uses POST /posts/list to get posts (not GET /posts)
       if (action === 'posts') {
         if (method === 'GET') {
-          const params = new URLSearchParams();
-          if (query.status) params.append('status', query.status as string);
-          if (query.limit) params.append('limit', query.limit as string);
-          if (query.skip) params.append('skip', query.skip as string);
-          
+          // Build request body for POST /posts/list endpoint
+          const listBody: Record<string, unknown> = {};
+          if (query.status) listBody.status = query.status;
+          if (query.limit) listBody.limit = parseInt(query.limit as string, 10);
+          if (query.skip) listBody.skip = parseInt(query.skip as string, 10);
+
           const response = await fetch(
-            `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/posts?${params}`, { headers }
+            `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/posts/list`,
+            {
+              method: 'POST',
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify(listBody)
+            }
           );
           return res.status(response.ok ? 200 : response.status).json(await response.json());
         }
-        
+
         if (method === 'POST') {
           const response = await fetch(
             `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/posts`,
-            { method: 'POST', headers, body: JSON.stringify(body) }
+            { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
           );
           return res.status(response.ok ? 201 : response.status).json(await response.json());
         }
