@@ -547,12 +547,12 @@ export const useUploadMedia = () => {
 };
 
 // ============ SOCIAL PLANNER ============
+// Note: Social planner hooks are always enabled since API key is on server side (Vercel env vars)
 
 export const useSocialAccounts = () => {
   return useQuery({
     queryKey: ['ghl-social-accounts'],
     queryFn: () => fetchGHL<{ accounts: GHLSocialAccount[] }>('social/accounts'),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 };
@@ -563,7 +563,6 @@ export const useSocialPosts = (status?: string) => {
     queryFn: () => fetchGHL<{ posts: GHLSocialPost[] }>(
       `social/posts${status ? `?status=${status}` : ''}`
     ),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 2 * 60 * 1000,
   });
 };
@@ -769,7 +768,7 @@ export const useSocialStatistics = (
 
       return response.json() as Promise<GHLStatisticsResponse>;
     },
-    enabled: !!getApiConfig().apiKey && accountIds.length > 0,
+    enabled: accountIds.length > 0,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };
@@ -813,7 +812,6 @@ export const useSocialPostStats = (status?: 'published' | 'scheduled', limit: nu
       params.set('limit', limit.toString());
       return fetchGHL<{ posts: GHLPostStats[] }>(`social/posts/stats?${params.toString()}`);
     },
-    enabled: !!getApiConfig().apiKey,
     staleTime: 5 * 60 * 1000,
   });
 };
@@ -826,7 +824,6 @@ export const useScheduledPosts = () => {
   return useQuery({
     queryKey: ['ghl-scheduled-posts'],
     queryFn: () => fetchGHL<{ posts: GHLSocialPost[] }>('social/posts?status=scheduled'),
-    enabled: !!getApiConfig().apiKey,
     staleTime: 2 * 60 * 1000,
   });
 };
