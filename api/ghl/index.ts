@@ -993,17 +993,52 @@ if (resource === 'opportunities') {
         }
       }
       
-      // Social Statistics
+      // Social Statistics - POST request with accountIds in body
+      // GHL API: POST /social-media-posting/{locationId}/statistics
+      // Body: { accountIds: string[], fromDate?: string, toDate?: string }
+      // Returns: Analytics data for last 7 days with comparison to previous 7 days
       if (action === 'statistics') {
-        if (method === 'GET') {
-          const params = new URLSearchParams();
-          if (query.startDate) params.append('startDate', query.startDate as string);
-          if (query.endDate) params.append('endDate', query.endDate as string);
-          
+        if (method === 'POST') {
+          // Validate request body
+          const { accountIds, fromDate, toDate } = body || {};
+
+          if (!accountIds || !Array.isArray(accountIds) || accountIds.length === 0) {
+            return res.status(400).json({
+              error: 'accountIds array is required',
+              message: 'Please provide at least one account ID to fetch statistics'
+            });
+          }
+
+          if (accountIds.length > 100) {
+            return res.status(400).json({
+              error: 'Too many accounts',
+              message: 'Maximum 100 accounts per request'
+            });
+          }
+
+          const requestBody: Record<string, unknown> = { accountIds };
+          if (fromDate) requestBody.fromDate = fromDate;
+          if (toDate) requestBody.toDate = toDate;
+
           const response = await fetch(
-            `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/statistics?${params}`, { headers }
+            `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/statistics`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify(requestBody)
+            }
           );
-          return res.status(response.ok ? 200 : response.status).json(await response.json());
+
+          const data = await response.json();
+          return res.status(response.ok ? 200 : response.status).json(data);
+        }
+
+        // Keep GET for backwards compatibility (will return error from GHL)
+        if (method === 'GET') {
+          return res.status(400).json({
+            error: 'Method not allowed',
+            message: 'Statistics endpoint requires POST with accountIds in body'
+          });
         }
       }
     }

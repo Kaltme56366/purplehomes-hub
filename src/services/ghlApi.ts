@@ -619,8 +619,90 @@ export const useDeleteSocialPost = () => {
 };
 
 // ============ SOCIAL MEDIA STATISTICS ============
-// Based on GHL API: https://marketplace.gohighlevel.com/docs/ghl/social-planner/get-social-media-statistics
+// Based on GHL API: POST /social-media-posting/{locationId}/statistics
+// Docs: https://marketplace.gohighlevel.com/docs/ghl/social-planner/get-social-media-statistics
 
+// Platform-specific metrics from GHL
+export interface GHLPlatformMetrics {
+  posts: number;
+  postsChange: number; // % change vs previous period
+  likes: number;
+  likesChange: number;
+  comments: number;
+  commentsChange: number;
+  followers: number;
+  followersChange: number;
+  impressions: number;
+  impressionsChange: number;
+  reach: number;
+  reachChange: number;
+  engagement: number;
+  engagementChange: number;
+}
+
+// Top performing post
+export interface GHLTopPost {
+  id: string;
+  accountId: string;
+  platform: string;
+  summary: string;
+  media?: { url: string; type: string }[];
+  publishedAt: string;
+  likes: number;
+  comments: number;
+  shares: number;
+  impressions: number;
+  reach: number;
+}
+
+// Full statistics response from GHL
+export interface GHLStatisticsResponse {
+  // Aggregated KPIs
+  kpis: {
+    posts: { value: number; change: number };
+    likes: { value: number; change: number };
+    comments: { value: number; change: number };
+    followers: { value: number; change: number };
+    impressions: { value: number; change: number };
+    reach: { value: number; change: number };
+    engagement: { value: number; change: number };
+  };
+  // Per-platform breakdown
+  platformBreakdown: {
+    facebook?: GHLPlatformMetrics;
+    instagram?: GHLPlatformMetrics;
+    linkedin?: GHLPlatformMetrics;
+    twitter?: GHLPlatformMetrics;
+    tiktok?: GHLPlatformMetrics;
+    gmb?: GHLPlatformMetrics;
+    youtube?: GHLPlatformMetrics;
+    pinterest?: GHLPlatformMetrics;
+    threads?: GHLPlatformMetrics;
+  };
+  // Weekly performance data for charts
+  weeklyData?: {
+    date: string;
+    posts: number;
+    engagement: number;
+    impressions: number;
+  }[];
+  // Top performing posts sorted by likes
+  topPosts: GHLTopPost[];
+  // Demographics (Instagram only, 100+ followers required)
+  demographics?: {
+    gender?: { male: number; female: number; other: number };
+    ageGroups?: { range: string; percentage: number }[];
+  };
+}
+
+// Request parameters for statistics
+export interface GHLStatisticsRequest {
+  accountIds: string[];
+  fromDate?: string; // ISO date string
+  toDate?: string;   // ISO date string
+}
+
+// Legacy interface for backwards compatibility
 export interface GHLSocialStats {
   totalPosts: number;
   totalEngagement: number;
@@ -656,10 +738,45 @@ export interface GHLPostStats {
 }
 
 /**
- * Get social media statistics for the location
- * @param dateRange - 'last7' | 'last30' | 'last90' | 'custom'
- * @param startDate - ISO date string for custom range
- * @param endDate - ISO date string for custom range
+ * Fetch social media statistics for selected accounts
+ * Uses POST /social-media-posting/{locationId}/statistics
+ * @param accountIds - Array of account IDs to get stats for (max 100)
+ * @param fromDate - Start date (ISO string)
+ * @param toDate - End date (ISO string)
+ */
+export const useSocialStatistics = (
+  accountIds: string[],
+  fromDate?: string,
+  toDate?: string
+) => {
+  return useQuery({
+    queryKey: ['ghl-social-statistics', accountIds, fromDate, toDate],
+    queryFn: async () => {
+      const response = await fetch('/api/ghl?resource=social&action=statistics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accountIds,
+          fromDate,
+          toDate,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to fetch statistics');
+      }
+
+      return response.json() as Promise<GHLStatisticsResponse>;
+    },
+    enabled: !!getApiConfig().apiKey && accountIds.length > 0,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+};
+
+/**
+ * Legacy hook - kept for backwards compatibility
+ * @deprecated Use useSocialStatistics instead
  */
 export const useSocialStats = (
   dateRange: 'last7' | 'last30' | 'last90' | 'custom' = 'last30',
@@ -677,8 +794,8 @@ export const useSocialStats = (
       }
       return fetchGHL<{ stats: GHLSocialStats }>(`social/stats?${params.toString()}`);
     },
-    enabled: !!getApiConfig().apiKey,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: false, // Disabled - use useSocialStatistics instead
+    staleTime: 5 * 60 * 1000,
   });
 };
 
