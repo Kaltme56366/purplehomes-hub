@@ -1043,8 +1043,9 @@ if (resource === 'opportunities') {
           if (fromDate) requestBody.fromDate = fromDate;
           if (toDate) requestBody.toDate = toDate;
 
+          // Statistics endpoint uses locationId as query param, not path param
           const response = await fetch(
-            `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/statistics`,
+            `${GHL_API_URL}/social-media-posting/statistics?locationId=${GHL_LOCATION_ID}`,
             {
               method: 'POST',
               headers: {
