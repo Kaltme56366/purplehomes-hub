@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { mockScheduledPosts } from '@/data/mockData.backup';
 import { useScheduledPosts } from '@/services/ghlApi';
 import { SocialAnalytics } from '@/components/social/SocialAnalytics';
 import { CreateWizard } from '@/components/social/create-wizard';
@@ -56,22 +55,19 @@ export default function SocialMedia() {
   const calendarEnd = endOfWeek(monthEnd);
   const calendarDays = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
-  // Combine GHL scheduled posts with mock data as fallback
+  // Get scheduled posts from GHL
   const scheduledPosts = useMemo(() => {
     const ghlPosts = scheduledPostsData?.posts || [];
-    if (ghlPosts.length > 0) {
-      return ghlPosts.map(post => ({
-        id: post.id,
-        scheduledDate: post.scheduleDate || post.createdAt,
-        caption: post.summary,
-        image: post.media?.[0]?.url || '/placeholder.svg',
-        platforms: post.accountIds,
-        status: post.status,
-        property: null,
-        propertyId: null,
-      }));
-    }
-    return mockScheduledPosts;
+    return ghlPosts.map(post => ({
+      id: post.id,
+      scheduledDate: post.scheduleDate || post.createdAt,
+      caption: post.summary,
+      image: post.media?.[0]?.url || '/placeholder.svg',
+      platforms: post.accountIds,
+      status: post.status,
+      property: null,
+      propertyId: null,
+    }));
   }, [scheduledPostsData]);
 
   const getPostsForDay = (day: Date) => {

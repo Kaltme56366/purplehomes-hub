@@ -26,10 +26,7 @@ import {
 import {
   useSocialAccounts,
   useSocialStatistics,
-  getApiConfig,
-  type GHLSocialAccount,
   type GHLStatisticsResponse,
-  type GHLTopPost
 } from '@/services/ghlApi';
 import { cn } from '@/lib/utils';
 import { format, subDays, subMonths } from 'date-fns';
@@ -47,104 +44,21 @@ const platformConfig: Record<string, { icon: typeof Facebook; color: string; lab
   threads: { icon: BarChart3, label: 'Threads', color: 'text-gray-800' },
 };
 
-// Mock data for demo mode
-const mockStatistics: GHLStatisticsResponse = {
+// Empty state for when no data is available
+const emptyStatistics: GHLStatisticsResponse = {
   kpis: {
-    posts: { value: 24, change: 12.5 },
-    likes: { value: 1845, change: 8.3 },
-    comments: { value: 312, change: 15.2 },
-    followers: { value: 4520, change: 2.1 },
-    impressions: { value: 45600, change: -3.5 },
-    reach: { value: 32400, change: 5.8 },
-    engagement: { value: 2157, change: 10.2 },
+    posts: { value: 0, change: 0 },
+    likes: { value: 0, change: 0 },
+    comments: { value: 0, change: 0 },
+    followers: { value: 0, change: 0 },
+    impressions: { value: 0, change: 0 },
+    reach: { value: 0, change: 0 },
+    engagement: { value: 0, change: 0 },
   },
-  platformBreakdown: {
-    facebook: {
-      posts: 10, postsChange: 5,
-      likes: 720, likesChange: 12,
-      comments: 145, commentsChange: 8,
-      followers: 2100, followersChange: 1.5,
-      impressions: 18500, impressionsChange: -2,
-      reach: 12400, reachChange: 4,
-      engagement: 865, engagementChange: 10,
-    },
-    instagram: {
-      posts: 12, postsChange: 20,
-      likes: 980, likesChange: 15,
-      comments: 134, commentsChange: 22,
-      followers: 1850, followersChange: 3.2,
-      impressions: 22100, impressionsChange: -5,
-      reach: 16200, reachChange: 8,
-      engagement: 1114, engagementChange: 18,
-    },
-    linkedin: {
-      posts: 2, postsChange: -10,
-      likes: 145, likesChange: -5,
-      comments: 33, commentsChange: 10,
-      followers: 570, followersChange: 1.8,
-      impressions: 5000, impressionsChange: 2,
-      reach: 3800, reachChange: 3,
-      engagement: 178, engagementChange: 5,
-    },
-  },
-  weeklyData: [
-    { date: 'Mon', posts: 4, engagement: 320, impressions: 6500 },
-    { date: 'Tue', posts: 3, engagement: 280, impressions: 5800 },
-    { date: 'Wed', posts: 5, engagement: 410, impressions: 7200 },
-    { date: 'Thu', posts: 4, engagement: 350, impressions: 6800 },
-    { date: 'Fri', posts: 6, engagement: 520, impressions: 8100 },
-    { date: 'Sat', posts: 1, engagement: 180, impressions: 4200 },
-    { date: 'Sun', posts: 1, engagement: 97, impressions: 3000 },
-  ],
-  topPosts: [
-    {
-      id: '1',
-      accountId: 'acc1',
-      platform: 'instagram',
-      summary: 'Hot Deal Alert! 4BR/3BA beauty in Scottsdale with pool and mountain views...',
-      media: [{ url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=400', type: 'image' }],
-      publishedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      likes: 245,
-      comments: 32,
-      shares: 18,
-      impressions: 5420,
-      reach: 4100,
-    },
-    {
-      id: '2',
-      accountId: 'acc2',
-      platform: 'facebook',
-      summary: 'New Investment Opportunity in Phoenix! Perfect starter home with great ROI...',
-      media: [{ url: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400', type: 'image' }],
-      publishedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-      likes: 189,
-      comments: 24,
-      shares: 45,
-      impressions: 4320,
-      reach: 3200,
-    },
-    {
-      id: '3',
-      accountId: 'acc3',
-      platform: 'linkedin',
-      summary: 'Looking for your next investment? Check out this turn-key rental property...',
-      media: [{ url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=400', type: 'image' }],
-      publishedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-      likes: 67,
-      comments: 8,
-      shares: 12,
-      impressions: 1890,
-      reach: 1450,
-    },
-  ],
+  platformBreakdown: {},
+  weeklyData: [],
+  topPosts: [],
 };
-
-// Mock accounts for demo mode
-const mockAccounts: GHLSocialAccount[] = [
-  { id: 'fb-1', platform: 'facebook', accountName: 'Purple Homes AZ', isActive: true },
-  { id: 'ig-1', platform: 'instagram', accountName: '@purplehomes_az', isActive: true },
-  { id: 'li-1', platform: 'linkedin', accountName: 'Purple Homes Company', isActive: true },
-];
 
 type DatePreset = 'last7' | 'last30' | 'last90';
 
@@ -152,13 +66,9 @@ export function SocialAnalytics() {
   const [datePreset, setDatePreset] = useState<DatePreset>('last7');
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
 
-  // Check GHL connection
-  const ghlConfig = getApiConfig();
-  const isGhlConnected = !!ghlConfig.apiKey;
-
-  // Fetch accounts
+  // Fetch accounts from GHL
   const { data: accountsData, isLoading: isLoadingAccounts } = useSocialAccounts();
-  const accounts = isGhlConnected ? (accountsData?.accounts || []) : mockAccounts;
+  const accounts = accountsData?.accounts || [];
 
   // Auto-select all accounts when loaded
   useEffect(() => {
@@ -202,10 +112,8 @@ export function SocialAnalytics() {
     dateRange.toDate
   );
 
-  // Use real data or mock
-  const statistics: GHLStatisticsResponse = isGhlConnected && statisticsData
-    ? statisticsData
-    : mockStatistics;
+  // Use real data or empty state
+  const statistics: GHLStatisticsResponse = statisticsData || emptyStatistics;
 
   const isLoading = isLoadingAccounts || isLoadingStats;
   const isRefreshing = isRefetching;
