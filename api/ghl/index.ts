@@ -1046,7 +1046,7 @@ if (resource === 'opportunities') {
           };
 
           const response = await fetch(
-            `${GHL_API_URL}/social-media-posting/statistics`,
+            `${GHL_API_URL}/social-media-posting/statistics?locationId=${GHL_LOCATION_ID}`,
             {
               method: 'POST',
               headers: {
@@ -2212,6 +2212,93 @@ Output ONLY the enhanced caption, nothing else.`;
           return res.status(500).json({ 
             error: 'Failed to send notification',
             message: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+    }
+
+    // ============ CONTACT NOTES ============
+    // Scopes: contacts.write
+    // Add notes to a contact
+    if (resource === 'notes') {
+      if (method === 'POST') {
+        const { contactId, body: noteBody } = body;
+
+        if (!contactId) {
+          return res.status(400).json({ error: 'contactId is required' });
+        }
+
+        if (!noteBody) {
+          return res.status(400).json({ error: 'body (note content) is required' });
+        }
+
+        console.log('[NOTES] Creating note for contact:', contactId);
+        console.log('[NOTES] Note body:', noteBody.substring(0, 100) + '...');
+
+        try {
+          const response = await fetch(
+            `${GHL_API_URL}/contacts/${contactId}/notes`,
+            {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                body: noteBody,
+              }),
+            }
+          );
+
+          const data = await response.json();
+          console.log('[NOTES] Response:', response.status, JSON.stringify(data).substring(0, 200));
+
+          if (!response.ok) {
+            console.error('[NOTES] ❌ Failed to create note:', data);
+            return res.status(response.status).json({
+              error: 'Failed to create note',
+              details: data
+            });
+          }
+
+          console.log('[NOTES] ✅ Note created successfully');
+          return res.status(201).json({
+            success: true,
+            note: data
+          });
+        } catch (error) {
+          console.error('[NOTES] ❌ Exception:', error);
+          return res.status(500).json({
+            error: 'Failed to create note',
+            details: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+
+      // GET notes for a contact
+      if (method === 'GET' && id) {
+        console.log('[NOTES] Fetching notes for contact:', id);
+
+        try {
+          const response = await fetch(
+            `${GHL_API_URL}/contacts/${id}/notes`,
+            { headers }
+          );
+
+          const data = await response.json();
+          console.log('[NOTES] Response:', response.status);
+
+          if (!response.ok) {
+            console.error('[NOTES] ❌ Failed to fetch notes:', data);
+            return res.status(response.status).json({
+              error: 'Failed to fetch notes',
+              details: data
+            });
+          }
+
+          return res.status(200).json(data);
+        } catch (error) {
+          console.error('[NOTES] ❌ Exception:', error);
+          return res.status(500).json({
+            error: 'Failed to fetch notes',
+            details: error instanceof Error ? error.message : String(error)
           });
         }
       }
