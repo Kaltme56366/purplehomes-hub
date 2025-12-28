@@ -255,16 +255,9 @@ export function SocialAnalytics() {
       {/* Header with Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            Analytics
-            {!isGhlConnected && (
-              <Badge variant="secondary" className="text-xs">Demo Mode</Badge>
-            )}
-          </h2>
+          <h2 className="text-2xl font-bold">Analytics</h2>
           <p className="text-sm text-muted-foreground">
-            {isGhlConnected
-              ? `Tracking ${selectedAccountIds.length} of ${accounts.length} accounts`
-              : 'Connect GHL to see real data'}
+            Tracking {selectedAccountIds.length} of {accounts.length} accounts
           </p>
         </div>
 

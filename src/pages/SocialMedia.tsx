@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Image as ImageIcon, Send, Wifi, WifiOff, AlertCircle, Calendar,
+  Image as ImageIcon, Send, Calendar,
   ChevronLeft, ChevronRight, Layers, BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { mockScheduledPosts } from '@/data/mockData.backup';
-import { getApiConfig, useScheduledPosts } from '@/services/ghlApi';
-import { useAppStore } from '@/store/useAppStore';
+import { useScheduledPosts } from '@/services/ghlApi';
 import { SocialAnalytics } from '@/components/social/SocialAnalytics';
 import { CreateWizard } from '@/components/social/create-wizard';
 import { BatchWizard } from '@/components/social/batch-wizard';
@@ -25,7 +24,6 @@ type MainTab = 'create' | 'batch' | 'schedule' | 'analytics';
 export default function SocialMedia() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { connectionStatus } = useAppStore();
 
   // Determine initial tab based on URL hash
   const getInitialTab = (): MainTab => {
@@ -39,10 +37,6 @@ export default function SocialMedia() {
   // Schedule/Calendar state
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedScheduleDate, setSelectedScheduleDate] = useState<Date | null>(null);
-
-  // Check GHL connection
-  const ghlConfig = getApiConfig();
-  const isGhlConnected = connectionStatus.highLevel && ghlConfig.apiKey;
 
   // GHL API hooks for scheduled posts
   const { data: scheduledPostsData } = useScheduledPosts();
@@ -92,36 +86,10 @@ export default function SocialMedia() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Connection Banner */}
-      {!isGhlConnected && (
-        <div className="flex items-center gap-3 p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-          <AlertCircle className="h-5 w-5 text-yellow-500" />
-          <div className="flex-1">
-            <p className="text-sm font-medium">Demo Mode</p>
-            <p className="text-xs text-muted-foreground">
-              Configure GHL API in Settings to post via HighLevel Social Planner
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Header with Tab Navigation */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            Social Hub
-            {isGhlConnected ? (
-              <Badge className="bg-success flex items-center gap-1">
-                <Wifi className="h-3 w-3" />
-                Connected
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <WifiOff className="h-3 w-3" />
-                Demo
-              </Badge>
-            )}
-          </h1>
+          <h1 className="text-3xl font-bold">Social Hub</h1>
           <p className="text-muted-foreground mt-1">
             Create posts, batch operations & schedule
           </p>
