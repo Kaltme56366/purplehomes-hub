@@ -1060,7 +1060,42 @@ if (resource === 'opportunities') {
           );
 
           const data = await response.json();
-          return res.status(response.ok ? 200 : response.status).json(data);
+
+          // Transform GHL response to match our interface
+          const results = data.results || {};
+          const totals = results.totals || {};
+          const breakdowns = results.breakdowns || {};
+
+          const transformedResponse = {
+            kpis: {
+              posts: { value: totals.posts || 0, change: parseFloat(breakdowns.posts?.totalChange) || 0 },
+              likes: { value: totals.likes || 0, change: 0 },
+              comments: { value: totals.comments || 0, change: 0 },
+              followers: { value: totals.followers || 0, change: 0 },
+              impressions: { value: totals.impressions || 0, change: parseFloat(breakdowns.impressions?.totalChange) || 0 },
+              reach: { value: breakdowns.reach?.total || 0, change: parseFloat(breakdowns.reach?.totalChange) || 0 },
+              engagement: { value: 0, change: 0 },
+            },
+            platformBreakdown: {
+              facebook: breakdowns.posts?.platforms?.facebook ? {
+                posts: breakdowns.posts.platforms.facebook.value || 0,
+                postsChange: breakdowns.posts.platforms.facebook.change || 0,
+                impressions: breakdowns.impressions?.platforms?.facebook?.value || 0,
+                impressionsChange: parseFloat(breakdowns.impressions?.platforms?.facebook?.change) || 0,
+                engagement: breakdowns.engagement?.facebook?.likes || 0,
+                engagementChange: breakdowns.engagement?.facebook?.change || 0,
+              } : undefined,
+            },
+            weeklyData: results.dayRange?.map((day: string, i: number) => ({
+              date: day,
+              posts: results.postPerformance?.posts?.facebook?.[i] || 0,
+              engagement: results.postPerformance?.likes?.[i] || 0,
+              impressions: results.postPerformance?.impressions?.[i] || 0,
+            })) || [],
+            rawData: data, // Include raw data for debugging
+          };
+
+          return res.status(response.ok ? 200 : response.status).json(transformedResponse);
         }
 
         // Keep GET for backwards compatibility (will return error from GHL)
