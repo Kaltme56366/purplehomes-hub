@@ -1043,10 +1043,14 @@ if (resource === 'opportunities') {
           if (toDate) requestBody.toDate = toDate;
 
           const response = await fetch(
-            `${GHL_API_URL}/social-media-posting/statistics`,
+            `${GHL_API_URL}/social-media-posting/${GHL_LOCATION_ID}/statistics`,
             {
               method: 'POST',
-              headers: { ...headers, 'Content-Type': 'application/json' },
+              headers: {
+                ...headers,
+                'Content-Type': 'application/json',
+                'Version': '2021-07-28'
+              },
               body: JSON.stringify(requestBody)
             }
           );
