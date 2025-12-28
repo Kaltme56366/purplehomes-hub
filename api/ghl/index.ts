@@ -30,7 +30,7 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Separate API key for Custom Objects & Associations API
 // These endpoints require a different API key with object/association scopes
-const GHL_OBJECTS_API_KEY = process.env.GHL_OBJECTS_API_KEY || 'pit-373a6abb-b368-4457-b578-ba5db43affc4';
+const GHL_OBJECTS_API_KEY = process.env.GHL_OBJECTS_API_KEY;
 
 // Separate API key for sending emails (v2 API key with conversations.message.write scope)
 const GHL_API_V2 = process.env.GHL_API_V2;
@@ -110,8 +110,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
 
   console.log('[GHL API] Headers prepared:', {
-    Authorization: 'Bearer ' + GHL_API_KEY.substring(0, 15) + '...',
-    ObjectsAuth: 'Bearer ' + GHL_OBJECTS_API_KEY.substring(0, 15) + '...',
+    Authorization: 'Bearer ' + (GHL_API_KEY?.substring(0, 15) || 'NOT_SET') + '...',
+    ObjectsAuth: 'Bearer ' + (GHL_OBJECTS_API_KEY?.substring(0, 15) || 'NOT_SET') + '...',
     ContentType: headers['Content-Type'],
     Version: headers['Version']
   });
