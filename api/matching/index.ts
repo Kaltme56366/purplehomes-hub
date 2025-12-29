@@ -1460,6 +1460,7 @@ async function handleAggregatedBuyers(
       preferredZipCodes,
       buyerType: buyer.fields['Buyer Type'],
       qualified: ['Yes', 'yes', 'YES', 'true', true, 1, '1'].includes(buyer.fields['Qualified']),
+      language: buyer.fields['Language'] === 'Spanish' ? 'Spanish' : 'English',
       matches: buyerMatches,
       totalMatches: buyerMatches.length,
     };
@@ -1652,6 +1653,7 @@ async function handleAggregatedProperties(
             location: buyer.fields['Location'],
             buyerType: buyer.fields['Buyer Type'],
             qualified: ['Yes', 'yes', 'YES', 'true', true, 1, '1'].includes(buyer.fields['Qualified']),
+            language: buyer.fields['Language'] === 'Spanish' ? 'Spanish' : 'English',
           } : null,
         };
       });
@@ -1968,6 +1970,7 @@ async function handleBuyerProperties(
       preferredZipCodes,
       buyerType: buyer.fields['Buyer Type'],
       qualified: ['Yes', 'yes', 'YES', 'true', true, 1, '1'].includes(buyer.fields['Qualified']),
+      language: buyer.fields['Language'] === 'Spanish' ? 'Spanish' as const : 'English' as const,
       lat: buyer.fields['Lat'],
       lng: buyer.fields['Lng'],
       locationLat: buyer.fields['Lat'],
@@ -2086,6 +2089,7 @@ async function handlePropertyBuyers(
           preferredZipCodes,
           buyerType: buyer.fields['Buyer Type'],
           qualified: ['Yes', 'yes', 'YES', 'true', true, 1, '1'].includes(buyer.fields['Qualified']),
+          language: buyer.fields['Language'] === 'Spanish' ? 'Spanish' as const : 'English' as const,
           lat: buyer.fields['Lat'],
           lng: buyer.fields['Lng'],
         },

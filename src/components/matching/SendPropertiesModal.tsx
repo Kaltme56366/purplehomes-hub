@@ -190,9 +190,9 @@ export function SendPropertiesModal({
       const convertedProperties = properties.map(sp =>
         convertPropertyDetailsToProperty(sp.property)
       );
-      setSmsMessage(generatePropertySMS(buyer.firstName, convertedProperties));
+      setSmsMessage(generatePropertySMS(buyer.firstName, convertedProperties, buyer.language || 'English'));
     }
-  }, [showSMSPreview, properties, buyer.firstName]);
+  }, [showSMSPreview, properties, buyer.firstName, buyer.language]);
 
   // AI recommendation: Suggest top 3 when many properties selected
   const showAiRecommendation = properties.length > 3;
@@ -228,7 +228,7 @@ export function SendPropertiesModal({
 
       // Step 1: Send SMS if enabled
       if (willSendSMS) {
-        const messageToSend = smsMessage || generatePropertySMS(buyer.firstName, convertedProperties);
+        const messageToSend = smsMessage || generatePropertySMS(buyer.firstName, convertedProperties, buyer.language || 'English');
         await sendPropertySMS(
           { contactId: buyer.contactId, firstName: buyer.firstName, phone: buyer.phone },
           messageToSend
@@ -238,13 +238,17 @@ export function SendPropertiesModal({
 
       // Step 2: Send Email if enabled
       if (willSendEmail) {
+        const isSpanish = buyer.language === 'Spanish';
         await sendPropertyEmail({
           contactId: buyer.contactId,
           contactName: `${buyer.firstName} ${buyer.lastName}`,
           contactEmail: buyer.email,
           properties: convertedProperties,
-          subject: `Your ${properties.length} Matched Properties from Purple Homes`,
+          subject: isSpanish
+            ? `Tus ${properties.length} Propiedades Encontradas de Purple Homes`
+            : `Your ${properties.length} Matched Properties from Purple Homes`,
           customMessage: customMessage || undefined,
+          language: buyer.language || 'English',
         });
         sentMethods.push('Email');
       }

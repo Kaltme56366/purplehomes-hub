@@ -14,6 +14,7 @@ export interface SendPropertyEmailOptions {
   agentName?: string;
   agentPhone?: string;
   agentEmail?: string;
+  language?: 'English' | 'Spanish';
 }
 
 export interface BulkSendOptions {
@@ -98,12 +99,19 @@ export async function sendPropertyEmail(options: SendPropertyEmailOptions): Prom
     contactName,
     contactEmail,
     properties,
-    subject = `Your Matched Properties from Purple Homes`,
     customMessage = '',
     agentName = 'Purple Homes',
     agentPhone = '(555) 123-4567',
     agentEmail = 'info@purplehomes.com',
+    language = 'English',
   } = options;
+
+  const isSpanish = language === 'Spanish';
+
+  // Use provided subject or default based on language
+  const subject = options.subject || (isSpanish
+    ? `Tus Propiedades Encontradas de Purple Homes`
+    : `Your Matched Properties from Purple Homes`);
 
   // Generate PDF
   const pdfBlob = await generatePropertyMatchPDF({
@@ -122,8 +130,86 @@ export async function sendPropertyEmail(options: SendPropertyEmailOptions): Prom
   // Upload PDF to GHL and get URL (required for attachments)
   const attachmentUrls = await uploadPdfAttachment(pdfBase64, filename);
 
-  // Prepare email body
-  const emailBody = `
+  // Prepare email body based on language
+  const emailBody = isSpanish ? `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="background: linear-gradient(135deg, #9333EA 0%, #7C3AED 100%); padding: 30px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 28px;">Purple Homes</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Oportunidades de Inversión Inmobiliaria</p>
+      </div>
+
+      <div style="padding: 30px; background: #ffffff;">
+        <h2 style="color: #1F2937; margin-top: 0;">¡Hola ${contactName}!</h2>
+
+        <p style="color: #4B5563; line-height: 1.6;">
+          Hemos encontrado <strong style="color: #9333EA;">${properties.length} propiedad${properties.length > 1 ? 'es' : ''}</strong> que coinciden con tus criterios de inversión.
+        </p>
+
+        ${customMessage ? `
+          <div style="background: #F3F4F6; padding: 15px; border-left: 4px solid #9333EA; margin: 20px 0;">
+            <p style="color: #374151; margin: 0; line-height: 1.6;">${customMessage}</p>
+          </div>
+        ` : ''}
+
+        <p style="color: #4B5563; line-height: 1.6;">
+          Adjuntamos un PDF detallado con toda la información de las propiedades incluyendo:
+        </p>
+
+        <ul style="color: #4B5563; line-height: 1.8;">
+          <li>Direcciones y ubicaciones de las propiedades</li>
+          <li>Precios y opciones de enganche</li>
+          <li>Estimaciones de pagos mensuales</li>
+          <li>Especificaciones detalladas de las propiedades</li>
+          <li>Condiciones y tipos de propiedades</li>
+        </ul>
+
+        <div style="background: #F9FAFB; padding: 20px; border-radius: 8px; margin: 25px 0;">
+          <h3 style="color: #1F2937; margin-top: 0; font-size: 16px;">Resumen Rápido de Propiedades:</h3>
+          ${properties.slice(0, 3).map((p, i) => `
+            <div style="margin: 15px 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid #E5E7EB;">
+              <div style="font-weight: bold; color: #9333EA; font-size: 14px;">${i + 1}. ${p.address}</div>
+              <div style="color: #374151; margin: 5px 0;">${p.city}${p.state ? `, ${p.state}` : ''}</div>
+              <div style="color: #6B7280; font-size: 13px;">
+                <strong>$${p.price.toLocaleString()}</strong> • ${p.beds} hab • ${p.baths} baño${p.baths > 1 ? 's' : ''}
+                ${p.sqft ? ` • ${p.sqft.toLocaleString()} pies²` : ''}
+              </div>
+              ${p.downPayment ? `
+                <div style="color: #9333EA; font-size: 12px; margin-top: 5px;">
+                  Enganche: $${p.downPayment.toLocaleString()}
+                  ${p.monthlyPayment ? ` • Mensual: $${p.monthlyPayment.toLocaleString()}` : ''}
+                </div>
+              ` : ''}
+            </div>
+          `).join('')}
+          ${properties.length > 3 ? `
+            <div style="color: #6B7280; font-style: italic; margin-top: 10px; font-size: 13px;">
+              + ${properties.length - 3} propiedad${properties.length - 3 === 1 ? '' : 'es'} más en el PDF adjunto
+            </div>
+          ` : ''}
+        </div>
+
+        <p style="color: #4B5563; line-height: 1.6;">
+          ¡Estas propiedades se están moviendo rápido! Contáctanos hoy para programar visitas u obtener más información.
+        </p>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="mailto:${agentEmail}" style="background: #9333EA; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: 600;">
+            Contáctanos Ahora
+          </a>
+        </div>
+      </div>
+
+      <div style="background: #F9FAFB; padding: 25px; text-align: center; border-top: 1px solid #E5E7EB;">
+        <p style="margin: 0; color: #6B7280; font-size: 14px;">
+          <strong>${agentName}</strong><br/>
+          ${agentPhone} • ${agentEmail}
+        </p>
+        <p style="margin: 15px 0 0 0; color: #9CA3AF; font-size: 12px;">
+          Purple Homes - Tu Socio de Inversión Inmobiliaria
+        </p>
+      </div>
+    </div>
+  ` : `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #9333EA 0%, #7C3AED 100%); padding: 30px; text-align: center;">
         <h1 style="color: white; margin: 0; font-size: 28px;">Purple Homes</h1>
@@ -509,17 +595,27 @@ function formatCompact(num: number): string {
 
 /**
  * Generate default SMS message for properties
+ * Supports English and Spanish based on buyer's language preference
  */
 export function generatePropertySMS(
   buyerFirstName: string,
-  properties: Property[]
+  properties: Property[],
+  language: 'English' | 'Spanish' = 'English'
 ): string {
-  let message = `Hi ${buyerFirstName}! 🏠\n\n`;
+  const isSpanish = language === 'Spanish';
+
+  let message = isSpanish
+    ? `Hola ${buyerFirstName}! 🏠\n\n`
+    : `Hi ${buyerFirstName}! 🏠\n\n`;
 
   if (properties.length === 1) {
-    message += `I found a property that matches what you're looking for:\n\n`;
+    message += isSpanish
+      ? `Encontré una propiedad que coincide con lo que estás buscando:\n\n`
+      : `I found a property that matches what you're looking for:\n\n`;
   } else {
-    message += `I found ${properties.length} properties that match what you're looking for:\n\n`;
+    message += isSpanish
+      ? `Encontré ${properties.length} propiedades que coinciden con lo que estás buscando:\n\n`
+      : `I found ${properties.length} properties that match what you're looking for:\n\n`;
   }
 
   properties.forEach((property, index) => {
@@ -536,13 +632,17 @@ export function generatePropertySMS(
 
     const details: string[] = [];
     if (property.beds || property.baths) {
-      details.push(`${property.beds || '?'}bd/${property.baths || '?'}ba`);
+      const bedLabel = isSpanish ? 'hab' : 'bd';
+      const bathLabel = isSpanish ? 'baño' : 'ba';
+      details.push(`${property.beds || '?'}${bedLabel}/${property.baths || '?'}${bathLabel}`);
     }
     if (property.downPayment) {
-      details.push(`$${formatCompact(property.downPayment)} down`);
+      const downLabel = isSpanish ? 'enganche' : 'down';
+      details.push(`$${formatCompact(property.downPayment)} ${downLabel}`);
     }
     if (property.monthlyPayment) {
-      details.push(`$${formatCompact(property.monthlyPayment)}/mo`);
+      const monthlyLabel = isSpanish ? '/mes' : '/mo';
+      details.push(`$${formatCompact(property.monthlyPayment)}${monthlyLabel}`);
     }
 
     if (details.length > 0) {
@@ -551,7 +651,9 @@ export function generatePropertySMS(
     message += '\n';
   });
 
-  message += `Reply YES if interested or CALL to schedule a showing! 📱`;
+  message += isSpanish
+    ? `Responde SI si te interesa para programar una visita! 📱`
+    : `Reply YES if interested to schedule a showing! 📱`;
 
   return message;
 }

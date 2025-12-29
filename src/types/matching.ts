@@ -23,6 +23,7 @@ export interface BuyerCriteria {
   state?: string;
   buyerType?: string;
   qualified?: boolean;
+  language?: 'English' | 'Spanish'; // Buyer's preferred language
   lat?: number;
   lng?: number;
   locationLat?: number; // Geocoded latitude
