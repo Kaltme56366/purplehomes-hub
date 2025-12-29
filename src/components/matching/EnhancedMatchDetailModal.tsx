@@ -27,7 +27,6 @@ import {
   ArrowRight,
   ExternalLink,
   ClipboardList,
-  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -40,7 +39,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { StageBadge } from './StageBadge';
 import {
@@ -50,6 +48,7 @@ import {
 } from '@/components/matching/MatchTags';
 import { DealProgressKanban } from './DealProgressKanban';
 import { MatchActivityTimeline } from './MatchActivityTimeline';
+import { MatchNotesPanel, type NoteEntry } from './MatchNotesPanel';
 import { WinProbability } from '@/components/deals/WinProbability';
 import { AIInsightCard } from './AIInsightCard';
 import {
@@ -65,6 +64,7 @@ export interface MatchWithDetails extends PropertyMatch {
   property?: PropertyDetails;
   buyer?: BuyerCriteria;
   activities?: MatchActivity[];
+  notes?: NoteEntry[];
 }
 
 interface EnhancedMatchDetailModalProps {
@@ -73,6 +73,8 @@ interface EnhancedMatchDetailModalProps {
   onOpenChange: (open: boolean) => void;
   onStageChange?: (matchId: string, newStage: MatchDealStage) => Promise<void>;
   onAddNote?: (matchId: string, note: string) => Promise<void>;
+  onEditNote?: (matchId: string, noteId: string, newText: string) => Promise<void>;
+  onDeleteNote?: (matchId: string, noteId: string) => Promise<void>;
   onSendEmail?: (matchId: string) => Promise<void>;
 }
 
@@ -82,15 +84,14 @@ export function EnhancedMatchDetailModal({
   onOpenChange,
   onStageChange,
   onAddNote,
+  onEditNote,
+  onDeleteNote,
   onSendEmail,
 }: EnhancedMatchDetailModalProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   const [activeTab, setActiveTab] = useState<'property' | 'progress' | 'activity'>('property');
   // Local state for the stage to provide immediate UI feedback after updates
   const [localStage, setLocalStage] = useState<MatchDealStage | null>(null);
-  // State for inline note input
-  const [noteText, setNoteText] = useState('');
-  const [isAddingNote, setIsAddingNote] = useState(false);
   const navigate = useNavigate();
 
   // Sync local stage with prop when match changes (e.g., opening a different deal)
@@ -100,7 +101,7 @@ export function EnhancedMatchDetailModal({
 
   if (!match) return null;
 
-  const { property, buyer, activities = [] } = match;
+  const { property, buyer, activities = [], notes = [] } = match;
   // Use local stage if set (after an update), otherwise use the prop value
   const currentStage: MatchDealStage = localStage ?? match.status ?? 'Sent to Buyer';
 
@@ -127,15 +128,20 @@ export function EnhancedMatchDetailModal({
     }
   };
 
-  const handleAddNote = async () => {
-    if (!onAddNote || !noteText.trim()) return;
-    setIsAddingNote(true);
-    try {
-      await onAddNote(match.id, noteText.trim());
-      setNoteText('');
-    } finally {
-      setIsAddingNote(false);
-    }
+  // Note handlers for MatchNotesPanel
+  const handleAddNote = async (text: string) => {
+    if (!onAddNote) return;
+    await onAddNote(match.id, text);
+  };
+
+  const handleEditNote = async (noteId: string, newText: string) => {
+    if (!onEditNote) return;
+    await onEditNote(match.id, noteId, newText);
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!onDeleteNote) return;
+    await onDeleteNote(match.id, noteId);
   };
 
   const handleSendEmail = async () => {
@@ -154,7 +160,7 @@ export function EnhancedMatchDetailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:w-[900px] sm:max-w-[95vw] sm:max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col rounded-none sm:rounded-lg">
+      <DialogContent className="w-full h-[100dvh] sm:h-auto sm:w-[1400px] sm:max-w-[95vw] sm:max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col rounded-none sm:rounded-lg">
         {/* Sticky Header */}
         <div className="sticky top-0 z-20 bg-background border-b px-6 py-4">
           <div className="flex items-start justify-between gap-4">
@@ -390,42 +396,25 @@ export function EnhancedMatchDetailModal({
 
                 <Separator />
 
-                {/* Activity Timeline with Inline Note Input */}
+                {/* Notes Panel */}
+                {onAddNote && (
+                  <MatchNotesPanel
+                    notes={notes}
+                    onAddNote={handleAddNote}
+                    onEditNote={onEditNote ? handleEditNote : undefined}
+                    onDeleteNote={onDeleteNote ? handleDeleteNote : undefined}
+                    maxHeight="200px"
+                  />
+                )}
+
+                <Separator />
+
+                {/* Activity Timeline */}
                 <div className="space-y-4">
                   <h3 className="text-base font-semibold flex items-center gap-2">
                     <ClipboardList className="h-4 w-4 text-purple-600" />
                     Activity History
                   </h3>
-
-                  {/* Inline Add Note Input */}
-                  {onAddNote && (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Add a note..."
-                        value={noteText}
-                        onChange={(e) => setNoteText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleAddNote();
-                          }
-                        }}
-                        className="flex-1"
-                        disabled={isAddingNote}
-                      />
-                      <Button
-                        size="sm"
-                        onClick={handleAddNote}
-                        disabled={!noteText.trim() || isAddingNote}
-                      >
-                        {isAddingNote ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          'Add'
-                        )}
-                      </Button>
-                    </div>
-                  )}
 
                   <MatchActivityTimeline
                     activities={activities}
@@ -531,41 +520,30 @@ export function EnhancedMatchDetailModal({
                 </TabsContent>
 
                 <TabsContent value="activity" className="p-6 mt-0 space-y-4">
-                  {/* Inline Add Note Input - Mobile */}
+                  {/* Notes Panel - Mobile */}
                   {onAddNote && (
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Add a note..."
-                        value={noteText}
-                        onChange={(e) => setNoteText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleAddNote();
-                          }
-                        }}
-                        className="flex-1"
-                        disabled={isAddingNote}
-                      />
-                      <Button
-                        size="sm"
-                        onClick={handleAddNote}
-                        disabled={!noteText.trim() || isAddingNote}
-                      >
-                        {isAddingNote ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          'Add'
-                        )}
-                      </Button>
-                    </div>
+                    <MatchNotesPanel
+                      notes={notes}
+                      onAddNote={handleAddNote}
+                      onEditNote={onEditNote ? handleEditNote : undefined}
+                      onDeleteNote={onDeleteNote ? handleDeleteNote : undefined}
+                      maxHeight="200px"
+                    />
                   )}
 
-                  <MatchActivityTimeline
-                    activities={activities}
-                    maxVisible={20}
-                    showDateGroups={true}
-                  />
+                  <Separator />
+
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <ClipboardList className="h-4 w-4 text-purple-600" />
+                      Activity History
+                    </h3>
+                    <MatchActivityTimeline
+                      activities={activities}
+                      maxVisible={20}
+                      showDateGroups={true}
+                    />
+                  </div>
                 </TabsContent>
               </ScrollArea>
             </Tabs>

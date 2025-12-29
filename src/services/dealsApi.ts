@@ -16,6 +16,7 @@ import type {
   DealsByBuyer,
   DealsByProperty,
   StageChangeRequest,
+  NoteEntry,
 } from '@/types/deals';
 import type { MatchDealStage } from '@/types/associations';
 import { MATCH_DEAL_STAGES, STAGE_ASSOCIATION_IDS } from '@/types/associations';
@@ -88,6 +89,20 @@ function transformMatchToDeal(
     }
   }
 
+  // Parse notes if stored as JSON string
+  let notes: NoteEntry[] = [];
+  if (match.notes) {
+    if (typeof match.notes === 'string') {
+      try {
+        notes = JSON.parse(match.notes);
+      } catch {
+        notes = [];
+      }
+    } else if (Array.isArray(match.notes)) {
+      notes = match.notes;
+    }
+  }
+
   const metadata = computeDealMetadata(activities, match.createdAt);
 
   // Map stage from the match - use 'Match Stage' field (not 'Match Status')
@@ -110,6 +125,7 @@ function transformMatchToDeal(
     isPriority: match.isPriority || false,
     status,
     activities,
+    notes,
     ghlRelationId: match.ghlRelationId,
     createdAt: match.createdAt,
     updatedAt: match.updatedAt || match.createdAt,

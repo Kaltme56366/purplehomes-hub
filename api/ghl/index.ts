@@ -1077,14 +1077,22 @@ if (resource === 'opportunities') {
               engagement: { value: 0, change: 0 },
             },
             platformBreakdown: {
-              facebook: breakdowns.posts?.platforms?.facebook ? {
-                posts: breakdowns.posts.platforms.facebook.value || 0,
-                postsChange: breakdowns.posts.platforms.facebook.change || 0,
+              facebook: {
+                posts: breakdowns.posts?.platforms?.facebook?.value || 0,
+                postsChange: breakdowns.posts?.platforms?.facebook?.change || 0,
+                likes: breakdowns.engagement?.facebook?.likes || 0,
+                likesChange: 0,
+                comments: breakdowns.engagement?.facebook?.comments || 0,
+                commentsChange: 0,
+                followers: results.platformTotals?.followers?.facebook?.total || 0,
+                followersChange: 0,
                 impressions: breakdowns.impressions?.platforms?.facebook?.value || 0,
                 impressionsChange: parseFloat(breakdowns.impressions?.platforms?.facebook?.change) || 0,
-                engagement: breakdowns.engagement?.facebook?.likes || 0,
+                reach: breakdowns.reach?.platforms?.facebook?.value || 0,
+                reachChange: parseFloat(breakdowns.reach?.platforms?.facebook?.change) || 0,
+                engagement: (breakdowns.engagement?.facebook?.likes || 0) + (breakdowns.engagement?.facebook?.comments || 0) + (breakdowns.engagement?.facebook?.shares || 0),
                 engagementChange: breakdowns.engagement?.facebook?.change || 0,
-              } : undefined,
+              },
             },
             weeklyData: results.dayRange?.map((day: string, i: number) => ({
               date: day,

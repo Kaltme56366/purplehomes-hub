@@ -9,6 +9,16 @@ import { MatchDealStage } from './associations';
 import { PropertyMatch, PropertyDetails, BuyerCriteria, MatchActivity } from './matching';
 
 /**
+ * Note entry stored in the Notes JSON field
+ */
+export interface NoteEntry {
+  id: string;
+  text: string;
+  timestamp: string;
+  user?: string;
+}
+
+/**
  * Deal - A PropertyMatch with fully resolved property and buyer data
  * plus computed UI properties
  */
@@ -16,6 +26,7 @@ export interface Deal extends PropertyMatch {
   property: PropertyDetails;
   buyer: BuyerCriteria;
   activities: MatchActivity[];
+  notes?: NoteEntry[];
 
   // Computed UI properties
   isStale?: boolean;           // No activity in 7+ days

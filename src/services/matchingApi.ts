@@ -368,8 +368,19 @@ export const useUpdateMatchStage = () => {
 };
 
 /**
+ * Note entry stored in the Notes JSON field
+ */
+interface NoteEntry {
+  id: string;
+  text: string;
+  timestamp: string;
+  user?: string;
+}
+
+/**
  * Add activity to a match
  * Stores activity in the match's activities JSON field in Airtable
+ * For note-added activities, also stores in the Notes JSON field
  */
 export const useAddMatchActivity = () => {
   const queryClient = useQueryClient();
@@ -384,7 +395,7 @@ export const useAddMatchActivity = () => {
     }): Promise<{ success: boolean; activity: MatchActivity }> => {
       console.log('[Matching API] Adding activity to match:', matchId, activity);
 
-      // First, fetch the current activities
+      // First, fetch the current activities and notes
       const getResponse = await fetch(
         `${AIRTABLE_API_BASE}?action=get-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`
       );
@@ -407,6 +418,29 @@ export const useAddMatchActivity = () => {
       // Append new activity
       const updatedActivities = [...currentActivities, newActivity];
 
+      // Build the fields to update
+      const fieldsToUpdate: Record<string, string> = {
+        Activities: JSON.stringify(updatedActivities),
+      };
+
+      // If this is a note-added activity, also update the Notes JSON field
+      if (activity.type === 'note-added' && activity.details) {
+        const currentNotes: NoteEntry[] = currentMatch.record?.fields?.Notes
+          ? JSON.parse(currentMatch.record.fields.Notes)
+          : [];
+
+        const newNote: NoteEntry = {
+          id: newActivity.id,
+          text: activity.details,
+          timestamp: newActivity.timestamp,
+          user: activity.user,
+        };
+
+        const updatedNotes = [...currentNotes, newNote];
+        fieldsToUpdate.Notes = JSON.stringify(updatedNotes);
+        console.log('[Matching API] Also updating Notes field with new note');
+      }
+
       // Update Airtable using update-record action
       const response = await fetch(
         `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`,
@@ -414,9 +448,7 @@ export const useAddMatchActivity = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            fields: {
-              Activities: JSON.stringify(updatedActivities),
-            },
+            fields: fieldsToUpdate,
           }),
         }
       );
@@ -432,6 +464,152 @@ export const useAddMatchActivity = () => {
     },
     onSuccess: () => {
       // Refresh matching queries to get updated activities
+      queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
+    },
+  });
+};
+
+/**
+ * Edit a note on a match
+ * Updates the note in both the Notes JSON field and Activities field
+ */
+export const useEditMatchNote = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      matchId,
+      noteId,
+      newText,
+    }: {
+      matchId: string;
+      noteId: string;
+      newText: string;
+    }): Promise<{ success: boolean }> => {
+      console.log('[Matching API] Editing note:', matchId, noteId);
+
+      // Fetch current notes and activities
+      const getResponse = await fetch(
+        `${AIRTABLE_API_BASE}?action=get-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`
+      );
+      if (!getResponse.ok) {
+        throw new Error('Failed to fetch current match data');
+      }
+
+      const currentMatch = await getResponse.json();
+      const currentNotes: NoteEntry[] = currentMatch.record?.fields?.Notes
+        ? JSON.parse(currentMatch.record.fields.Notes)
+        : [];
+      const currentActivities: MatchActivity[] = currentMatch.record?.fields?.Activities
+        ? JSON.parse(currentMatch.record.fields.Activities)
+        : [];
+
+      // Update the note in Notes array
+      const updatedNotes = currentNotes.map((note) =>
+        note.id === noteId ? { ...note, text: newText } : note
+      );
+
+      // Update the corresponding activity (note-added type with matching ID)
+      const updatedActivities = currentActivities.map((activity) =>
+        activity.id === noteId && activity.type === 'note-added'
+          ? { ...activity, details: newText, metadata: { ...activity.metadata, note: newText } }
+          : activity
+      );
+
+      // Update Airtable
+      const response = await fetch(
+        `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: {
+              Notes: JSON.stringify(updatedNotes),
+              Activities: JSON.stringify(updatedActivities),
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Note edit failed' }));
+        throw new Error(error.error || 'Failed to edit note');
+      }
+
+      console.log('[Matching API] Note edited successfully');
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
+      queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
+    },
+  });
+};
+
+/**
+ * Delete a note from a match
+ * Removes the note from both the Notes JSON field and Activities field
+ */
+export const useDeleteMatchNote = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      matchId,
+      noteId,
+    }: {
+      matchId: string;
+      noteId: string;
+    }): Promise<{ success: boolean }> => {
+      console.log('[Matching API] Deleting note:', matchId, noteId);
+
+      // Fetch current notes and activities
+      const getResponse = await fetch(
+        `${AIRTABLE_API_BASE}?action=get-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`
+      );
+      if (!getResponse.ok) {
+        throw new Error('Failed to fetch current match data');
+      }
+
+      const currentMatch = await getResponse.json();
+      const currentNotes: NoteEntry[] = currentMatch.record?.fields?.Notes
+        ? JSON.parse(currentMatch.record.fields.Notes)
+        : [];
+      const currentActivities: MatchActivity[] = currentMatch.record?.fields?.Activities
+        ? JSON.parse(currentMatch.record.fields.Activities)
+        : [];
+
+      // Remove the note from Notes array
+      const updatedNotes = currentNotes.filter((note) => note.id !== noteId);
+
+      // Remove the corresponding activity
+      const updatedActivities = currentActivities.filter((activity) => activity.id !== noteId);
+
+      // Update Airtable
+      const response = await fetch(
+        `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Property-Buyer Matches')}&recordId=${matchId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: {
+              Notes: JSON.stringify(updatedNotes),
+              Activities: JSON.stringify(updatedActivities),
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Note delete failed' }));
+        throw new Error(error.error || 'Failed to delete note');
+      }
+
+      console.log('[Matching API] Note deleted successfully');
+      return { success: true };
+    },
+    onSuccess: () => {
       queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
       queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
     },
