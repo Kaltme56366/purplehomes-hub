@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, ArrowRight } from 'lucide-react';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
+import { BuyerName } from '../Shared/BuyerName';
 import { NoUpcomingEmptyState } from '../Shared/DealEmptyState';
 import type { Deal } from '@/types/deals';
 import { format, isToday, isTomorrow, parseISO } from 'date-fns';
@@ -103,9 +104,12 @@ export function UpcomingCard({
                   <p className="text-sm font-medium truncate">
                     {deal.property?.address || 'Unknown Property'}
                   </p>
-                  <p className="text-xs text-muted-foreground truncate">
-                    {deal.buyer?.firstName} {deal.buyer?.lastName}
-                  </p>
+                  <BuyerName
+                    firstName={deal.buyer?.firstName}
+                    lastName={deal.buyer?.lastName}
+                    qualified={deal.buyer?.qualified}
+                    className="text-xs text-muted-foreground truncate"
+                  />
                 </div>
                 <div className="text-sm font-medium text-purple-600 flex-shrink-0">
                   {formatUpcomingDate(showingDate)}

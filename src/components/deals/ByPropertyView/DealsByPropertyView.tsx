@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { StageBadge } from '@/components/matching/StageBadge';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
+import { BuyerName } from '../Shared/BuyerName';
 import { NoDealsEmptyState, NoResultsEmptyState } from '../Shared/DealEmptyState';
 import { formatPipelineValue } from '../Overview/MetricCard';
 import { MATCH_DEAL_STAGES } from '@/types/associations';
@@ -210,9 +211,12 @@ export function DealsByPropertyView({ filters, onViewDeal }: DealsByPropertyView
                       size="md"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {deal.buyer?.firstName} {deal.buyer?.lastName}
-                      </p>
+                      <BuyerName
+                        firstName={deal.buyer?.firstName}
+                        lastName={deal.buyer?.lastName}
+                        qualified={deal.buyer?.qualified}
+                        className="text-sm font-medium truncate"
+                      />
                       <p className="text-xs text-muted-foreground truncate">
                         {deal.buyer?.email}
                       </p>

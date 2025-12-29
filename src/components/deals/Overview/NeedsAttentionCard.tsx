@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, ArrowRight } from 'lucide-react';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
+import { BuyerName } from '../Shared/BuyerName';
 import { UrgencyIndicator } from '../Shared/UrgencyIndicator';
 import { AllCaughtUpEmptyState } from '../Shared/DealEmptyState';
 import type { Deal } from '@/types/deals';
@@ -80,16 +81,19 @@ export function NeedsAttentionCard({
                 <p className="text-sm font-medium truncate">
                   {deal.property?.address || 'Unknown Property'}
                 </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {deal.buyer?.firstName} {deal.buyer?.lastName}
+                <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                  <BuyerName
+                    firstName={deal.buyer?.firstName}
+                    lastName={deal.buyer?.lastName}
+                    qualified={deal.buyer?.qualified}
+                  />
                   {deal.lastActivityAt && (
-                    <>
-                      {' '}
+                    <span>
                       &bull; No response in{' '}
                       {formatDistanceToNow(new Date(deal.lastActivityAt))}
-                    </>
+                    </span>
                   )}
-                </p>
+                </div>
               </div>
               <Button
                 variant="ghost"

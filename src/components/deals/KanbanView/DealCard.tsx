@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
+import { BuyerName } from '../Shared/BuyerName';
 import { UrgencyIndicator, getUrgencyType } from '../Shared/UrgencyIndicator';
 import { WinProbabilityBadge } from '../WinProbability';
 import { formatPipelineValue } from '../Overview/MetricCard';
@@ -238,9 +239,12 @@ export function DealCard({ deal, onClick, isDragging, onAddNote, onSendFollowup 
           lastName={deal.buyer?.lastName}
           size="sm"
         />
-        <span className="text-xs truncate flex-1">
-          {deal.buyer?.firstName} {deal.buyer?.lastName}
-        </span>
+        <BuyerName
+          firstName={deal.buyer?.firstName}
+          lastName={deal.buyer?.lastName}
+          qualified={deal.buyer?.qualified}
+          className="text-xs truncate flex-1"
+        />
       </div>
 
       {/* Score, Win Probability, and activity */}

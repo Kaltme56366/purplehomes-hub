@@ -24,6 +24,7 @@ import { ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { StageBadge } from '@/components/matching/StageBadge';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
+import { BuyerName } from '../Shared/BuyerName';
 import { UrgencyIndicator, getUrgencyType } from '../Shared/UrgencyIndicator';
 import { NoDealsEmptyState, NoResultsEmptyState } from '../Shared/DealEmptyState';
 import { MATCH_DEAL_STAGES } from '@/types/associations';
@@ -299,9 +300,12 @@ export function DealsListView({
                       lastName={deal.buyer?.lastName}
                       size="sm"
                     />
-                    <span className="truncate max-w-32">
-                      {deal.buyer?.firstName} {deal.buyer?.lastName}
-                    </span>
+                    <BuyerName
+                      firstName={deal.buyer?.firstName}
+                      lastName={deal.buyer?.lastName}
+                      qualified={deal.buyer?.qualified}
+                      className="truncate max-w-32"
+                    />
                   </div>
                 </TableCell>
                 <TableCell>

@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { StageBadge } from '@/components/matching/StageBadge';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
+import { BuyerName } from '../Shared/BuyerName';
 import { NoDealsEmptyState, NoResultsEmptyState } from '../Shared/DealEmptyState';
 import { formatPipelineValue } from '../Overview/MetricCard';
 import type { Deal, DealsByBuyer } from '@/types/deals';
@@ -160,9 +161,12 @@ export function DealsByBuyerView({ filters, onViewDeal }: DealsByBuyerViewProps)
                   size="md"
                 />
                 <div className="flex-1 min-w-0 text-left">
-                  <p className="font-medium truncate">
-                    {group.buyer.firstName} {group.buyer.lastName}
-                  </p>
+                  <BuyerName
+                    firstName={group.buyer.firstName}
+                    lastName={group.buyer.lastName}
+                    qualified={group.buyer.qualified}
+                    className="font-medium truncate"
+                  />
                   <p className="text-xs text-muted-foreground">
                     {group.buyer.email}
                   </p>
