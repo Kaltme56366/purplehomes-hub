@@ -1411,6 +1411,8 @@ async function handleAggregatedBuyers(
           status: match.fields['Match Status'] || 'Active',
           stage: match.fields['Match Stage'] || null,
           ghlRelationId: match.fields['GHL Relation ID'] || null,
+          activities: match.fields['Activities'] || '[]',
+          notes: match.fields['Notes'] || '[]',
           property: property ? {
             recordId: property.id,
             propertyCode: property.fields['Property Code'] || '',
@@ -1631,6 +1633,8 @@ async function handleAggregatedProperties(
           status: match.fields['Match Status'] || 'Active',
           stage: match.fields['Match Stage'] || null,
           ghlRelationId: match.fields['GHL Relation ID'] || null,
+          activities: match.fields['Activities'] || '[]',
+          notes: match.fields['Notes'] || '[]',
           buyer: buyer ? {
             contactId: buyer.fields['Contact ID'] || '',
             recordId: buyer.id,
