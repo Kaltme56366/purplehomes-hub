@@ -18,7 +18,6 @@ import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { BuyerAvatar } from '../Shared/BuyerAvatar';
 import { BuyerName } from '../Shared/BuyerName';
 import { UrgencyIndicator, getUrgencyType } from '../Shared/UrgencyIndicator';
-import { WinProbabilityBadge } from '../WinProbability';
 import { formatPipelineValue } from '../Overview/MetricCard';
 import { useUpdateDealStage } from '@/services/dealsApi';
 import type { Deal } from '@/types/deals';
@@ -247,12 +246,9 @@ export function DealCard({ deal, onClick, isDragging, onAddNote, onSendFollowup 
         />
       </div>
 
-      {/* Score, Win Probability, and activity */}
+      {/* Score and activity */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <MatchScoreBadge score={deal.score} size="sm" />
-          <WinProbabilityBadge deal={deal} />
-        </div>
+        <MatchScoreBadge score={deal.score} size="sm" />
         <span className="text-xs text-muted-foreground">
           {deal.lastActivityAt
             ? formatDistanceToNow(new Date(deal.lastActivityAt), {

@@ -169,6 +169,7 @@ export const useDeals = (filters?: DealFilters) => {
           firstName: buyerData.firstName || '',
           lastName: buyerData.lastName || '',
           email: buyerData.email || '',
+          qualified: buyerData.qualified || false,
         };
 
         for (const match of buyerData.matches || []) {
@@ -251,6 +252,7 @@ export const usePipelineStats = () => {
           firstName: buyerData.firstName || '',
           lastName: buyerData.lastName || '',
           email: buyerData.email || '',
+          qualified: buyerData.qualified || false,
         };
 
         for (const match of buyerData.matches || []) {
@@ -352,6 +354,7 @@ export const useDealsByStage = () => {
           firstName: buyerData.firstName || '',
           lastName: buyerData.lastName || '',
           email: buyerData.email || '',
+          qualified: buyerData.qualified || false,
         };
 
         for (const match of buyerData.matches || []) {
@@ -424,6 +427,7 @@ export const useDealsByBuyer = () => {
           firstName: buyerData.firstName || '',
           lastName: buyerData.lastName || '',
           email: buyerData.email || '',
+          qualified: buyerData.qualified || false,
         };
 
         const deals: Deal[] = [];
@@ -507,6 +511,7 @@ export const useDealsByProperty = () => {
           firstName: buyerData.firstName || '',
           lastName: buyerData.lastName || '',
           email: buyerData.email || '',
+          qualified: buyerData.qualified || false,
         };
 
         for (const match of buyerData.matches || []) {
@@ -583,6 +588,7 @@ export const useStaleDeals = (limit: number = 5) => {
           firstName: buyerData.firstName || '',
           lastName: buyerData.lastName || '',
           email: buyerData.email || '',
+          qualified: buyerData.qualified || false,
         };
 
         for (const match of buyerData.matches || []) {
@@ -643,6 +649,7 @@ export const useUpcomingShowings = (limit: number = 5) => {
           firstName: buyerData.firstName || '',
           lastName: buyerData.lastName || '',
           email: buyerData.email || '',
+          qualified: buyerData.qualified || false,
         };
 
         for (const match of buyerData.matches || []) {
