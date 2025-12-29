@@ -19,11 +19,18 @@ import {
   X,
   Loader2,
   StickyNote,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -129,169 +136,167 @@ export function MatchNotesPanel({
   };
 
   return (
-    <div className={cn('space-y-4', className)}>
-      {/* Header with Add button */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold flex items-center gap-2">
-          <StickyNote className="h-4 w-4 text-purple-600" />
-          Notes
-          {notes.length > 0 && (
-            <span className="text-sm font-normal text-muted-foreground">
-              ({notes.length})
-            </span>
-          )}
-        </h3>
-        {!showAddForm && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowAddForm(true)}
-            className="gap-1"
-          >
-            <Plus className="h-3 w-3" />
-            Add Note
-          </Button>
-        )}
-      </div>
-
-      {/* Add Note Form */}
-      {showAddForm && (
-        <div className="bg-muted/30 rounded-lg p-3 space-y-3">
-          <Textarea
-            placeholder="Write a note..."
-            value={newNoteText}
-            onChange={(e) => setNewNoteText(e.target.value)}
-            className="min-h-[80px] resize-none"
-            autoFocus
-          />
-          <div className="flex justify-end gap-2">
+    <div className={cn('', className)}>
+      <Collapsible defaultOpen={showAddForm || notes.length === 0}>
+        <div className="flex items-center justify-between">
+          <CollapsibleTrigger className="flex items-center gap-2 py-2 text-left hover:bg-muted/50 rounded-lg px-2 -mx-2">
+            <StickyNote className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Notes</span>
+            {notes.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {notes.length}
+              </Badge>
+            )}
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+          </CollapsibleTrigger>
+          {!showAddForm && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              onClick={() => {
-                setShowAddForm(false);
-                setNewNoteText('');
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowAddForm(true);
               }}
-              disabled={isAddingNote}
+              className="gap-1 h-7 text-xs"
             >
-              Cancel
+              <Plus className="h-3 w-3" />
+              Add
             </Button>
-            <Button
-              size="sm"
-              onClick={handleAddNote}
-              disabled={!newNoteText.trim() || isAddingNote}
-            >
-              {isAddingNote ? (
-                <>
-                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                  Adding...
-                </>
-              ) : (
-                'Add Note'
-              )}
-            </Button>
-          </div>
+          )}
         </div>
-      )}
 
-      {/* Notes List */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : sortedNotes.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">No notes yet</p>
-          <p className="text-xs mt-1">Add a note to keep track of important details</p>
-        </div>
-      ) : (
-        <ScrollArea style={{ maxHeight }} className="pr-2">
-          <div className="space-y-3">
-            {sortedNotes.map((note) => (
-              <div
-                key={note.id}
-                className={cn(
-                  'bg-muted/30 rounded-lg p-3 group',
-                  editingNoteId === note.id && 'ring-2 ring-purple-500'
-                )}
-              >
-                {editingNoteId === note.id ? (
-                  // Edit mode
-                  <div className="space-y-2">
-                    <Textarea
-                      value={editText}
-                      onChange={(e) => setEditText(e.target.value)}
-                      className="min-h-[60px] resize-none"
-                      autoFocus
-                    />
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCancelEdit}
-                        disabled={isSaving}
-                      >
-                        <X className="h-3 w-3 mr-1" />
-                        Cancel
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={handleSaveEdit}
-                        disabled={!editText.trim() || isSaving}
-                      >
-                        {isSaving ? (
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        ) : (
-                          <Check className="h-3 w-3 mr-1" />
-                        )}
-                        Save
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  // View mode
-                  <>
-                    <p className="text-sm whitespace-pre-wrap">{note.text}</p>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="text-xs text-muted-foreground">
-                        {formatNoteDate(note.timestamp)}
-                        {note.user && <span className="ml-2">by {note.user}</span>}
+        <CollapsibleContent className="pt-2 space-y-3">
+          {/* Add Note Form */}
+          {showAddForm && (
+            <div className="bg-muted/30 rounded-lg p-3 space-y-3">
+              <Textarea
+                placeholder="Write a note..."
+                value={newNoteText}
+                onChange={(e) => setNewNoteText(e.target.value)}
+                className="min-h-[60px] resize-none text-sm"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowAddForm(false);
+                    setNewNoteText('');
+                  }}
+                  disabled={isAddingNote}
+                  className="h-7 text-xs"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddNote}
+                  disabled={!newNoteText.trim() || isAddingNote}
+                  className="h-7 text-xs"
+                >
+                  {isAddingNote ? (
+                    <>
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    'Add Note'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Notes List */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : sortedNotes.length === 0 && !showAddForm ? (
+            <div className="text-center py-4 text-muted-foreground">
+              <p className="text-xs">No notes yet</p>
+            </div>
+          ) : sortedNotes.length > 0 ? (
+            <ScrollArea style={{ maxHeight }} className="pr-2">
+              <div className="space-y-2">
+                {sortedNotes.map((note) => (
+                  <div
+                    key={note.id}
+                    className={cn(
+                      'bg-muted/30 rounded-lg p-2 group',
+                      editingNoteId === note.id && 'ring-2 ring-purple-500'
+                    )}
+                  >
+                    {editingNoteId === note.id ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          className="min-h-[50px] resize-none text-sm"
+                          autoFocus
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCancelEdit}
+                            disabled={isSaving}
+                            className="h-6 text-xs"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleSaveEdit}
+                            disabled={!editText.trim() || isSaving}
+                            className="h-6 text-xs"
+                          >
+                            {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                          </Button>
+                        </div>
                       </div>
-                      {(onEditNote || onDeleteNote) && (
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {onEditNote && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                              onClick={() => handleStartEdit(note)}
-                            >
-                              <Pencil className="h-3 w-3" />
-                              <span className="sr-only">Edit note</span>
-                            </Button>
-                          )}
-                          {onDeleteNote && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                              onClick={() => setDeleteNoteId(note.id)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                              <span className="sr-only">Delete note</span>
-                            </Button>
+                    ) : (
+                      <>
+                        <p className="text-sm whitespace-pre-wrap line-clamp-2">{note.text}</p>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-xs text-muted-foreground">
+                            {formatNoteDate(note.timestamp)}
+                          </span>
+                          {(onEditNote || onDeleteNote) && (
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {onEditNote && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => handleStartEdit(note)}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              )}
+                              {onDeleteNote && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0 text-destructive hover:text-destructive"
+                                  onClick={() => setDeleteNoteId(note.id)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </div>
-                      )}
-                    </div>
-                  </>
-                )}
+                      </>
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </ScrollArea>
-      )}
+            </ScrollArea>
+          ) : null}
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteNoteId} onOpenChange={(open) => !open && setDeleteNoteId(null)}>
