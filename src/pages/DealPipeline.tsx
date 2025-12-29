@@ -118,7 +118,7 @@ export default function DealPipeline() {
         const hasChanges =
           updatedDeal.status !== selectedDeal.status ||
           JSON.stringify(updatedDeal.activities) !== JSON.stringify(selectedDeal.activities) ||
-          updatedDeal.notes !== selectedDeal.notes;
+          JSON.stringify(updatedDeal.notes) !== JSON.stringify(selectedDeal.notes);
 
         if (hasChanges) {
           setSelectedDeal(updatedDeal);
