@@ -54,7 +54,6 @@ import {
 } from '@/components/matching/MatchTags';
 import { DealProgressKanban } from './DealProgressKanban';
 import { MatchNotesPanel, type NoteEntry } from './MatchNotesPanel';
-import { WinProbability } from '@/components/deals/WinProbability';
 import { AIInsightCard } from './AIInsightCard';
 import {
   PropertyMatch,
@@ -395,17 +394,6 @@ export function EnhancedMatchDetailModal({
                     isUpdating={isUpdating}
                   />
                 </div>
-
-                {/* Win Probability */}
-                {match.status && (
-                  <div className="bg-muted/30 rounded-xl p-4">
-                    <WinProbability
-                      deal={match as unknown as Deal}
-                      size="md"
-                      showFactors={true}
-                    />
-                  </div>
-                )}
 
                 <Separator />
 

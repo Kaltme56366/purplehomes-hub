@@ -24,7 +24,6 @@ export { NeedsAttentionCard } from './Overview/NeedsAttentionCard';
 export { UpcomingCard } from './Overview/UpcomingCard';
 export { PipelineOverview } from './Overview/PipelineOverview';
 export { MorningBriefing } from './MorningBriefing';
-export { WinProbability, WinProbabilityBadge } from './WinProbability';
 
 // List view components
 export { DealsListView } from './ListView/DealsListView';

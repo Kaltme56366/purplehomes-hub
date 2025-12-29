@@ -29,7 +29,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useDeals, usePipelineStats } from '@/services/dealsApi';
-import { calculateWinProbability } from '@/lib/winProbability';
 import type { Deal } from '@/types/deals';
 
 interface MorningBriefingProps {
@@ -246,23 +245,21 @@ export function MorningBriefing({
         continue;
       }
 
-      const winProb = calculateWinProbability(deal);
-
-      // Hot leads: High probability + recent activity
-      if (winProb.probability >= 70 && winProb.trend === 'up') {
-        priorities.push({
-          deal,
-          reason: `${winProb.probability}% win probability, trending up`,
-          type: 'hot',
-          priority: 100 + winProb.probability,
-        });
-      }
-      // Closing soon: Contracts or Qualified
-      else if (deal.status === 'Contracts' || deal.status === 'Qualified') {
+      // Hot leads: Advanced stages with recent activity
+      if ((deal.status === 'Contracts' || deal.status === 'Qualified') && !deal.isStale) {
         priorities.push({
           deal,
           reason: `${deal.status} - ready to close`,
           type: 'closing',
+          priority: 100,
+        });
+      }
+      // Hot leads: Underwriting with recent activity
+      else if (deal.status === 'Underwriting' && !deal.isStale) {
+        priorities.push({
+          deal,
+          reason: 'Active underwriting',
+          type: 'hot',
           priority: 90,
         });
       }

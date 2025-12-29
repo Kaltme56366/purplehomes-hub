@@ -1459,7 +1459,7 @@ async function handleAggregatedBuyers(
       preferredLocation: buyer.fields['Preferred Location'] || buyer.fields['Location'],
       preferredZipCodes,
       buyerType: buyer.fields['Buyer Type'],
-      qualified: buyer.fields['Qualified'] === 'Yes',
+      qualified: ['Yes', 'yes', 'YES', 'true', true, 1, '1'].includes(buyer.fields['Qualified']),
       matches: buyerMatches,
       totalMatches: buyerMatches.length,
     };
@@ -1651,7 +1651,7 @@ async function handleAggregatedProperties(
             city: buyer.fields['City'],
             location: buyer.fields['Location'],
             buyerType: buyer.fields['Buyer Type'],
-            qualified: buyer.fields['Qualified'] === 'Yes',
+            qualified: ['Yes', 'yes', 'YES', 'true', true, 1, '1'].includes(buyer.fields['Qualified']),
           } : null,
         };
       });
@@ -1967,7 +1967,7 @@ async function handleBuyerProperties(
       preferredLocation: buyer.fields['Preferred Location'] || buyer.fields['Location'],
       preferredZipCodes,
       buyerType: buyer.fields['Buyer Type'],
-      qualified: buyer.fields['Qualified'] === 'Yes',
+      qualified: ['Yes', 'yes', 'YES', 'true', true, 1, '1'].includes(buyer.fields['Qualified']),
       lat: buyer.fields['Lat'],
       lng: buyer.fields['Lng'],
       locationLat: buyer.fields['Lat'],
@@ -2085,7 +2085,7 @@ async function handlePropertyBuyers(
           preferredLocation: buyer.fields['Preferred Location'] || buyer.fields['Location'],
           preferredZipCodes,
           buyerType: buyer.fields['Buyer Type'],
-          qualified: buyer.fields['Qualified'] === 'Yes',
+          qualified: ['Yes', 'yes', 'YES', 'true', true, 1, '1'].includes(buyer.fields['Qualified']),
           lat: buyer.fields['Lat'],
           lng: buyer.fields['Lng'],
         },
