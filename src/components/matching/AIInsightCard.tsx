@@ -24,6 +24,7 @@ interface AIInsightCardProps {
   price?: number;
   beds?: number;
   baths?: number;
+  matchId?: string;
   onActionClick?: (action: string) => void;
   className?: string;
 }
@@ -132,6 +133,7 @@ export function AIInsightCard({
   price,
   beds,
   baths,
+  matchId,
   onActionClick,
   className,
 }: AIInsightCardProps) {
@@ -145,7 +147,7 @@ export function AIInsightCard({
     baths,
   });
 
-  const { data: insight, isLoading, error } = useMatchInsight(insightRequest);
+  const { data: insight, isLoading, error } = useMatchInsight(insightRequest, matchId);
 
   if (isLoading) {
     return <InsightSkeleton />;
@@ -184,6 +186,7 @@ export function AIInsightInline({
   concerns = [],
   distanceMiles,
   stage,
+  matchId,
   className,
 }: Omit<AIInsightCardProps, 'onActionClick' | 'price' | 'beds' | 'baths'>) {
   const insightRequest = buildInsightRequest(buyerName, propertyAddress, score, {
@@ -193,7 +196,7 @@ export function AIInsightInline({
     stage,
   });
 
-  const { data: insight, isLoading } = useMatchInsight(insightRequest);
+  const { data: insight, isLoading } = useMatchInsight(insightRequest, matchId);
 
   if (isLoading) {
     return (

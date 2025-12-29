@@ -289,6 +289,7 @@ export function MatchDetailModal({
                   price={property.price}
                   beds={property.beds}
                   baths={property.baths}
+                  matchId={match.id}
                 />
 
                 <Separator />

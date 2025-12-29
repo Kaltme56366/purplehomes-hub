@@ -466,9 +466,9 @@ export const useAddMatchActivity = () => {
       // Refresh matching queries to get updated activities
       queryClient.refetchQueries({ queryKey: ['buyers-with-matches'] });
       queryClient.refetchQueries({ queryKey: ['properties-with-matches'] });
-      // Also refresh deals queries so the modal updates
-      queryClient.invalidateQueries({ queryKey: ['deals'] });
-      queryClient.invalidateQueries({ queryKey: ['deals-by-stage'] });
+      // Also refresh deals queries so the modal updates immediately
+      queryClient.refetchQueries({ queryKey: ['deals'] });
+      queryClient.refetchQueries({ queryKey: ['deals-by-stage'] });
     },
   });
 };
