@@ -27,6 +27,7 @@ import {
   ArrowRight,
   ExternalLink,
   ClipboardList,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -39,6 +40,11 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { MatchScoreBadge } from '@/components/matching/MatchScoreBadge';
 import { StageBadge } from './StageBadge';
 import {
@@ -47,7 +53,6 @@ import {
   extractReasoningSummary,
 } from '@/components/matching/MatchTags';
 import { DealProgressKanban } from './DealProgressKanban';
-import { MatchActivityTimeline } from './MatchActivityTimeline';
 import { MatchNotesPanel, type NoteEntry } from './MatchNotesPanel';
 import { WinProbability } from '@/components/deals/WinProbability';
 import { AIInsightCard } from './AIInsightCard';
@@ -408,21 +413,41 @@ export function EnhancedMatchDetailModal({
                   />
                 )}
 
-                <Separator />
-
-                {/* Activity Timeline */}
-                <div className="space-y-4">
-                  <h3 className="text-base font-semibold flex items-center gap-2">
-                    <ClipboardList className="h-4 w-4 text-purple-600" />
-                    Activity History
-                  </h3>
-
-                  <MatchActivityTimeline
-                    activities={activities}
-                    maxVisible={10}
-                    showDateGroups={true}
-                  />
-                </div>
+                {/* Activity History - Collapsible */}
+                {activities.length > 0 && (
+                  <>
+                    <Separator />
+                    <Collapsible>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-left hover:bg-muted/50 rounded-lg px-2 -mx-2">
+                        <div className="flex items-center gap-2">
+                          <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Activity History</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {activities.length}
+                          </Badge>
+                        </div>
+                        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="pt-2">
+                        <div className="space-y-2 text-sm">
+                          {activities.slice(0, 5).map((activity) => (
+                            <div key={activity.id} className="flex items-start gap-2 text-muted-foreground">
+                              <span className="text-xs whitespace-nowrap">
+                                {new Date(activity.timestamp).toLocaleDateString()}
+                              </span>
+                              <span className="truncate">{activity.details}</span>
+                            </div>
+                          ))}
+                          {activities.length > 5 && (
+                            <p className="text-xs text-muted-foreground">
+                              +{activities.length - 5} more activities
+                            </p>
+                          )}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </>
+                )}
               </div>
             </ScrollArea>
           </div>
@@ -532,19 +557,41 @@ export function EnhancedMatchDetailModal({
                     />
                   )}
 
-                  <Separator />
-
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-semibold flex items-center gap-2">
-                      <ClipboardList className="h-4 w-4 text-purple-600" />
-                      Activity History
-                    </h3>
-                    <MatchActivityTimeline
-                      activities={activities}
-                      maxVisible={20}
-                      showDateGroups={true}
-                    />
-                  </div>
+                  {/* Activity History - Mobile Collapsible */}
+                  {activities.length > 0 && (
+                    <>
+                      <Separator />
+                      <Collapsible>
+                        <CollapsibleTrigger className="flex items-center justify-between w-full py-2 text-left hover:bg-muted/50 rounded-lg px-2 -mx-2">
+                          <div className="flex items-center gap-2">
+                            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Activity History</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {activities.length}
+                            </Badge>
+                          </div>
+                          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-2">
+                          <div className="space-y-2 text-sm">
+                            {activities.slice(0, 5).map((activity) => (
+                              <div key={activity.id} className="flex items-start gap-2 text-muted-foreground">
+                                <span className="text-xs whitespace-nowrap">
+                                  {new Date(activity.timestamp).toLocaleDateString()}
+                                </span>
+                                <span className="truncate">{activity.details}</span>
+                              </div>
+                            ))}
+                            {activities.length > 5 && (
+                              <p className="text-xs text-muted-foreground">
+                                +{activities.length - 5} more activities
+                              </p>
+                            )}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    </>
+                  )}
                 </TabsContent>
               </ScrollArea>
             </Tabs>
