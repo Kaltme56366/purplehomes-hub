@@ -496,8 +496,24 @@ export function BuyerPropertiesView({
 
       {/* Error State */}
       {error && (
-        <div className="text-center py-12 text-red-500">
-          <p>Error loading properties: {error.message}</p>
+        <div className="text-center py-12">
+          <div className="text-red-500 mb-4">
+            <p className="font-medium">Error loading properties: {error.message}</p>
+          </div>
+          {error.message?.includes('not found') && (
+            <div className="text-muted-foreground space-y-2">
+              <p>The cache has been refreshed automatically.</p>
+              <p>If the buyer was just added, please try running matching to generate property matches.</p>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/matching')}
+                className="mt-4"
+              >
+                <Target className="h-4 w-4 mr-2" />
+                Go to Matching
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

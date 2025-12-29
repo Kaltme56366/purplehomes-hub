@@ -408,6 +408,59 @@ async function updateCacheRecord(cacheKey: string, data: any, recordCount: numbe
 }
 
 /**
+ * Fetches all records from a table with pagination support
+ * Used to refresh cache when a record is not found
+ */
+async function fetchAllRecordsFromTable(tableName: string, headers: any): Promise<any[]> {
+  const allRecords: any[] = [];
+  let offset: string | undefined;
+
+  do {
+    const url = new URL(`${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(tableName)}`);
+    url.searchParams.set('pageSize', '100');
+    if (offset) url.searchParams.set('offset', offset);
+
+    const response = await fetch(url.toString(), { headers });
+    const data = await response.json();
+
+    allRecords.push(...(data.records || []));
+    offset = data.offset;
+  } while (offset);
+
+  return allRecords;
+}
+
+/**
+ * Syncs the buyers cache by fetching all records from Airtable
+ * Returns the fresh records array
+ */
+async function syncBuyersCache(headers: any): Promise<any[]> {
+  console.log('[Matching] Syncing buyers cache - fetching all buyers from Airtable...');
+  const records = await fetchAllRecordsFromTable('Buyers', headers);
+
+  const cacheData = { records };
+  await updateCacheRecord('buyers', cacheData, records.length, headers);
+
+  console.log(`[Matching] Buyers cache synced with ${records.length} records`);
+  return records;
+}
+
+/**
+ * Syncs the properties cache by fetching all records from Airtable
+ * Returns the fresh records array
+ */
+async function syncPropertiesCache(headers: any): Promise<any[]> {
+  console.log('[Matching] Syncing properties cache - fetching all properties from Airtable...');
+  const records = await fetchAllRecordsFromTable('Properties', headers);
+
+  const cacheData = { records };
+  await updateCacheRecord('properties', cacheData, records.length, headers);
+
+  console.log(`[Matching] Properties cache synced with ${records.length} records`);
+  return records;
+}
+
+/**
  * Invalidates a cache entry by setting is_valid to false
  */
 async function invalidateCache(cacheKey: string, headers: any): Promise<void> {
@@ -893,10 +946,22 @@ async function handleRunBuyerMatching(req: VercelRequest, res: VercelResponse, h
   }
 
   // Find the specific buyer by contactId
-  const buyer = allBuyers.find((b: any) => b.id === contactId || b.fields['Contact ID'] === contactId);
+  let buyer = allBuyers.find((b: any) => b.id === contactId || b.fields['Contact ID'] === contactId);
 
+  // If buyer not found in cache, auto-sync the buyers cache and try again
   if (!buyer) {
-    return res.status(404).json({ error: 'Buyer not found' });
+    console.log('[Matching] Buyer not found in cache - syncing buyers cache...');
+    allBuyers = await syncBuyersCache(headers);
+    buyer = allBuyers.find((b: any) => b.id === contactId || b.fields['Contact ID'] === contactId);
+
+    if (!buyer) {
+      return res.status(404).json({
+        error: 'Buyer not found',
+        message: 'This buyer was not found even after refreshing the cache. Please ensure the buyer exists in Airtable.',
+        synced: true,
+      });
+    }
+    console.log('[Matching] Found buyer after cache sync');
   }
 
   // Try to fetch properties from cache first
@@ -1053,10 +1118,22 @@ async function handleRunPropertyMatching(req: VercelRequest, res: VercelResponse
   }
 
   // Find the specific property by propertyCode
-  const property = allProperties.find((p: any) => p.id === propertyCode || p.fields['Property Code'] === propertyCode);
+  let property = allProperties.find((p: any) => p.id === propertyCode || p.fields['Property Code'] === propertyCode);
 
+  // If property not found in cache, auto-sync the properties cache and try again
   if (!property) {
-    return res.status(404).json({ error: 'Property not found' });
+    console.log('[Matching] Property not found in cache - syncing properties cache...');
+    allProperties = await syncPropertiesCache(headers);
+    property = allProperties.find((p: any) => p.id === propertyCode || p.fields['Property Code'] === propertyCode);
+
+    if (!property) {
+      return res.status(404).json({
+        error: 'Property not found',
+        message: 'This property was not found even after refreshing the cache. Please ensure the property exists in Airtable.',
+        synced: true,
+      });
+    }
+    console.log('[Matching] Found property after cache sync');
   }
 
   // Try to fetch buyers from cache first
@@ -1830,10 +1907,22 @@ async function handleBuyerProperties(
     }
 
     // Find the buyer by record ID
-    const buyer = allBuyers.find((b: any) => b.id === buyerId);
+    let buyer = allBuyers.find((b: any) => b.id === buyerId);
 
+    // If buyer not found in cache, auto-sync the buyers cache and try again
     if (!buyer) {
-      return res.status(404).json({ error: 'Buyer not found' });
+      console.log('[Buyer Properties] Buyer not found in cache - syncing buyers cache...');
+      allBuyers = await syncBuyersCache(headers);
+      buyer = allBuyers.find((b: any) => b.id === buyerId);
+
+      if (!buyer) {
+        return res.status(404).json({
+          error: 'Buyer not found',
+          message: 'This buyer was not found even after refreshing the cache. Please ensure the buyer exists in Airtable and try running matching.',
+          synced: true,
+        });
+      }
+      console.log('[Buyer Properties] Found buyer after cache sync');
     }
 
     console.log(`[Buyer Properties] Found buyer: ${buyer.fields['First Name']} ${buyer.fields['Last Name']}`);
@@ -2036,12 +2125,26 @@ async function handlePropertyBuyers(
     }
 
     // Find the property by record ID or property code
-    const property = allProperties.find(
+    let property = allProperties.find(
       (p: any) => p.id === propertyCode || p.fields['Property Code'] === propertyCode
     );
 
+    // If property not found in cache, auto-sync the properties cache and try again
     if (!property) {
-      return res.status(404).json({ error: 'Property not found' });
+      console.log('[Property Buyers] Property not found in cache - syncing properties cache...');
+      allProperties = await syncPropertiesCache(headers);
+      property = allProperties.find(
+        (p: any) => p.id === propertyCode || p.fields['Property Code'] === propertyCode
+      );
+
+      if (!property) {
+        return res.status(404).json({
+          error: 'Property not found',
+          message: 'This property was not found even after refreshing the cache. Please ensure the property exists in Airtable and try running matching.',
+          synced: true,
+        });
+      }
+      console.log('[Property Buyers] Found property after cache sync');
     }
 
     console.log(`[Property Buyers] Found property: ${property.fields['Address']}`);

@@ -34,6 +34,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { usePropertyBuyers, usePropertiesWithMatches } from '@/services/matchingApi';
+import { useNavigate } from 'react-router-dom';
 import { MatchSectionDivider } from './MatchSectionDivider';
 import { MatchScoreBadge } from './MatchScoreBadge';
 import { StageBadge } from './StageBadge';
@@ -236,6 +237,8 @@ export function PropertyBuyersView({
     }
   };
 
+  const navigate = useNavigate();
+
   // Fetch properties list for dropdown (just get first 100)
   const { data: propertiesData, isLoading: loadingProperties } = usePropertiesWithMatches({}, 100);
   const propertiesList = propertiesData?.data || [];
@@ -406,8 +409,24 @@ export function PropertyBuyersView({
 
       {/* Error State */}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-800">
-          Failed to load buyers. Please try again.
+        <div className="text-center py-12">
+          <div className="text-red-500 mb-4">
+            <p className="font-medium">Error loading buyers: {error.message}</p>
+          </div>
+          {error.message?.includes('not found') && (
+            <div className="text-muted-foreground space-y-2">
+              <p>The cache has been refreshed automatically.</p>
+              <p>If the property was just added, please try running matching to generate buyer matches.</p>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/matching')}
+                className="mt-4"
+              >
+                <Target className="h-4 w-4 mr-2" />
+                Go to Matching
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
