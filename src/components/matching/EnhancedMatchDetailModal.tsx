@@ -329,9 +329,16 @@ export function EnhancedMatchDetailModal({
                       Buyer Information
                     </h3>
                     <div className="space-y-2">
-                      <p className="font-medium">
-                        {buyer.firstName} {buyer.lastName}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          {buyer.firstName} {buyer.lastName}
+                        </p>
+                        {buyer.qualified && (
+                          <Badge variant="default" className="bg-green-600 text-xs">
+                            Qualified
+                          </Badge>
+                        )}
+                      </div>
                       {buyer.email && (
                         <p className="text-sm text-muted-foreground flex items-center gap-2">
                           <Mail className="h-3 w-3" />
@@ -526,9 +533,16 @@ export function EnhancedMatchDetailModal({
                   {buyer && (
                     <div className="bg-purple-50 rounded-xl p-4 space-y-2">
                       <h3 className="text-sm font-semibold">Buyer</h3>
-                      <p className="font-medium">
-                        {buyer.firstName} {buyer.lastName}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">
+                          {buyer.firstName} {buyer.lastName}
+                        </p>
+                        {buyer.qualified && (
+                          <Badge variant="default" className="bg-green-600 text-xs">
+                            Qualified
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">{buyer.email}</p>
                     </div>
                   )}

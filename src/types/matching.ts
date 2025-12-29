@@ -22,6 +22,7 @@ export interface BuyerCriteria {
   city?: string;
   state?: string;
   buyerType?: string;
+  qualified?: boolean;
   lat?: number;
   lng?: number;
   locationLat?: number; // Geocoded latitude
