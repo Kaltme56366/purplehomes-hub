@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, X, RefreshCw, ExternalLink, Plus, Trash2, Wifi, WifiOff, Key, Save, Server, Clock, CheckCircle2, XCircle, Activity } from 'lucide-react';
+import { Check, X, RefreshCw, ExternalLink, Plus, Trash2, Wifi, WifiOff, Key, Save, Server, Clock, CheckCircle2, XCircle, Activity, Calculator, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,8 @@ import { useGhlConnection } from '@/hooks/useGhlConnection';
 import { SyncHistoryLog } from '@/components/settings/SyncHistoryLog';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
 import { useTestAssociationsApi } from '@/services/ghlAssociationsApi';
+import { useCalculatorDefaults, useUpdateCalculatorDefaults } from '@/services/calculatorApi';
+import type { CalculatorDefaults } from '@/types/calculator';
 
 export default function Settings() {
   const { connectionStatus, setConnectionStatus, propertiesPerPage, setPropertiesPerPage } = useAppStore();
@@ -40,12 +42,40 @@ export default function Settings() {
   const testConnection = useTestConnection();
   const testAssociationsApi = useTestAssociationsApi();
 
+  // Calculator defaults
+  const { data: calculatorDefaultsData, isLoading: isLoadingDefaults } = useCalculatorDefaults();
+  const updateCalculatorDefaults = useUpdateCalculatorDefaults();
+  const [localDefaults, setLocalDefaults] = useState<Partial<CalculatorDefaults>>({});
+  const [hasDefaultsChanges, setHasDefaultsChanges] = useState(false);
+
   // Load saved config on mount
   useEffect(() => {
     const config = getApiConfig();
     if (config.apiKey) setGhlApiKey(config.apiKey);
     if (config.locationId) setGhlLocationId(config.locationId);
   }, []);
+
+  // Sync local defaults when API data loads
+  useEffect(() => {
+    if (calculatorDefaultsData?.defaults) {
+      setLocalDefaults(calculatorDefaultsData.defaults);
+    }
+  }, [calculatorDefaultsData]);
+
+  const handleDefaultChange = (field: keyof CalculatorDefaults, value: number) => {
+    setLocalDefaults(prev => ({ ...prev, [field]: value }));
+    setHasDefaultsChanges(true);
+  };
+
+  const handleSaveCalculatorDefaults = async () => {
+    try {
+      await updateCalculatorDefaults.mutateAsync(localDefaults as CalculatorDefaults);
+      setHasDefaultsChanges(false);
+      toast.success('Calculator defaults saved');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save defaults');
+    }
+  };
 
   const handleSaveGhlConfig = () => {
     setApiConfig({ apiKey: ghlApiKey, locationId: ghlLocationId });
@@ -716,6 +746,280 @@ export default function Settings() {
                   </SelectContent>
                 </Select>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Calculator Defaults */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calculator className="h-5 w-5 text-primary" />
+                    Calculator Defaults
+                  </CardTitle>
+                  <CardDescription>
+                    Set default values for the Deal Calculator
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleSaveCalculatorDefaults}
+                  disabled={!hasDefaultsChanges || updateCalculatorDefaults.isPending}
+                  size="sm"
+                >
+                  {updateCalculatorDefaults.isPending ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Save Defaults
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isLoadingDefaults ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <>
+                  {/* Purchase & Fees */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-sm text-muted-foreground">Purchase & Fees</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label>Wholesale Discount %</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.wholesaleDiscount ?? 70}
+                          onChange={(e) => handleDefaultChange('wholesaleDiscount', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                          max={100}
+                        />
+                      </div>
+                      <div>
+                        <Label>Your Fee ($)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.yourFee ?? 5000}
+                          onChange={(e) => handleDefaultChange('yourFee', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                        />
+                      </div>
+                      <div>
+                        <Label>Credit to Buyer ($)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.creditToBuyer ?? 5000}
+                          onChange={(e) => handleDefaultChange('creditToBuyer', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Operating Expenses */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-sm text-muted-foreground">Operating Expenses</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label>Maintenance %</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.maintenancePercent ?? 5}
+                          onChange={(e) => handleDefaultChange('maintenancePercent', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                          max={50}
+                          step={0.5}
+                        />
+                      </div>
+                      <div>
+                        <Label>Property Mgmt %</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.propertyMgmtPercent ?? 10}
+                          onChange={(e) => handleDefaultChange('propertyMgmtPercent', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                          max={50}
+                          step={0.5}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DSCR Loan Defaults */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-sm text-muted-foreground">DSCR Loan Defaults</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label>Interest Rate %</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.dscrInterestRate ?? 8}
+                          onChange={(e) => handleDefaultChange('dscrInterestRate', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                          max={20}
+                          step={0.125}
+                        />
+                      </div>
+                      <div>
+                        <Label>Term (Years)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.dscrTermYears ?? 30}
+                          onChange={(e) => handleDefaultChange('dscrTermYears', parseInt(e.target.value) || 0)}
+                          className="mt-1"
+                          min={1}
+                          max={40}
+                        />
+                      </div>
+                      <div>
+                        <Label>Balloon (Years)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.dscrBalloonYears ?? 5}
+                          onChange={(e) => handleDefaultChange('dscrBalloonYears', parseInt(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                          max={30}
+                        />
+                      </div>
+                      <div>
+                        <Label>Points</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.dscrPoints ?? 2}
+                          onChange={(e) => handleDefaultChange('dscrPoints', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                          max={10}
+                          step={0.25}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Wrap Loan Defaults */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-sm text-muted-foreground">Wrap Loan Defaults</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label>Interest Rate %</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.wrapInterestRate ?? 10}
+                          onChange={(e) => handleDefaultChange('wrapInterestRate', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                          max={20}
+                          step={0.125}
+                        />
+                      </div>
+                      <div>
+                        <Label>Term (Years)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.wrapTermYears ?? 30}
+                          onChange={(e) => handleDefaultChange('wrapTermYears', parseInt(e.target.value) || 0)}
+                          className="mt-1"
+                          min={1}
+                          max={40}
+                        />
+                      </div>
+                      <div>
+                        <Label>Balloon (Years)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.wrapBalloonYears ?? 5}
+                          onChange={(e) => handleDefaultChange('wrapBalloonYears', parseInt(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                          max={30}
+                        />
+                      </div>
+                      <div>
+                        <Label>Service Fee ($)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.wrapServiceFee ?? 50}
+                          onChange={(e) => handleDefaultChange('wrapServiceFee', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Closing & Setup Costs */}
+                  <div className="space-y-4">
+                    <h4 className="font-medium text-sm text-muted-foreground">Closing & Setup Costs</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <Label>Closing Costs ($)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.closingCosts ?? 3000}
+                          onChange={(e) => handleDefaultChange('closingCosts', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                        />
+                      </div>
+                      <div>
+                        <Label>Appraisal Cost ($)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.appraisalCost ?? 500}
+                          onChange={(e) => handleDefaultChange('appraisalCost', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                        />
+                      </div>
+                      <div>
+                        <Label>LLC Cost ($)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.llcCost ?? 200}
+                          onChange={(e) => handleDefaultChange('llcCost', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                        />
+                      </div>
+                      <div>
+                        <Label>Servicing Fee ($)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.servicingFee ?? 100}
+                          onChange={(e) => handleDefaultChange('servicingFee', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                        />
+                      </div>
+                      <div>
+                        <Label>DSCR Fees ($)</Label>
+                        <Input
+                          type="number"
+                          value={localDefaults.dscrFees ?? 1500}
+                          onChange={(e) => handleDefaultChange('dscrFees', parseFloat(e.target.value) || 0)}
+                          className="mt-1"
+                          min={0}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {hasDefaultsChanges && (
+                    <div className="flex items-center gap-2 text-sm text-yellow-600">
+                      <span className="font-medium">You have unsaved changes</span>
+                    </div>
+                  )}
+                </>
+              )}
             </CardContent>
           </Card>
 

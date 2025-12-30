@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Mail, Phone, MapPin, Eye, EyeOff, Bed, Bath, DollarSign, Send, Building2, Maximize2, Tag, X, Plus, Search, Loader2, Check } from 'lucide-react';
+import { Mail, Phone, MapPin, Eye, EyeOff, Bed, Bath, DollarSign, Send, Building2, Maximize2, Tag, X, Plus, Search, Loader2, Check, Calculator } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { SendInventoryModal } from './SendInventoryModal';
+import { DealCalculatorModal } from '@/components/calculator';
 import { useTags, useUpdateContactTags } from '@/services/ghlApi';
 import { toast } from 'sonner';
 import type { Buyer, ChecklistItem } from '@/types';
@@ -45,6 +46,7 @@ interface BuyerDetailModalProps {
 export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist, onUpdate }: BuyerDetailModalProps) {
   const [hideEmpty, setHideEmpty] = useState(false);
   const [sendInventoryOpen, setSendInventoryOpen] = useState(false);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState('');
   const [tagsOpen, setTagsOpen] = useState(false);
   const [savingTagId, setSavingTagId] = useState<string | null>(null);
@@ -418,15 +420,25 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist,
                   </CardContent>
                 </Card>
 
-                {/* Send Property List Button */}
-                <Button 
-                  className="w-full" 
-                  size="lg"
-                  onClick={() => setSendInventoryOpen(true)}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Property List
-                </Button>
+                {/* Action Buttons */}
+                <div className="flex gap-2">
+                  <Button
+                    className="flex-1"
+                    size="lg"
+                    onClick={() => setSendInventoryOpen(true)}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Property List
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setCalculatorOpen(true)}
+                  >
+                    <Calculator className="h-4 w-4 mr-2" />
+                    Deal Calculator
+                  </Button>
+                </div>
               </div>
 
               <Separator />
@@ -499,6 +511,13 @@ export function BuyerDetailModal({ buyer, open, onOpenChange, onUpdateChecklist,
         buyer={buyer}
         open={sendInventoryOpen}
         onOpenChange={setSendInventoryOpen}
+      />
+
+      {/* Deal Calculator Modal */}
+      <DealCalculatorModal
+        open={calculatorOpen}
+        onOpenChange={setCalculatorOpen}
+        buyerContactId={(buyer as any).contactId || buyer.id}
       />
     </>
   );

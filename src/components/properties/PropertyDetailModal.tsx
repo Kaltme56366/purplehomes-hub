@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { 
-  Save, Loader2, Home, Bed, Bath, Square, MapPin, DollarSign, 
-  Image as ImageIcon, FileText, Tag, Calendar, RefreshCw 
+import {
+  Save, Loader2, Home, Bed, Bath, Square, MapPin, DollarSign,
+  Image as ImageIcon, FileText, Tag, Calendar, RefreshCw, Calculator
 } from 'lucide-react';
 import { PropertyImageGallery } from './PropertyImageGallery';
 import { AICaptionGenerator } from '@/components/social/AICaptionGenerator';
@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import type { Property, PropertyCondition, PropertyType, PropertyStatus } from '@/types';
 import { useProperty, useUpdateProperty, useCustomFields, getApiConfig } from '@/services/ghlApi';
 import { useAppStore } from '@/store/useAppStore';
+import { DealCalculatorModal } from '@/components/calculator';
 
 interface PropertyDetailModalProps {
   property: Property | null;
@@ -93,6 +94,7 @@ export function PropertyDetailModal({
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [isLoading] = useState(false);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
 
   // Populate form when property changes
   useEffect(() => {
@@ -548,18 +550,28 @@ export function PropertyDetailModal({
 
         {/* Footer */}
         <div className="flex items-center justify-between p-6 border-t bg-muted/30">
-          <div className="text-sm text-muted-foreground">
-            {hasChanges ? (
-              <span className="text-yellow-500">Unsaved changes</span>
-            ) : (
-              <span>No changes</span>
-            )}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setCalculatorOpen(true)}
+              className="text-primary border-primary/50 hover:bg-primary/10"
+            >
+              <Calculator className="h-4 w-4 mr-2" />
+              Deal Calculator
+            </Button>
+            <div className="text-sm text-muted-foreground">
+              {hasChanges ? (
+                <span className="text-yellow-500">Unsaved changes</span>
+              ) : (
+                <span>No changes</span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleSave}
               disabled={!hasChanges || updateProperty.isPending}
             >
@@ -578,6 +590,24 @@ export function PropertyDetailModal({
           </div>
         </div>
       </DialogContent>
+
+      {/* Deal Calculator Modal */}
+      <DealCalculatorModal
+        open={calculatorOpen}
+        onOpenChange={setCalculatorOpen}
+        property={{
+          price: formData.price,
+          beds: formData.beds,
+          baths: formData.baths,
+          sqft: formData.sqft,
+          address: formData.address,
+          propertyCode: formData.propertyCode,
+          recordId: initialProperty?.ghlOpportunityId,
+        }}
+        onSaved={() => {
+          // Optionally refresh data
+        }}
+      />
     </Dialog>
   );
 }
