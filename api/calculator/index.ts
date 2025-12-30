@@ -9,6 +9,8 @@
  * - delete: Delete calculation
  * - get-defaults: Get user's saved defaults
  * - update-defaults: Update user's defaults
+ *
+ * Updated to match Airtable schema with individual fields
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -19,6 +21,147 @@ const AIRTABLE_API_URL = 'https://api.airtable.com/v0';
 
 const CALCULATIONS_TABLE = 'Deal Calculations';
 const DEFAULTS_TABLE = 'Calculator Defaults';
+
+// ============ FIELD MAPPINGS ============
+// Maps code field names to Airtable field names
+
+const AIRTABLE_FIELDS = {
+  // Metadata
+  name: 'Calculation Name',
+  propertyCode: 'Property Code',
+  contactId: 'Contact ID',
+  notes: 'Notes',
+  createdAt: 'Created At',
+  updatedAt: 'Updated At',
+
+  // Property Basics
+  askingPrice: 'Asking Price',
+  arv: 'ARV (After Repair Value)',
+  repairs: 'Repairs Estimate',
+  yourFee: 'Your Fee',
+  creditToBuyer: 'Credit to Buyer',
+  wholesaleDiscount: 'Wholesale Discount (%)',
+
+  // Income
+  monthlyRent: 'Monthly Rent',
+  otherIncome: 'Other Income',
+
+  // Purchase Costs
+  purchasePrice: 'Purchase Price',
+  closingCosts: 'Closing Costs',
+  appraisalCost: 'Appraisal Cost',
+  llcCost: 'LLC Cost',
+  servicingFee: 'Servicing Fee',
+  sellerAllowance: 'Seller Allowance',
+
+  // Tax & Insurance
+  annualTaxes: 'Property Taxes (Annual)',
+  annualInsurance: 'Insurance (Annual)',
+
+  // Operating
+  maintenancePercent: 'Maintenance (%)',
+  propertyMgmtPercent: 'Property Mgmt (%)',
+  hoa: 'HOA',
+  utilities: 'Utilities',
+
+  // Subject-To Loan
+  useSubjectTo: 'Use Subject-To',
+  subToLoanType: 'SubTo Loan Type',
+  subToPrincipal: 'SubTo Principal',
+  subToInterestRate: 'SubTo Interest Rate (%)',
+  subToTermYears: 'SubTo Term (Years)',
+  subToStartDate: 'SubTo Start Date',
+  subToBalloonYears: 'SubTo Balloon (Years)',
+
+  // DSCR Loan
+  useDSCRLoan: 'Use DSCR Loan',
+  dscrInterestRate: 'DSCR Interest Rate (%)',
+  dscrTermYears: 'DSCR Term (Years)',
+  dscrStartDate: 'DSCR Start Date',
+  dscrBalloonYears: 'DSCR Balloon (Years)',
+  dscrPoints: 'DSCR Points (%)',
+  dscrFees: 'DSCR Fees',
+
+  // Second Loan
+  useLoan2: 'Use Second Loan',
+  loan2Principal: 'Loan 2 Principal',
+  loan2InterestRate: 'Loan 2 Interest Rate (%)',
+  loan2TermYears: 'Loan 2 Term (Years)',
+  loan2StartDate: 'Loan 2 Start Date',
+  loan2BalloonYears: 'Loan 2 Balloon (Years)',
+  loan2Points: 'Loan 2 Points (%)',
+  loan2Fees: 'Loan 2 Fees',
+
+  // Wrap Loan
+  useWrap: 'Use Wrap',
+  wrapLoanType: 'Wrap Loan Type',
+  wrapInterestRate: 'Wrap Interest Rate (%)',
+  wrapTermYears: 'Wrap Term (Years)',
+  wrapStartDate: 'Wrap Start Date',
+  wrapBalloonYears: 'Wrap Balloon (Years)',
+  wrapPoints: 'Wrap Points (%)',
+  wrapFees: 'Wrap Fees',
+  wrapServiceFee: 'Wrap Service Fee',
+
+  // Wrap Sales
+  wrapSalesPrice: 'Wrap Sales Price',
+  buyerDownPayment: 'Buyer Down Payment',
+  buyerClosingCosts: 'Buyer Closing Costs',
+
+  // Flip
+  projectMonths: 'Project Months',
+  resaleClosingCosts: 'Resale Closing Costs',
+  resaleMarketing: 'Resale Marketing',
+  contingency: 'Contingency',
+
+  // === OUTPUTS ===
+
+  // Quick Stats
+  mao: 'MAO',
+  monthlyCashflow: 'Monthly Cashflow',
+  wrapCashflow: 'Wrap Cashflow',
+  flipProfit: 'Flip Profit',
+  totalEntryFee: 'Total Entry Fee',
+  fundingGap: 'Funding Gap',
+  cashOnCashHold: 'Cash on Cash (Hold) %',
+  cashOnCashFlip: 'Cash on Cash (Flip) %',
+  cashOnCashWrap: 'Cash on Cash (Wrap) %',
+
+  // Loan Calcs
+  dscrLoanAmount: 'DSCR Loan Amount',
+  dscrMonthlyPayment: 'DSCR Monthly Payment',
+  dscrBalloonAmount: 'DSCR Balloon Amount',
+  dscrDownPayment: 'DSCR Down Payment',
+  subToMonthlyPayment: 'SubTo Monthly Payment',
+  subToCurrentBalance: 'SubTo Current Balance',
+  loan2MonthlyPayment: 'Loan 2 Monthly Payment',
+  loan2BalloonAmount: 'Loan 2 Balloon Amount',
+  wrapPrincipal: 'Wrap Principal',
+  wrapMonthlyPayment: 'Wrap Monthly Payment',
+  wrapBalloonAmount: 'Wrap Balloon Amount',
+  buyerMonthlyPITI: 'Buyer Monthly PITI',
+
+  // Totals
+  totalMonthlyIncome: 'Total Monthly Income',
+  totalMonthlyPI: 'Total Monthly P&I',
+  totalMonthlyTI: 'Total Monthly T&I',
+  totalMonthlyMaintenance: 'Total Monthly Maintenance',
+  totalMonthlyPropertyMgmt: 'Total Monthly Property Mgmt',
+  totalMonthlyExpenses: 'Total Monthly Expenses',
+
+  // Deal Checklist
+  entryFeeUnder25k: 'Entry Fee Under 25k',
+  cashflowOver400: 'Cashflow Over 400',
+  ltvUnder75: 'LTV Under 75',
+  equityOver15k: 'Equity Over 15k',
+  dealDecision: 'Deal Decision',
+};
+
+// Reverse mapping for reading from Airtable
+const REVERSE_FIELDS: Record<string, string> = {};
+Object.entries(AIRTABLE_FIELDS).forEach(([key, value]) => {
+  REVERSE_FIELDS[value] = key;
+});
 
 /**
  * Fetch with retry on 429 rate limit
@@ -53,6 +196,198 @@ async function fetchWithRetry(
   }
 
   throw lastError || new Error('Failed after retries');
+}
+
+/**
+ * Convert code inputs/outputs to Airtable fields
+ */
+function inputsToAirtableFields(inputs: Record<string, unknown>, outputs?: Record<string, unknown>): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+
+  // Flatten nested input structure
+  const flatInputs: Record<string, unknown> = {};
+
+  if (inputs.name) flatInputs.name = inputs.name;
+  if (inputs.propertyCode) flatInputs.propertyCode = inputs.propertyCode;
+  if (inputs.contactId) flatInputs.contactId = inputs.contactId;
+
+  // Flatten sections
+  const sections = ['propertyBasics', 'income', 'purchaseCosts', 'taxInsurance', 'operating',
+                    'subjectTo', 'dscrLoan', 'secondLoan', 'wrapLoan', 'wrapSales', 'flip'];
+
+  for (const section of sections) {
+    if (inputs[section] && typeof inputs[section] === 'object') {
+      Object.assign(flatInputs, inputs[section]);
+    }
+  }
+
+  // Map input fields
+  for (const [codeKey, value] of Object.entries(flatInputs)) {
+    const airtableKey = AIRTABLE_FIELDS[codeKey as keyof typeof AIRTABLE_FIELDS];
+    if (airtableKey && value !== undefined && value !== null) {
+      fields[airtableKey] = value;
+    }
+  }
+
+  // Flatten and map output fields
+  if (outputs) {
+    const flatOutputs: Record<string, unknown> = {};
+    const outputSections = ['quickStats', 'loanCalcs', 'totals', 'dealChecklist'];
+
+    for (const section of outputSections) {
+      if (outputs[section] && typeof outputs[section] === 'object') {
+        Object.assign(flatOutputs, outputs[section]);
+      }
+    }
+
+    for (const [codeKey, value] of Object.entries(flatOutputs)) {
+      const airtableKey = AIRTABLE_FIELDS[codeKey as keyof typeof AIRTABLE_FIELDS];
+      if (airtableKey && value !== undefined && value !== null) {
+        fields[airtableKey] = value;
+      }
+    }
+  }
+
+  // Add timestamps
+  fields[AIRTABLE_FIELDS.updatedAt] = new Date().toISOString();
+
+  return fields;
+}
+
+/**
+ * Convert Airtable fields back to code structure
+ */
+function airtableFieldsToInputsOutputs(fields: Record<string, unknown>): { inputs: Record<string, unknown>; outputs: Record<string, unknown> } {
+  const inputs: Record<string, unknown> = {
+    name: fields[AIRTABLE_FIELDS.name] || 'Unnamed Calculation',
+    propertyCode: fields[AIRTABLE_FIELDS.propertyCode],
+    contactId: fields[AIRTABLE_FIELDS.contactId],
+    propertyBasics: {
+      askingPrice: fields[AIRTABLE_FIELDS.askingPrice] ?? 0,
+      arv: fields[AIRTABLE_FIELDS.arv] ?? 0,
+      repairs: fields[AIRTABLE_FIELDS.repairs] ?? 0,
+      yourFee: fields[AIRTABLE_FIELDS.yourFee] ?? 5000,
+      creditToBuyer: fields[AIRTABLE_FIELDS.creditToBuyer] ?? 5000,
+      wholesaleDiscount: fields[AIRTABLE_FIELDS.wholesaleDiscount] ?? 70,
+    },
+    income: {
+      monthlyRent: fields[AIRTABLE_FIELDS.monthlyRent] ?? 0,
+      otherIncome: fields[AIRTABLE_FIELDS.otherIncome] ?? 0,
+    },
+    purchaseCosts: {
+      purchasePrice: fields[AIRTABLE_FIELDS.purchasePrice] ?? 0,
+      closingCosts: fields[AIRTABLE_FIELDS.closingCosts] ?? 3000,
+      appraisalCost: fields[AIRTABLE_FIELDS.appraisalCost] ?? 500,
+      llcCost: fields[AIRTABLE_FIELDS.llcCost] ?? 200,
+      servicingFee: fields[AIRTABLE_FIELDS.servicingFee] ?? 100,
+      sellerAllowance: fields[AIRTABLE_FIELDS.sellerAllowance] ?? 0,
+    },
+    taxInsurance: {
+      annualTaxes: fields[AIRTABLE_FIELDS.annualTaxes] ?? 0,
+      annualInsurance: fields[AIRTABLE_FIELDS.annualInsurance] ?? 0,
+    },
+    operating: {
+      maintenancePercent: fields[AIRTABLE_FIELDS.maintenancePercent] ?? 5,
+      propertyMgmtPercent: fields[AIRTABLE_FIELDS.propertyMgmtPercent] ?? 10,
+      hoa: fields[AIRTABLE_FIELDS.hoa] ?? 0,
+      utilities: fields[AIRTABLE_FIELDS.utilities] ?? 0,
+    },
+    subjectTo: {
+      useSubjectTo: fields[AIRTABLE_FIELDS.useSubjectTo] ?? false,
+      subToLoanType: fields[AIRTABLE_FIELDS.subToLoanType] ?? 'Conventional',
+      subToPrincipal: fields[AIRTABLE_FIELDS.subToPrincipal] ?? 0,
+      subToInterestRate: fields[AIRTABLE_FIELDS.subToInterestRate] ?? 4,
+      subToTermYears: fields[AIRTABLE_FIELDS.subToTermYears] ?? 30,
+      subToStartDate: fields[AIRTABLE_FIELDS.subToStartDate] ?? new Date().toISOString().split('T')[0],
+      subToBalloonYears: fields[AIRTABLE_FIELDS.subToBalloonYears] ?? 0,
+    },
+    dscrLoan: {
+      useDSCRLoan: fields[AIRTABLE_FIELDS.useDSCRLoan] ?? false,
+      dscrInterestRate: fields[AIRTABLE_FIELDS.dscrInterestRate] ?? 8,
+      dscrTermYears: fields[AIRTABLE_FIELDS.dscrTermYears] ?? 30,
+      dscrStartDate: fields[AIRTABLE_FIELDS.dscrStartDate] ?? new Date().toISOString().split('T')[0],
+      dscrBalloonYears: fields[AIRTABLE_FIELDS.dscrBalloonYears] ?? 5,
+      dscrPoints: fields[AIRTABLE_FIELDS.dscrPoints] ?? 2,
+      dscrFees: fields[AIRTABLE_FIELDS.dscrFees] ?? 1500,
+    },
+    secondLoan: {
+      useLoan2: fields[AIRTABLE_FIELDS.useLoan2] ?? false,
+      loan2Principal: fields[AIRTABLE_FIELDS.loan2Principal] ?? 0,
+      loan2InterestRate: fields[AIRTABLE_FIELDS.loan2InterestRate] ?? 10,
+      loan2TermYears: fields[AIRTABLE_FIELDS.loan2TermYears] ?? 10,
+      loan2StartDate: fields[AIRTABLE_FIELDS.loan2StartDate] ?? new Date().toISOString().split('T')[0],
+      loan2BalloonYears: fields[AIRTABLE_FIELDS.loan2BalloonYears] ?? 0,
+      loan2Points: fields[AIRTABLE_FIELDS.loan2Points] ?? 0,
+      loan2Fees: fields[AIRTABLE_FIELDS.loan2Fees] ?? 0,
+    },
+    wrapLoan: {
+      useWrap: fields[AIRTABLE_FIELDS.useWrap] ?? false,
+      wrapLoanType: fields[AIRTABLE_FIELDS.wrapLoanType] ?? 'Amortized',
+      wrapInterestRate: fields[AIRTABLE_FIELDS.wrapInterestRate] ?? 9,
+      wrapTermYears: fields[AIRTABLE_FIELDS.wrapTermYears] ?? 30,
+      wrapStartDate: fields[AIRTABLE_FIELDS.wrapStartDate] ?? new Date().toISOString().split('T')[0],
+      wrapBalloonYears: fields[AIRTABLE_FIELDS.wrapBalloonYears] ?? 5,
+      wrapPoints: fields[AIRTABLE_FIELDS.wrapPoints] ?? 0,
+      wrapFees: fields[AIRTABLE_FIELDS.wrapFees] ?? 0,
+      wrapServiceFee: fields[AIRTABLE_FIELDS.wrapServiceFee] ?? 35,
+    },
+    wrapSales: {
+      wrapSalesPrice: fields[AIRTABLE_FIELDS.wrapSalesPrice] ?? 0,
+      buyerDownPayment: fields[AIRTABLE_FIELDS.buyerDownPayment] ?? 0,
+      buyerClosingCosts: fields[AIRTABLE_FIELDS.buyerClosingCosts] ?? 0,
+    },
+    flip: {
+      projectMonths: fields[AIRTABLE_FIELDS.projectMonths] ?? 6,
+      resaleClosingCosts: fields[AIRTABLE_FIELDS.resaleClosingCosts] ?? 0,
+      resaleMarketing: fields[AIRTABLE_FIELDS.resaleMarketing] ?? 0,
+      contingency: fields[AIRTABLE_FIELDS.contingency] ?? 0,
+    },
+  };
+
+  const outputs: Record<string, unknown> = {
+    quickStats: {
+      mao: fields[AIRTABLE_FIELDS.mao] ?? 0,
+      monthlyCashflow: fields[AIRTABLE_FIELDS.monthlyCashflow] ?? 0,
+      wrapCashflow: fields[AIRTABLE_FIELDS.wrapCashflow] ?? 0,
+      flipProfit: fields[AIRTABLE_FIELDS.flipProfit] ?? 0,
+      totalEntryFee: fields[AIRTABLE_FIELDS.totalEntryFee] ?? 0,
+      fundingGap: fields[AIRTABLE_FIELDS.fundingGap] ?? 0,
+      cashOnCashHold: fields[AIRTABLE_FIELDS.cashOnCashHold] ?? 0,
+      cashOnCashFlip: fields[AIRTABLE_FIELDS.cashOnCashFlip] ?? 0,
+      cashOnCashWrap: fields[AIRTABLE_FIELDS.cashOnCashWrap] ?? 0,
+    },
+    loanCalcs: {
+      dscrLoanAmount: fields[AIRTABLE_FIELDS.dscrLoanAmount] ?? 0,
+      dscrMonthlyPayment: fields[AIRTABLE_FIELDS.dscrMonthlyPayment] ?? 0,
+      dscrBalloonAmount: fields[AIRTABLE_FIELDS.dscrBalloonAmount] ?? 0,
+      dscrDownPayment: fields[AIRTABLE_FIELDS.dscrDownPayment] ?? 0,
+      subToMonthlyPayment: fields[AIRTABLE_FIELDS.subToMonthlyPayment] ?? 0,
+      subToCurrentBalance: fields[AIRTABLE_FIELDS.subToCurrentBalance] ?? 0,
+      loan2MonthlyPayment: fields[AIRTABLE_FIELDS.loan2MonthlyPayment] ?? 0,
+      loan2BalloonAmount: fields[AIRTABLE_FIELDS.loan2BalloonAmount] ?? 0,
+      wrapPrincipal: fields[AIRTABLE_FIELDS.wrapPrincipal] ?? 0,
+      wrapMonthlyPayment: fields[AIRTABLE_FIELDS.wrapMonthlyPayment] ?? 0,
+      wrapBalloonAmount: fields[AIRTABLE_FIELDS.wrapBalloonAmount] ?? 0,
+      buyerMonthlyPITI: fields[AIRTABLE_FIELDS.buyerMonthlyPITI] ?? 0,
+    },
+    totals: {
+      totalMonthlyIncome: fields[AIRTABLE_FIELDS.totalMonthlyIncome] ?? 0,
+      totalMonthlyPI: fields[AIRTABLE_FIELDS.totalMonthlyPI] ?? 0,
+      totalMonthlyTI: fields[AIRTABLE_FIELDS.totalMonthlyTI] ?? 0,
+      totalMonthlyMaintenance: fields[AIRTABLE_FIELDS.totalMonthlyMaintenance] ?? 0,
+      totalMonthlyPropertyMgmt: fields[AIRTABLE_FIELDS.totalMonthlyPropertyMgmt] ?? 0,
+      totalMonthlyExpenses: fields[AIRTABLE_FIELDS.totalMonthlyExpenses] ?? 0,
+    },
+    dealChecklist: {
+      entryFeeUnder25k: fields[AIRTABLE_FIELDS.entryFeeUnder25k] ?? false,
+      cashflowOver400: fields[AIRTABLE_FIELDS.cashflowOver400] ?? false,
+      ltvUnder75: fields[AIRTABLE_FIELDS.ltvUnder75] ?? false,
+      equityOver15k: fields[AIRTABLE_FIELDS.equityOver15k] ?? false,
+      dealDecision: fields[AIRTABLE_FIELDS.dealDecision] ?? 'NEEDS REVIEW',
+    },
+  };
+
+  return { inputs, outputs };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -122,7 +457,7 @@ async function handleList(
 
   const params = new URLSearchParams();
   params.append('maxRecords', limit as string);
-  params.append('sort[0][field]', 'Updated At');
+  params.append('sort[0][field]', AIRTABLE_FIELDS.updatedAt);
   params.append('sort[0][direction]', 'desc');
 
   if (offset) {
@@ -132,10 +467,10 @@ async function handleList(
   // Build filter formula
   const filters: string[] = [];
   if (propertyCode) {
-    filters.push(`{Property Code} = "${propertyCode}"`);
+    filters.push(`{${AIRTABLE_FIELDS.propertyCode}} = "${propertyCode}"`);
   }
   if (contactId) {
-    filters.push(`{Contact ID} = "${contactId}"`);
+    filters.push(`{${AIRTABLE_FIELDS.contactId}} = "${contactId}"`);
   }
 
   if (filters.length > 0) {
@@ -162,17 +497,20 @@ async function handleList(
   const data = await response.json();
 
   // Transform records
-  const calculations = data.records.map((record: { id: string; fields: Record<string, unknown> }) => ({
-    id: record.id,
-    name: record.fields['Name'] || 'Unnamed Calculation',
-    propertyCode: record.fields['Property Code'],
-    contactId: record.fields['Contact ID'],
-    inputs: record.fields['Inputs'] ? JSON.parse(record.fields['Inputs'] as string) : null,
-    outputs: record.fields['Outputs'] ? JSON.parse(record.fields['Outputs'] as string) : null,
-    notes: record.fields['Notes'],
-    createdAt: record.fields['Created At'],
-    updatedAt: record.fields['Updated At'],
-  }));
+  const calculations = data.records.map((record: { id: string; fields: Record<string, unknown> }) => {
+    const { inputs, outputs } = airtableFieldsToInputsOutputs(record.fields);
+    return {
+      id: record.id,
+      name: inputs.name,
+      propertyCode: inputs.propertyCode,
+      contactId: inputs.contactId,
+      inputs,
+      outputs,
+      notes: record.fields[AIRTABLE_FIELDS.notes],
+      createdAt: record.fields[AIRTABLE_FIELDS.createdAt],
+      updatedAt: record.fields[AIRTABLE_FIELDS.updatedAt],
+    };
+  });
 
   return res.status(200).json({
     calculations,
@@ -206,18 +544,19 @@ async function handleGet(
   }
 
   const record = await response.json();
+  const { inputs, outputs } = airtableFieldsToInputsOutputs(record.fields);
 
   return res.status(200).json({
     calculation: {
       id: record.id,
-      name: record.fields['Name'],
-      propertyCode: record.fields['Property Code'],
-      contactId: record.fields['Contact ID'],
-      inputs: record.fields['Inputs'] ? JSON.parse(record.fields['Inputs']) : null,
-      outputs: record.fields['Outputs'] ? JSON.parse(record.fields['Outputs']) : null,
-      notes: record.fields['Notes'],
-      createdAt: record.fields['Created At'],
-      updatedAt: record.fields['Updated At'],
+      name: inputs.name,
+      propertyCode: inputs.propertyCode,
+      contactId: inputs.contactId,
+      inputs,
+      outputs,
+      notes: record.fields[AIRTABLE_FIELDS.notes],
+      createdAt: record.fields[AIRTABLE_FIELDS.createdAt],
+      updatedAt: record.fields[AIRTABLE_FIELDS.updatedAt],
     },
   });
 }
@@ -240,23 +579,22 @@ async function handleCreate(
     return res.status(400).json({ error: 'inputs is required' });
   }
 
-  const fields: Record<string, unknown> = {
-    'Name': name || 'New Calculation',
-    'Inputs': JSON.stringify(inputs),
-    'Outputs': outputs ? JSON.stringify(outputs) : null,
-    'Created At': new Date().toISOString(),
-    'Updated At': new Date().toISOString(),
+  // Add metadata to inputs
+  const enrichedInputs = {
+    ...inputs,
+    name: name || inputs.name || 'New Calculation',
+    propertyCode: propertyCode || inputs.propertyCode,
+    contactId: contactId || inputs.contactId,
   };
 
-  if (propertyCode) {
-    fields['Property Code'] = propertyCode;
-  }
-  if (contactId) {
-    fields['Contact ID'] = contactId;
-  }
+  const fields = inputsToAirtableFields(enrichedInputs, outputs);
+  fields[AIRTABLE_FIELDS.createdAt] = new Date().toISOString();
+
   if (notes) {
-    fields['Notes'] = notes;
+    fields[AIRTABLE_FIELDS.notes] = notes;
   }
+
+  console.log('[Calculator API] Creating with fields:', Object.keys(fields));
 
   const url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(CALCULATIONS_TABLE)}`;
   const response = await fetchWithRetry(url, {
@@ -275,19 +613,20 @@ async function handleCreate(
   }
 
   const record = await response.json();
+  const result = airtableFieldsToInputsOutputs(record.fields);
 
   return res.status(201).json({
     success: true,
     calculation: {
       id: record.id,
-      name: record.fields['Name'],
-      propertyCode: record.fields['Property Code'],
-      contactId: record.fields['Contact ID'],
-      inputs: record.fields['Inputs'] ? JSON.parse(record.fields['Inputs']) : null,
-      outputs: record.fields['Outputs'] ? JSON.parse(record.fields['Outputs']) : null,
-      notes: record.fields['Notes'],
-      createdAt: record.fields['Created At'],
-      updatedAt: record.fields['Updated At'],
+      name: result.inputs.name,
+      propertyCode: result.inputs.propertyCode,
+      contactId: result.inputs.contactId,
+      inputs: result.inputs,
+      outputs: result.outputs,
+      notes: record.fields[AIRTABLE_FIELDS.notes],
+      createdAt: record.fields[AIRTABLE_FIELDS.createdAt],
+      updatedAt: record.fields[AIRTABLE_FIELDS.updatedAt],
     },
   });
 }
@@ -311,14 +650,17 @@ async function handleUpdate(
     return res.status(400).json({ error: 'recordId is required' });
   }
 
-  const fields: Record<string, unknown> = {
-    'Updated At': new Date().toISOString(),
-  };
+  // Build enriched inputs with name
+  const enrichedInputs = inputs ? {
+    ...inputs,
+    name: name || inputs.name,
+  } : { name };
 
-  if (name !== undefined) fields['Name'] = name;
-  if (inputs !== undefined) fields['Inputs'] = JSON.stringify(inputs);
-  if (outputs !== undefined) fields['Outputs'] = JSON.stringify(outputs);
-  if (notes !== undefined) fields['Notes'] = notes;
+  const fields = inputsToAirtableFields(enrichedInputs, outputs);
+
+  if (notes !== undefined) {
+    fields[AIRTABLE_FIELDS.notes] = notes;
+  }
 
   const url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(CALCULATIONS_TABLE)}/${recordId}`;
   const response = await fetchWithRetry(url, {
@@ -337,18 +679,19 @@ async function handleUpdate(
   }
 
   const record = await response.json();
+  const result = airtableFieldsToInputsOutputs(record.fields);
 
   return res.status(200).json({
     success: true,
     calculation: {
       id: record.id,
-      name: record.fields['Name'],
-      propertyCode: record.fields['Property Code'],
-      contactId: record.fields['Contact ID'],
-      inputs: record.fields['Inputs'] ? JSON.parse(record.fields['Inputs']) : null,
-      outputs: record.fields['Outputs'] ? JSON.parse(record.fields['Outputs']) : null,
-      notes: record.fields['Notes'],
-      updatedAt: record.fields['Updated At'],
+      name: result.inputs.name,
+      propertyCode: result.inputs.propertyCode,
+      contactId: result.inputs.contactId,
+      inputs: result.inputs,
+      outputs: result.outputs,
+      notes: record.fields[AIRTABLE_FIELDS.notes],
+      updatedAt: record.fields[AIRTABLE_FIELDS.updatedAt],
     },
   });
 }
@@ -388,22 +731,44 @@ async function handleDelete(
   });
 }
 
+// ============ CALCULATOR DEFAULTS ============
+// Uses key-value pattern: Setting Key, Setting Value, Setting Type, Category, Display Name, Description
+
+const DEFAULTS_FIELD_MAP: Record<string, { key: string; type: string; category: string; displayName: string }> = {
+  wholesaleDiscount: { key: 'wholesale_discount', type: 'number', category: 'Purchase & Fees', displayName: 'Wholesale Discount (%)' },
+  yourFee: { key: 'your_fee', type: 'number', category: 'Purchase & Fees', displayName: 'Your Fee' },
+  creditToBuyer: { key: 'credit_to_buyer', type: 'number', category: 'Purchase & Fees', displayName: 'Credit to Buyer' },
+  maintenancePercent: { key: 'maintenance_percent', type: 'number', category: 'Operating Expenses', displayName: 'Maintenance (%)' },
+  propertyMgmtPercent: { key: 'property_mgmt_percent', type: 'number', category: 'Operating Expenses', displayName: 'Property Management (%)' },
+  dscrInterestRate: { key: 'dscr_interest_rate', type: 'number', category: 'DSCR Loan', displayName: 'DSCR Interest Rate (%)' },
+  dscrTermYears: { key: 'dscr_term_years', type: 'number', category: 'DSCR Loan', displayName: 'DSCR Term (Years)' },
+  dscrBalloonYears: { key: 'dscr_balloon_years', type: 'number', category: 'DSCR Loan', displayName: 'DSCR Balloon (Years)' },
+  dscrPoints: { key: 'dscr_points', type: 'number', category: 'DSCR Loan', displayName: 'DSCR Points (%)' },
+  dscrFees: { key: 'dscr_fees', type: 'number', category: 'DSCR Loan', displayName: 'DSCR Fees' },
+  wrapInterestRate: { key: 'wrap_interest_rate', type: 'number', category: 'Wrap Loan', displayName: 'Wrap Interest Rate (%)' },
+  wrapTermYears: { key: 'wrap_term_years', type: 'number', category: 'Wrap Loan', displayName: 'Wrap Term (Years)' },
+  wrapBalloonYears: { key: 'wrap_balloon_years', type: 'number', category: 'Wrap Loan', displayName: 'Wrap Balloon (Years)' },
+  wrapServiceFee: { key: 'wrap_service_fee', type: 'number', category: 'Wrap Loan', displayName: 'Wrap Service Fee' },
+  closingCosts: { key: 'closing_costs', type: 'number', category: 'Closing & Setup', displayName: 'Closing Costs' },
+  appraisalCost: { key: 'appraisal_cost', type: 'number', category: 'Closing & Setup', displayName: 'Appraisal Cost' },
+  llcCost: { key: 'llc_cost', type: 'number', category: 'Closing & Setup', displayName: 'LLC Cost' },
+  servicingFee: { key: 'servicing_fee', type: 'number', category: 'Closing & Setup', displayName: 'Servicing Fee' },
+};
+
 /**
- * Get calculator defaults
+ * Get calculator defaults from key-value table
  */
 async function handleGetDefaults(
   req: VercelRequest,
   res: VercelResponse,
   headers: Record<string, string>
 ) {
-  // Get the first defaults record (single-user system for now)
-  const url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(DEFAULTS_TABLE)}?maxRecords=1`;
+  const url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(DEFAULTS_TABLE)}?maxRecords=100`;
 
   try {
     const response = await fetchWithRetry(url, { headers });
 
     if (!response.ok) {
-      // If table doesn't exist or other error, return system defaults
       console.log('[Calculator API] Defaults table error, returning system defaults');
       return res.status(200).json({
         defaults: getSystemDefaults(),
@@ -413,40 +778,30 @@ async function handleGetDefaults(
     const data = await response.json();
 
     if (!data.records || data.records.length === 0) {
-      // No defaults record, return system defaults
       return res.status(200).json({
         defaults: getSystemDefaults(),
       });
     }
 
-    const record = data.records[0];
-    return res.status(200).json({
-      defaults: {
-        id: record.id,
-        wholesaleDiscount: record.fields['Wholesale Discount'] ?? 70,
-        yourFee: record.fields['Your Fee'] ?? 5000,
-        creditToBuyer: record.fields['Credit to Buyer'] ?? 5000,
-        maintenancePercent: record.fields['Maintenance Percent'] ?? 5,
-        propertyMgmtPercent: record.fields['Property Mgmt Percent'] ?? 10,
-        dscrInterestRate: record.fields['DSCR Interest Rate'] ?? 8,
-        dscrTermYears: record.fields['DSCR Term Years'] ?? 30,
-        dscrBalloonYears: record.fields['DSCR Balloon Years'] ?? 5,
-        dscrPoints: record.fields['DSCR Points'] ?? 2,
-        dscrFees: record.fields['DSCR Fees'] ?? 1500,
-        wrapInterestRate: record.fields['Wrap Interest Rate'] ?? 9,
-        wrapTermYears: record.fields['Wrap Term Years'] ?? 30,
-        wrapBalloonYears: record.fields['Wrap Balloon Years'] ?? 5,
-        wrapServiceFee: record.fields['Wrap Service Fee'] ?? 35,
-        closingCosts: record.fields['Closing Costs'] ?? 3000,
-        appraisalCost: record.fields['Appraisal Cost'] ?? 500,
-        llcCost: record.fields['LLC Cost'] ?? 200,
-        servicingFee: record.fields['Servicing Fee'] ?? 100,
-        updatedAt: record.fields['Updated At'],
-      },
-    });
+    // Build defaults from key-value records
+    const defaults = getSystemDefaults();
+
+    for (const record of data.records) {
+      const settingKey = record.fields['Setting Key'];
+      const settingValue = record.fields['Setting Value'];
+
+      // Find the code field that matches this setting key
+      for (const [codeKey, config] of Object.entries(DEFAULTS_FIELD_MAP)) {
+        if (config.key === settingKey && settingValue !== undefined) {
+          const parsedValue = config.type === 'number' ? parseFloat(settingValue) : settingValue;
+          (defaults as Record<string, unknown>)[codeKey] = parsedValue;
+        }
+      }
+    }
+
+    return res.status(200).json({ defaults });
   } catch (error) {
     console.error('[Calculator API] Get defaults error:', error);
-    // On any error, return system defaults
     return res.status(200).json({
       defaults: getSystemDefaults(),
     });
@@ -454,7 +809,7 @@ async function handleGetDefaults(
 }
 
 /**
- * Update calculator defaults
+ * Update calculator defaults using key-value pattern
  */
 async function handleUpdateDefaults(
   req: VercelRequest,
@@ -465,71 +820,78 @@ async function handleUpdateDefaults(
     return res.status(405).json({ error: 'Method not allowed. Use PUT, PATCH, or POST.' });
   }
 
-  const defaults = req.body;
-
-  const fields: Record<string, unknown> = {
-    'Updated At': new Date().toISOString(),
-  };
-
-  // Map all fields
-  if (defaults.wholesaleDiscount !== undefined) fields['Wholesale Discount'] = defaults.wholesaleDiscount;
-  if (defaults.yourFee !== undefined) fields['Your Fee'] = defaults.yourFee;
-  if (defaults.creditToBuyer !== undefined) fields['Credit to Buyer'] = defaults.creditToBuyer;
-  if (defaults.maintenancePercent !== undefined) fields['Maintenance Percent'] = defaults.maintenancePercent;
-  if (defaults.propertyMgmtPercent !== undefined) fields['Property Mgmt Percent'] = defaults.propertyMgmtPercent;
-  if (defaults.dscrInterestRate !== undefined) fields['DSCR Interest Rate'] = defaults.dscrInterestRate;
-  if (defaults.dscrTermYears !== undefined) fields['DSCR Term Years'] = defaults.dscrTermYears;
-  if (defaults.dscrBalloonYears !== undefined) fields['DSCR Balloon Years'] = defaults.dscrBalloonYears;
-  if (defaults.dscrPoints !== undefined) fields['DSCR Points'] = defaults.dscrPoints;
-  if (defaults.dscrFees !== undefined) fields['DSCR Fees'] = defaults.dscrFees;
-  if (defaults.wrapInterestRate !== undefined) fields['Wrap Interest Rate'] = defaults.wrapInterestRate;
-  if (defaults.wrapTermYears !== undefined) fields['Wrap Term Years'] = defaults.wrapTermYears;
-  if (defaults.wrapBalloonYears !== undefined) fields['Wrap Balloon Years'] = defaults.wrapBalloonYears;
-  if (defaults.wrapServiceFee !== undefined) fields['Wrap Service Fee'] = defaults.wrapServiceFee;
-  if (defaults.closingCosts !== undefined) fields['Closing Costs'] = defaults.closingCosts;
-  if (defaults.appraisalCost !== undefined) fields['Appraisal Cost'] = defaults.appraisalCost;
-  if (defaults.llcCost !== undefined) fields['LLC Cost'] = defaults.llcCost;
-  if (defaults.servicingFee !== undefined) fields['Servicing Fee'] = defaults.servicingFee;
+  const newDefaults = req.body;
 
   try {
-    // Check if defaults record exists
-    const listUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(DEFAULTS_TABLE)}?maxRecords=1`;
+    // First, get existing records to know which to update vs create
+    const listUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(DEFAULTS_TABLE)}?maxRecords=100`;
     const listResponse = await fetchWithRetry(listUrl, { headers });
     const listData = await listResponse.json();
 
-    let response: Response;
-
-    if (listData.records?.length > 0) {
-      // Update existing
-      const recordId = listData.records[0].id;
-      const updateUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(DEFAULTS_TABLE)}/${recordId}`;
-      response = await fetchWithRetry(updateUrl, {
-        method: 'PATCH',
-        headers,
-        body: JSON.stringify({ fields }),
-      });
-    } else {
-      // Create new
-      const createUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(DEFAULTS_TABLE)}`;
-      response = await fetchWithRetry(createUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ fields }),
-      });
+    // Build map of existing records by setting key
+    const existingRecords: Record<string, string> = {};
+    if (listData.records) {
+      for (const record of listData.records) {
+        const settingKey = record.fields['Setting Key'];
+        if (settingKey) {
+          existingRecords[settingKey] = record.id;
+        }
+      }
     }
 
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('[Calculator API] Update defaults error:', error);
-      return res.status(response.status).json({
-        error: 'Failed to update defaults',
-        details: error,
-      });
+    // Process each default value
+    const updates: { id: string; fields: Record<string, unknown> }[] = [];
+    const creates: { fields: Record<string, unknown> }[] = [];
+
+    for (const [codeKey, value] of Object.entries(newDefaults)) {
+      const config = DEFAULTS_FIELD_MAP[codeKey];
+      if (!config || value === undefined) continue;
+
+      const fields = {
+        'Setting Key': config.key,
+        'Setting Value': String(value),
+        'Setting Type': config.type,
+        'Category': config.category,
+        'Display Name': config.displayName,
+      };
+
+      if (existingRecords[config.key]) {
+        updates.push({ id: existingRecords[config.key], fields });
+      } else {
+        creates.push({ fields });
+      }
+    }
+
+    // Batch update existing records
+    if (updates.length > 0) {
+      const updateUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(DEFAULTS_TABLE)}`;
+      // Airtable allows max 10 records per batch
+      for (let i = 0; i < updates.length; i += 10) {
+        const batch = updates.slice(i, i + 10);
+        await fetchWithRetry(updateUrl, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ records: batch }),
+        });
+      }
+    }
+
+    // Create new records
+    if (creates.length > 0) {
+      const createUrl = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${encodeURIComponent(DEFAULTS_TABLE)}`;
+      for (let i = 0; i < creates.length; i += 10) {
+        const batch = creates.slice(i, i + 10);
+        await fetchWithRetry(createUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ records: batch }),
+        });
+      }
     }
 
     return res.status(200).json({
       success: true,
-      defaults,
+      defaults: newDefaults,
     });
   } catch (error) {
     console.error('[Calculator API] Update defaults error:', error);
