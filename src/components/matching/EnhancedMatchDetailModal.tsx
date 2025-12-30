@@ -28,6 +28,7 @@ import {
   ExternalLink,
   ClipboardList,
   ChevronDown,
+  Calculator,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -63,6 +64,7 @@ import {
 } from '@/types/matching';
 import { MatchDealStage } from '@/types/associations';
 import type { Deal } from '@/types/deals';
+import { DealCalculatorModal } from '@/components/calculator';
 
 export interface MatchWithDetails extends PropertyMatch {
   property?: PropertyDetails;
@@ -96,6 +98,7 @@ export function EnhancedMatchDetailModal({
   const [activeTab, setActiveTab] = useState<'property' | 'progress' | 'activity'>('property');
   // Local state for the stage to provide immediate UI feedback after updates
   const [localStage, setLocalStage] = useState<MatchDealStage | null>(null);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
   const navigate = useNavigate();
 
   // Sync local stage with prop when match changes (e.g., opening a different deal)
@@ -163,6 +166,7 @@ export function EnhancedMatchDetailModal({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full h-[100dvh] sm:h-auto sm:w-[1400px] sm:max-w-[95vw] sm:max-h-[95vh] p-0 gap-0 overflow-hidden flex flex-col rounded-none sm:rounded-lg">
         {/* Sticky Header */}
@@ -600,35 +604,62 @@ export function EnhancedMatchDetailModal({
           </div>
         </div>
 
-        {/* Sticky Footer - Navigation Only */}
+        {/* Sticky Footer */}
         <div className="sticky bottom-0 z-20 bg-background border-t px-6 py-3">
-          <div className="flex items-center justify-end gap-2">
-            {match.status && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleViewInPipeline}
-                className="gap-1"
-              >
-                View in Pipeline
-                <ArrowRight className="h-3 w-3" />
-              </Button>
-            )}
-            {buyer?.contactId && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleViewMatchDetails}
-                className="gap-1 text-muted-foreground"
-              >
-                <ExternalLink className="h-3 w-3" />
-                All Matches
-              </Button>
-            )}
+          <div className="flex items-center justify-between gap-2">
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setCalculatorOpen(true)}
+              className="gap-1 bg-purple-600 hover:bg-purple-700"
+            >
+              <Calculator className="h-4 w-4" />
+              Deal Calculator
+            </Button>
+            <div className="flex items-center gap-2">
+              {match.status && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleViewInPipeline}
+                  className="gap-1"
+                >
+                  View in Pipeline
+                  <ArrowRight className="h-3 w-3" />
+                </Button>
+              )}
+              {buyer?.contactId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleViewMatchDetails}
+                  className="gap-1 text-muted-foreground"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  All Matches
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Deal Calculator Modal */}
+    <DealCalculatorModal
+      open={calculatorOpen}
+      onOpenChange={setCalculatorOpen}
+      property={property ? {
+        price: property.price,
+        beds: property.beds,
+        baths: property.baths,
+        sqft: property.sqft,
+        address: property.address,
+        propertyCode: property.propertyCode,
+      } : undefined}
+      buyerContactId={buyer?.contactId}
+    />
+  </>
   );
 }
 
