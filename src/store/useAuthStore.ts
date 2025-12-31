@@ -17,7 +17,7 @@ interface AuthState {
   checkSession: () => boolean;
 }
 
-const API_BASE = import.meta.env.PROD ? '/api/ghl' : '/api/ghl';
+const API_BASE = '/api/auth';
 
 // Dev bypass - set to true to skip real authentication in development
 const DEV_AUTH_BYPASS = !import.meta.env.PROD;
@@ -57,7 +57,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          const response = await fetch(`${API_BASE}?resource=auth&action=login`, {
+          const response = await fetch(`${API_BASE}?action=login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
@@ -69,7 +69,7 @@ export const useAuthStore = create<AuthState>()(
           }
 
           const data = await response.json();
-          if (data.authenticated && data.user) {
+          if (data.success && data.user) {
             const sessionDuration = rememberMe ? SESSION_DURATION_LONG : SESSION_DURATION_SHORT;
             const expiry = Date.now() + sessionDuration;
 
