@@ -119,8 +119,54 @@ export function SocialAnalytics() {
     dateRange.toDate
   );
 
-  // Use real data or empty state
-  const statistics: GHLStatisticsResponse = statisticsData || emptyStatistics;
+  // Use real data or empty state - extract from rawData structure
+  const raw = statisticsData?.rawData?.results || {};
+  const tot = raw?.totals || {};
+  const brk = raw?.breakdowns || {};
+
+  const statistics: GHLStatisticsResponse = statisticsData ? {
+    kpis: {
+      posts: { value: tot?.posts || 0, change: 0 },
+      likes: { value: tot?.likes || 0, change: 0 },
+      comments: { value: tot?.comments || 0, change: 0 },
+      followers: { value: tot?.followers || 0, change: 0 },
+      impressions: { value: brk?.impressions?.total || 0, change: 0 },
+      reach: { value: brk?.reach?.total || 0, change: 0 },
+      engagement: { value: brk?.engagement?.total || 0, change: 0 },
+    },
+    platformBreakdown: Object.keys(brk?.posts?.platforms || {}).reduce((acc, platform) => {
+      acc[platform] = {
+        posts: brk?.posts?.platforms?.[platform]?.value || 0,
+        postsChange: parseFloat(brk?.posts?.platforms?.[platform]?.change) || 0,
+        likes: brk?.engagement?.[platform]?.likes || 0,
+        likesChange: 0,
+        comments: brk?.engagement?.[platform]?.comments || 0,
+        commentsChange: 0,
+        reach: brk?.reach?.platforms?.[platform]?.value || 0,
+        reachChange: parseFloat(brk?.reach?.platforms?.[platform]?.change) || 0,
+        impressions: brk?.impressions?.platforms?.[platform]?.value || 0,
+        impressionsChange: parseFloat(brk?.impressions?.platforms?.[platform]?.change) || 0,
+        followers: 0,
+        followersChange: 0,
+        engagement: (brk?.engagement?.[platform]?.likes || 0) + (brk?.engagement?.[platform]?.comments || 0) + (brk?.engagement?.[platform]?.shares || 0),
+        engagementChange: 0,
+      };
+      return acc;
+    }, {} as Record<string, any>),
+    weeklyData: (raw?.dayRange || []).map((date: string, i: number) => {
+      // Sum posts across all platforms for this day
+      const postsPerDay = Object.values(raw?.postPerformance?.posts || {}).reduce((sum: number, platformPosts: any) => {
+        return sum + (platformPosts?.[i] || 0);
+      }, 0);
+      return {
+        date: date,
+        posts: postsPerDay,
+        engagement: (raw?.postPerformance?.likes?.[i] || 0),
+        impressions: 0,
+      };
+    }),
+    topPosts: [],
+  } : emptyStatistics;
 
   const isLoading = isLoadingAccounts || isLoadingStats;
   const isRefreshing = isRefetching;
