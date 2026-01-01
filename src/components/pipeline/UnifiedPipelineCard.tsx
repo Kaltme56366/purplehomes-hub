@@ -39,6 +39,7 @@ export interface UnifiedPipelineCardProps {
   id: string;
   title: string;
   subtitle?: string;
+  secondarySubtitle?: string; // e.g., phone number
 
   // Optional image
   imageUrl?: string;
@@ -87,6 +88,7 @@ export function UnifiedPipelineCard({
   id,
   title,
   subtitle,
+  secondarySubtitle,
   imageUrl,
   imageFallbackIcon = 'home',
   location,
@@ -241,10 +243,15 @@ export function UnifiedPipelineCard({
           {variant === 'contact' ? (
             <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
           ) : variant === 'property' ? (
-            <Building2 className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+            <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
           ) : null}
           <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
         </div>
+      )}
+
+      {/* Secondary subtitle (e.g., phone) */}
+      {secondarySubtitle && (
+        <p className="text-xs text-muted-foreground truncate mt-0.5 pl-4">{secondarySubtitle}</p>
       )}
 
       {/* Location */}

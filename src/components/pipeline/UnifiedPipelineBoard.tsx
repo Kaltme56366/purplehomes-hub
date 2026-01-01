@@ -172,8 +172,8 @@ export function UnifiedPipelineBoard<T extends { id: string }>({
       )}
 
       {/* Kanban board - horizontal scroll with snap on mobile */}
-      <ScrollArea className="w-full">
-        <div className="flex gap-4 pb-4 min-w-max snap-x snap-mandatory md:snap-none overflow-x-auto scroll-smooth">
+      <div className="w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+        <div className="flex gap-4 pb-4 min-w-max snap-x snap-mandatory md:snap-none scroll-smooth" style={{ minWidth: 'max-content' }}>
           {visibleColumns.map((column) => {
             const isDropTarget = dragOverColumn === column.id;
 
@@ -223,8 +223,7 @@ export function UnifiedPipelineBoard<T extends { id: string }>({
             );
           })}
         </div>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
     </div>
   );
 }

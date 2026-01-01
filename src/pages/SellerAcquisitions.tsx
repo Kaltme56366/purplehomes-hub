@@ -60,13 +60,13 @@ interface SellerAcquisition {
   id: string;
   ghlStageId: string;
   stage: SellerAcquisitionStage;
-  sellerName: string;
-  propertyAddress: string;
+  sellerName: string; // Contact name
+  contactPhone?: string; // Contact phone
+  contactEmail?: string; // Contact email
+  propertyAddress: string; // Opportunity name (property)
   city: string;
   state: string;
   zipCode: string;
-  email?: string;
-  phone?: string;
   askingPrice?: number;
   propertyType?: string;
   notes?: string;
@@ -85,18 +85,18 @@ const transformToSellerAcquisition = (opp: GHLOpportunity): SellerAcquisition =>
 
   // Map the GHL stage ID directly to our stage
   const stage = stageIdMap[opp.pipelineStageId] || 'new-lead';
-  
+
   return {
     id: opp.id,
     ghlStageId: opp.pipelineStageId,
     stage,
-    sellerName: opp.name || opp.contact?.name || 'Unknown Seller', // Opportunity name first
-    propertyAddress: getCustomField('address') || '',
+    sellerName: opp.contact?.name || 'Unknown Seller', // Contact name
+    contactPhone: opp.contact?.phone || getCustomField('phone'),
+    contactEmail: opp.contact?.email || getCustomField('email'),
+    propertyAddress: opp.name || getCustomField('address') || '', // Opportunity name is the property
     city: getCustomField('city') || '',
     state: getCustomField('state') || '',
     zipCode: getCustomField('zip') || '',
-    email: opp.contact?.email || getCustomField('email'),
-    phone: opp.contact?.phone || getCustomField('phone'),
     askingPrice: opp.monetaryValue || undefined,
     propertyType: getCustomField('property_type'),
     notes: getCustomField('notes'),
@@ -128,7 +128,8 @@ export default function SellerAcquisitions() {
       (a) =>
         a.sellerName.toLowerCase().includes(searchLower) ||
         a.propertyAddress.toLowerCase().includes(searchLower) ||
-        a.email?.toLowerCase().includes(searchLower)
+        a.contactEmail?.toLowerCase().includes(searchLower) ||
+        a.contactPhone?.includes(search)
     );
   }, [acquisitions, search]);
 
@@ -179,8 +180,9 @@ export default function SellerAcquisitions() {
   const renderCard = (acquisition: SellerAcquisition) => (
     <UnifiedPipelineCard
       id={acquisition.id}
-      title={acquisition.propertyAddress || acquisition.sellerName}
+      title={acquisition.propertyAddress || 'No Address'}
       subtitle={acquisition.sellerName}
+      secondarySubtitle={acquisition.contactPhone}
       location={`${acquisition.city}${acquisition.state ? `, ${acquisition.state}` : ''} ${acquisition.zipCode}`.trim()}
       amount={acquisition.askingPrice}
       type={acquisition.propertyType}
@@ -386,21 +388,21 @@ export default function SellerAcquisitions() {
                     <p className="font-medium">{selectedAcquisition.sellerName}</p>
                   </div>
                 </div>
-                {selectedAcquisition.email && (
+                {selectedAcquisition.contactEmail && (
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <Mail className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="text-xs text-muted-foreground">Email</p>
-                      <p className="font-medium">{selectedAcquisition.email}</p>
+                      <p className="font-medium">{selectedAcquisition.contactEmail}</p>
                     </div>
                   </div>
                 )}
-                {selectedAcquisition.phone && (
+                {selectedAcquisition.contactPhone && (
                   <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
                     <Phone className="h-5 w-5 text-muted-foreground" />
                     <div>
                       <p className="text-xs text-muted-foreground">Phone</p>
-                      <p className="font-medium">{selectedAcquisition.phone}</p>
+                      <p className="font-medium">{selectedAcquisition.contactPhone}</p>
                     </div>
                   </div>
                 )}
