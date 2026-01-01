@@ -24,6 +24,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import {
   useSocialAccounts,
   useSocialStatistics,
   type GHLStatisticsResponse,
@@ -31,17 +37,18 @@ import {
 import { cn } from '@/lib/utils';
 import { format, subDays, subMonths } from 'date-fns';
 
-// Platform icons and colors
-const platformConfig: Record<string, { icon: typeof Facebook; color: string; label: string }> = {
-  facebook: { icon: Facebook, label: 'Facebook', color: 'text-blue-600' },
-  instagram: { icon: Instagram, label: 'Instagram', color: 'text-pink-600' },
-  linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'text-blue-700' },
-  twitter: { icon: BarChart3, label: 'Twitter/X', color: 'text-gray-800' },
-  tiktok: { icon: BarChart3, label: 'TikTok', color: 'text-black' },
-  gmb: { icon: BarChart3, label: 'Google Business', color: 'text-green-600' },
-  youtube: { icon: BarChart3, label: 'YouTube', color: 'text-red-600' },
-  pinterest: { icon: BarChart3, label: 'Pinterest', color: 'text-red-500' },
-  threads: { icon: BarChart3, label: 'Threads', color: 'text-gray-800' },
+// Platform icons and colors with hex values for charts
+const platformConfig: Record<string, { icon: typeof Facebook; color: string; hex: string; label: string }> = {
+  facebook: { icon: Facebook, label: 'Facebook', color: 'text-blue-600', hex: '#1877F2' },
+  instagram: { icon: Instagram, label: 'Instagram', color: 'text-pink-600', hex: '#E4405F' },
+  linkedin: { icon: Linkedin, label: 'LinkedIn', color: 'text-blue-700', hex: '#0A66C2' },
+  google: { icon: BarChart3, label: 'Google', color: 'text-blue-500', hex: '#4285F4' },
+  tiktok: { icon: BarChart3, label: 'TikTok', color: 'text-black', hex: '#000000' },
+  youtube: { icon: BarChart3, label: 'YouTube', color: 'text-red-600', hex: '#FF0000' },
+  pinterest: { icon: BarChart3, label: 'Pinterest', color: 'text-red-500', hex: '#E60023' },
+  threads: { icon: BarChart3, label: 'Threads', color: 'text-gray-800', hex: '#000000' },
+  twitter: { icon: BarChart3, label: 'Twitter/X', color: 'text-gray-800', hex: '#1DA1F2' },
+  gmb: { icon: BarChart3, label: 'Google Business', color: 'text-green-600', hex: '#4285F4' },
 };
 
 // Empty state for when no data is available
@@ -61,6 +68,63 @@ const emptyStatistics: GHLStatisticsResponse = {
 };
 
 type DatePreset = 'last7' | 'last30' | 'last90';
+
+// Format number with K/M suffix
+const formatNumber = (num: number): string => {
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  return num.toLocaleString();
+};
+
+// DonutChart component for platform breakdown visualization
+function DonutChart({ data, total, label }: { data: { platform: string; value: number }[]; total: number; label: string }) {
+  const radius = 50;
+  const strokeWidth = 12;
+  const circumference = 2 * Math.PI * radius;
+  let offset = 0;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-32 h-32">
+        <svg className="w-full h-full -rotate-90" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r={radius} fill="none" stroke="#e5e7eb" strokeWidth={strokeWidth} />
+          {data.filter(d => d.value > 0).map((item) => {
+            const pct = total > 0 ? item.value / total : 0;
+            const len = pct * circumference;
+            const currentOffset = offset;
+            offset += len;
+            const hex = platformConfig[item.platform]?.hex || '#888';
+            return (
+              <circle
+                key={item.platform}
+                cx="60"
+                cy="60"
+                r={radius}
+                fill="none"
+                stroke={hex}
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${len} ${circumference - len}`}
+                strokeDashoffset={-currentOffset}
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-xl font-bold">{formatNumber(total)}</span>
+        </div>
+      </div>
+      <span className="mt-2 text-sm font-medium text-muted-foreground">{label}</span>
+      <div className="flex flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
+        {data.filter(d => d.value > 0).map((item) => (
+          <div key={item.platform} className="flex items-center gap-1 text-xs">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: platformConfig[item.platform]?.hex || '#888' }} />
+            <span>{platformConfig[item.platform]?.label}: {formatNumber(item.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export function SocialAnalytics() {
   const [datePreset, setDatePreset] = useState<DatePreset>('last7');
@@ -189,13 +253,6 @@ export function SocialAnalytics() {
     setSelectedAccountIds([]);
   };
 
-  // Format number with K/M suffix
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toLocaleString();
-  };
-
   // Render change indicator
   const ChangeIndicator = ({ change }: { change: number }) => {
     if (change === 0) return null;
@@ -319,253 +376,157 @@ export function SocialAnalytics() {
       {/* Analytics Content */}
       {!isLoading && selectedAccountIds.length > 0 && (
         <>
-          {/* KPI Cards */}
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-            {/* Posts */}
+          {/* Top KPI Row - 5 compact cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <Card className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <BarChart3 className="h-3.5 w-3.5" /> Posts
+              </div>
+              <p className="text-2xl font-bold">{formatNumber(statistics.kpis.posts.value)}</p>
+            </Card>
+            <Card className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <Heart className="h-3.5 w-3.5" /> Likes
+              </div>
+              <p className="text-2xl font-bold">{formatNumber(statistics.kpis.likes.value)}</p>
+            </Card>
+            <Card className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <Users className="h-3.5 w-3.5" /> Followers
+              </div>
+              <p className="text-2xl font-bold">{formatNumber(statistics.kpis.followers.value)}</p>
+            </Card>
+            <Card className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <Eye className="h-3.5 w-3.5" /> Impressions
+              </div>
+              <p className="text-2xl font-bold">{formatNumber(statistics.kpis.impressions.value)}</p>
+            </Card>
+            <Card className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1">
+                <MessageCircle className="h-3.5 w-3.5" /> Comments
+              </div>
+              <p className="text-2xl font-bold">{formatNumber(statistics.kpis.comments.value)}</p>
+            </Card>
+          </div>
+
+          {/* 4 Donut Charts Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
-                      <BarChart3 className="h-4 w-4 text-purple-600" />
-                    </div>
-                    <span className="text-sm font-medium text-muted-foreground">Posts</span>
-                  </div>
-                  <ChangeIndicator change={statistics.kpis.posts.change} />
-                </div>
-                <p className="text-2xl font-bold mt-3">
-                  {formatNumber(statistics.kpis.posts.value)}
-                </p>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Number of Posts</CardTitle></CardHeader>
+              <CardContent>
+                <DonutChart
+                  data={Object.entries(brk?.posts?.platforms || {}).map(([p, d]: [string, any]) => ({ platform: p, value: d?.value || 0 }))}
+                  total={statistics.kpis.posts.value}
+                  label="Total Posts"
+                />
               </CardContent>
             </Card>
-
-            {/* Reach */}
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
-                      <Eye className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <span className="text-sm font-medium text-muted-foreground">Reach</span>
-                  </div>
-                  <ChangeIndicator change={statistics.kpis.reach.change} />
-                </div>
-                <p className="text-2xl font-bold mt-3">
-                  {formatNumber(statistics.kpis.reach.value)}
-                </p>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Engagement</CardTitle></CardHeader>
+              <CardContent>
+                <DonutChart
+                  data={Object.entries(brk?.engagement || {}).filter(([k]) => k !== 'total').map(([p, d]: [string, any]) => ({ platform: p, value: (d?.likes || 0) + (d?.comments || 0) + (d?.shares || 0) }))}
+                  total={Object.values(brk?.engagement || {}).reduce((sum: number, d: any) => sum + (d?.likes || 0) + (d?.comments || 0) + (d?.shares || 0), 0)}
+                  label="Total Engagement"
+                />
               </CardContent>
             </Card>
-
-            {/* Engagement */}
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
-                      <Heart className="h-4 w-4 text-red-500" />
-                    </div>
-                    <span className="text-sm font-medium text-muted-foreground">Engagement</span>
-                  </div>
-                  <ChangeIndicator change={statistics.kpis.engagement.change} />
-                </div>
-                <p className="text-2xl font-bold mt-3">
-                  {formatNumber(statistics.kpis.engagement.value)}
-                </p>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Impressions</CardTitle></CardHeader>
+              <CardContent>
+                <DonutChart
+                  data={Object.entries(brk?.impressions?.platforms || {}).map(([p, d]: [string, any]) => ({ platform: p, value: d?.value || 0 }))}
+                  total={statistics.kpis.impressions.value}
+                  label="Total Impressions"
+                />
               </CardContent>
             </Card>
-
-            {/* Followers */}
             <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                      <Users className="h-4 w-4 text-green-600" />
-                    </div>
-                    <span className="text-sm font-medium text-muted-foreground">Followers</span>
-                  </div>
-                  <ChangeIndicator change={statistics.kpis.followers.change} />
-                </div>
-                <p className="text-2xl font-bold mt-3">
-                  {formatNumber(statistics.kpis.followers.value)}
-                </p>
+              <CardHeader className="pb-2"><CardTitle className="text-sm">Post Reach</CardTitle></CardHeader>
+              <CardContent>
+                <DonutChart
+                  data={Object.entries(brk?.reach?.platforms || {}).map(([p, d]: [string, any]) => ({ platform: p, value: d?.value || 0 }))}
+                  total={statistics.kpis.reach.value}
+                  label="Total Reach"
+                />
               </CardContent>
             </Card>
           </div>
 
-          {/* Platform Breakdown */}
+          {/* Engagement Stats with Platform Tabs */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Platform Performance</CardTitle>
+              <CardTitle className="text-lg">Engagement Stats</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                {Object.entries(statistics.platformBreakdown || {}).map(([platform, metrics]) => {
-                  if (!metrics) return null;
-                  const config = platformConfig[platform] || platformConfig.facebook;
-                  const Icon = config.icon;
-
+              <Tabs defaultValue="all" className="w-full">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="all">All</TabsTrigger>
+                  {Object.keys(brk?.engagement || {}).filter(k => k !== 'total').map(p => (
+                    <TabsTrigger key={p} value={p}>{platformConfig[p]?.label || p}</TabsTrigger>
+                  ))}
+                </TabsList>
+                <TabsContent value="all">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Object.entries(brk?.engagement || {}).filter(([k]) => k !== 'total').map(([platform, data]: [string, any]) => {
+                      const Icon = platformConfig[platform]?.icon || BarChart3;
+                      return (
+                        <div key={platform} className="p-4 rounded-lg border bg-muted/30">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Icon className="h-4 w-4" style={{ color: platformConfig[platform]?.hex }} />
+                            <span className="font-medium text-sm">{platformConfig[platform]?.label}</span>
+                          </div>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between"><span className="text-muted-foreground">Likes</span><span className="font-semibold">{formatNumber(data?.likes || 0)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Comments</span><span className="font-semibold">{formatNumber(data?.comments || 0)}</span></div>
+                            <div className="flex justify-between"><span className="text-muted-foreground">Shares</span><span className="font-semibold">{formatNumber(data?.shares || 0)}</span></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </TabsContent>
+                {Object.entries(brk?.engagement || {}).filter(([k]) => k !== 'total').map(([platform, data]: [string, any]) => {
+                  const Icon = platformConfig[platform]?.icon || BarChart3;
                   return (
-                    <Card key={platform} className="bg-muted/30">
-                      <CardContent className="pt-4">
-                        <div className="flex items-center gap-2 mb-4">
-                          <Icon className={cn("h-5 w-5", config.color)} />
-                          <span className="font-medium">{config.label}</span>
+                    <TabsContent key={platform} value={platform}>
+                      <div className="flex flex-col items-center py-6">
+                        <Icon className="h-10 w-10 mb-4" style={{ color: platformConfig[platform]?.hex }} />
+                        <h3 className="text-lg font-semibold mb-6">{platformConfig[platform]?.label} Engagement</h3>
+                        <div className="grid grid-cols-3 gap-12 text-center">
+                          <div><p className="text-3xl font-bold">{formatNumber(data?.likes || 0)}</p><p className="text-sm text-muted-foreground">Likes</p></div>
+                          <div><p className="text-3xl font-bold">{formatNumber(data?.comments || 0)}</p><p className="text-sm text-muted-foreground">Comments</p></div>
+                          <div><p className="text-3xl font-bold">{formatNumber(data?.shares || 0)}</p><p className="text-sm text-muted-foreground">Shares</p></div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3 text-sm">
-                          <div>
-                            <p className="text-muted-foreground">Posts</p>
-                            <p className="font-semibold flex items-center gap-1">
-                              {metrics.posts}
-                              <ChangeIndicator change={metrics.postsChange} />
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Likes</p>
-                            <p className="font-semibold flex items-center gap-1">
-                              {formatNumber(metrics.likes)}
-                              <ChangeIndicator change={metrics.likesChange} />
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Comments</p>
-                            <p className="font-semibold flex items-center gap-1">
-                              {formatNumber(metrics.comments)}
-                              <ChangeIndicator change={metrics.commentsChange} />
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-muted-foreground">Reach</p>
-                            <p className="font-semibold flex items-center gap-1">
-                              {formatNumber(metrics.reach)}
-                              <ChangeIndicator change={metrics.reachChange} />
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </TabsContent>
                   );
                 })}
-              </div>
-
-              {Object.keys(statistics.platformBreakdown || {}).length === 0 && (
-                <p className="text-center text-muted-foreground py-8">
-                  No platform data available for the selected accounts
-                </p>
-              )}
+              </Tabs>
             </CardContent>
           </Card>
 
-          {/* Weekly Performance Chart */}
+          {/* Weekly Performance - updated styling */}
           {statistics.weeklyData && statistics.weeklyData.length > 0 && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Weekly Performance</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle className="text-lg">Social Post Performance</CardTitle></CardHeader>
               <CardContent>
-                <div className="h-48 flex items-end gap-2">
+                <div className="h-48 flex items-end gap-1">
                   {statistics.weeklyData.map((day, index) => {
-                    const maxEngagement = Math.max(...statistics.weeklyData!.map(d => d.engagement));
-                    const height = maxEngagement > 0 ? (day.engagement / maxEngagement) * 100 : 0;
-
+                    const maxVal = Math.max(...statistics.weeklyData!.map(d => d.posts + d.engagement));
+                    const height = maxVal > 0 ? ((day.posts + day.engagement) / maxVal) * 100 : 0;
                     return (
-                      <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                        <div className="w-full flex flex-col items-center">
-                          <span className="text-xs text-muted-foreground mb-1">
-                            {formatNumber(day.engagement)}
-                          </span>
-                          <div
-                            className="w-full bg-primary/80 rounded-t transition-all hover:bg-primary"
-                            style={{ height: `${Math.max(height, 4)}%` }}
-                          />
-                        </div>
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {day.date}
-                        </span>
+                      <div key={index} className="flex-1 flex flex-col items-center gap-1">
+                        <div className="w-full bg-primary rounded-t" style={{ height: `${Math.max(height, 4)}%` }} title={`Posts: ${day.posts}, Engagement: ${day.engagement}`} />
+                        <span className="text-[10px] text-muted-foreground">{day.date.split('-').slice(1).join('/')}</span>
                       </div>
                     );
                   })}
                 </div>
-                <p className="text-xs text-muted-foreground text-center mt-4">
-                  Daily engagement (likes + comments + shares)
-                </p>
               </CardContent>
             </Card>
           )}
-
-          {/* Top Performing Posts */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Top Performing Posts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {statistics.topPosts && statistics.topPosts.length > 0 ? (
-                <div className="space-y-4">
-                  {statistics.topPosts.map((post) => {
-                    const config = platformConfig[post.platform] || platformConfig.facebook;
-                    const Icon = config.icon;
-
-                    return (
-                      <div
-                        key={post.id}
-                        className="flex items-start gap-4 p-4 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
-                      >
-                        {/* Post Image */}
-                        <div className="w-20 h-20 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-                          {post.media?.[0]?.url ? (
-                            <img
-                              src={post.media[0].url}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <ImageIcon className="h-8 w-8 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Post Details */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Icon className={cn("h-4 w-4", config.color)} />
-                            <Badge variant="outline" className="text-xs">
-                              {config.label}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {format(new Date(post.publishedAt), 'MMM d, yyyy')}
-                            </span>
-                          </div>
-                          <p className="text-sm line-clamp-2">{post.summary}</p>
-
-                          {/* Metrics */}
-                          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Heart className="h-3 w-3" />
-                              {formatNumber(post.likes)}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <MessageCircle className="h-3 w-3" />
-                              {formatNumber(post.comments)}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Eye className="h-3 w-3" />
-                              {formatNumber(post.impressions)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-center text-muted-foreground py-8">
-                  No published posts found for the selected period
-                </p>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
     </div>

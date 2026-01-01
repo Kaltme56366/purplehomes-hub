@@ -120,6 +120,10 @@ export function UnifiedPipelineBoard<T extends { id: string }>({
     if (colorKey.startsWith('bg-')) {
       return colorKey.replace('bg-', 'border-t-');
     }
+    // If it looks like a color value (e.g., 'blue-500'), add border-t- prefix
+    if (/^[a-z]+-\d{2,3}$/.test(colorKey)) {
+      return `border-t-${colorKey}`;
+    }
     // Default
     return 'border-t-gray-400';
   };
@@ -199,7 +203,7 @@ export function UnifiedPipelineBoard<T extends { id: string }>({
                 </div>
 
                 {/* Column content */}
-                <div className="p-2 space-y-2 min-h-[200px]">
+                <div className="p-2 space-y-2 min-h-[200px] max-h-[calc(100vh-280px)] overflow-y-auto">
                   {column.items.length === 0 ? (
                     <EmptyStageState message={emptyStateMessage} />
                   ) : (
