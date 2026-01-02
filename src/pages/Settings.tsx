@@ -16,10 +16,9 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/store/useAppStore';
-import { mockSocialAccounts } from '@/data/mockData.backup';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { getApiConfig, setApiConfig, useTestConnection } from '@/services/ghlApi';
+import { getApiConfig, setApiConfig, useTestConnection, useSocialAccounts } from '@/services/ghlApi';
 import { useGhlConnection } from '@/hooks/useGhlConnection';
 import { SyncHistoryLog } from '@/components/settings/SyncHistoryLog';
 import { NotificationSettings } from '@/components/settings/NotificationSettings';
@@ -41,6 +40,10 @@ export default function Settings() {
   
   const testConnection = useTestConnection();
   const testAssociationsApi = useTestAssociationsApi();
+
+  // Social accounts from GHL
+  const { data: socialAccountsData, isLoading: isLoadingSocialAccounts } = useSocialAccounts();
+  const socialAccounts = socialAccountsData?.accounts || [];
 
   // Calculator defaults
   const { data: calculatorDefaultsData, isLoading: isLoadingDefaults } = useCalculatorDefaults();
@@ -586,47 +589,56 @@ export default function Settings() {
                 <div>
                   <CardTitle>Connected Accounts</CardTitle>
                   <CardDescription>
-                    Manage your social media connections
+                    Social media accounts connected via GHL Social Planner
                   </CardDescription>
                 </div>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Connect Account
+                <Button
+                  variant="outline"
+                  onClick={() => window.open('https://app.gohighlevel.com/social-planner/accounts', '_blank')}
+                >
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Manage in GHL
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {mockSocialAccounts.map((account) => (
-                <div 
-                  key={account.id}
-                  className="flex items-center gap-4 p-4 rounded-lg border border-border"
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={account.profilePicture} />
-                    <AvatarFallback>
-                      {account.accountName.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium">{account.accountName}</p>
-                    <p className="text-sm text-muted-foreground capitalize">
-                      {account.platform}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {account.connected ? (
-                      <>
-                        <Badge className="bg-success">Connected</Badge>
-                        <Button variant="ghost" size="sm" className="text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
-                    ) : (
-                      <Button size="sm">Connect</Button>
-                    )}
-                  </div>
+              {isLoadingSocialAccounts ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
-              ))}
+              ) : socialAccounts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No social accounts connected.</p>
+                  <p className="text-sm mt-1">Connect accounts in GHL Social Planner to see them here.</p>
+                </div>
+              ) : (
+                socialAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center gap-4 p-4 rounded-lg border border-border"
+                  >
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={account.avatar} />
+                      <AvatarFallback>
+                        {(account.accountName || account.name || 'A').charAt(0).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <p className="font-medium">{account.accountName || account.name}</p>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {account.platform}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {account.isActive ? (
+                        <Badge className="bg-success">Active</Badge>
+                      ) : (
+                        <Badge variant="secondary">Inactive</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </CardContent>
           </Card>
         </TabsContent>
