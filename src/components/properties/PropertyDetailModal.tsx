@@ -128,15 +128,9 @@ export function PropertyDetailModal({
     console.log('[PropertyDetailModal] Save attempt:', {
       propertyId: initialProperty?.id,
       ghlOpportunityId: initialProperty?.ghlOpportunityId,
-      isGhlConnected,
     });
 
-    // Require GHL connection and Opportunity ID
-    if (!isGhlConnected) {
-      toast.error('Cannot save - GHL is not connected. Check Settings.');
-      return;
-    }
-
+    // Require GHL Opportunity ID to save to GHL
     if (!initialProperty?.ghlOpportunityId) {
       toast.error('Cannot save - property is missing GHL Opportunity ID');
       console.error('[PropertyDetailModal] Missing ghlOpportunityId for property:', initialProperty);
@@ -245,7 +239,7 @@ export function PropertyDetailModal({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {!isGhlConnected && property.isDemo && (
+              {property.isDemo && (
                 <Badge variant="outline" className="text-yellow-500 border-yellow-500/50">
                   Demo Mode
                 </Badge>
@@ -280,7 +274,6 @@ export function PropertyDetailModal({
                   setFormData(prev => ({ ...prev, images: imgs }));
                   setHasChanges(true);
                 }}
-                editable={isGhlConnected}
               />
 
               <Tabs defaultValue="details" className="w-full">
