@@ -861,3 +861,71 @@ export const useAirtableProperties = (pageSize: number = 100) => {
     refetchOnWindowFocus: true,
   });
 };
+
+/**
+ * Update a property in Airtable (Properties table)
+ * Used when saving property changes directly to Airtable
+ */
+export const useUpdateAirtableProperty = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (update: {
+      recordId: string;
+      fields: {
+        address?: string;
+        city?: string;
+        state?: string;
+        price?: number;
+        beds?: number;
+        baths?: number;
+        sqft?: number;
+        condition?: string;
+        propertyType?: string;
+        description?: string;
+        monthlyPayment?: number;
+        downPayment?: number;
+      };
+    }): Promise<{ success: boolean; record: any }> => {
+      console.log('[Matching API] Updating Airtable property:', update.recordId, update.fields);
+
+      // Map the update fields to Airtable field names
+      const airtableFields: Record<string, any> = {};
+
+      if (update.fields.address !== undefined) airtableFields['Address'] = update.fields.address;
+      if (update.fields.city !== undefined) airtableFields['City'] = update.fields.city;
+      if (update.fields.state !== undefined) airtableFields['State'] = update.fields.state;
+      if (update.fields.price !== undefined) airtableFields['Property Total Price'] = update.fields.price;
+      if (update.fields.beds !== undefined) airtableFields['Beds'] = update.fields.beds;
+      if (update.fields.baths !== undefined) airtableFields['Baths'] = update.fields.baths;
+      if (update.fields.sqft !== undefined) airtableFields['Sqft'] = update.fields.sqft;
+      if (update.fields.condition !== undefined) airtableFields['Property Current Condition'] = update.fields.condition;
+      if (update.fields.propertyType !== undefined) airtableFields['Property Type'] = update.fields.propertyType;
+      if (update.fields.description !== undefined) airtableFields['Notes'] = update.fields.description;
+      if (update.fields.monthlyPayment !== undefined) airtableFields['Monthly Payment'] = update.fields.monthlyPayment;
+      if (update.fields.downPayment !== undefined) airtableFields['Down Payment'] = update.fields.downPayment;
+
+      const response = await fetch(
+        `${AIRTABLE_API_BASE}?action=update-record&table=${encodeURIComponent('Properties')}&recordId=${update.recordId}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: airtableFields }),
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to update property' }));
+        throw new Error(error.error || 'Failed to update property in Airtable');
+      }
+
+      const result = await response.json();
+      console.log('[Matching API] Airtable property update result:', result);
+
+      return { success: true, record: result.record };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['airtable-properties'] });
+    },
+  });
+};

@@ -29,8 +29,9 @@ import {
 import { StatusBadge } from '@/components/ui/status-badge';
 import { toast } from 'sonner';
 import type { Property, PropertyCondition, PropertyType, PropertyStatus } from '@/types';
-import { useProperty, useUpdateProperty, useCustomFields, getApiConfig } from '@/services/ghlApi';
+import { useUpdateProperty, useCustomFields, getApiConfig } from '@/services/ghlApi';
 import { useAppStore } from '@/store/useAppStore';
+import { useUpdateAirtableProperty } from '@/services/matchingApi';
 import { DealCalculatorModal } from '@/components/calculator';
 
 interface PropertyDetailModalProps {
@@ -85,6 +86,7 @@ export function PropertyDetailModal({
   const isGhlConnected = connectionStatus.highLevel && ghlConfig.apiKey;
 
   const updateProperty = useUpdateProperty();
+  const updateAirtableProperty = useUpdateAirtableProperty();
 
   // Fetch custom fields for the dropdown (only if GHL connected)
   const { data: customFieldsData } = useCustomFields('opportunity');
@@ -123,15 +125,28 @@ export function PropertyDetailModal({
   };
 
   const handleSave = async () => {
-    if (!initialProperty?.ghlOpportunityId || !isGhlConnected) {
-      toast.error('Cannot save - property is not synced with GHL');
+    console.log('[PropertyDetailModal] Save attempt:', {
+      propertyId: initialProperty?.id,
+      ghlOpportunityId: initialProperty?.ghlOpportunityId,
+      isGhlConnected,
+    });
+
+    // Require GHL connection and Opportunity ID
+    if (!isGhlConnected) {
+      toast.error('Cannot save - GHL is not connected. Check Settings.');
+      return;
+    }
+
+    if (!initialProperty?.ghlOpportunityId) {
+      toast.error('Cannot save - property is missing GHL Opportunity ID');
+      console.error('[PropertyDetailModal] Missing ghlOpportunityId for property:', initialProperty);
       return;
     }
 
     try {
-      // Build custom fields update
+      // Build custom fields update for GHL
       const customFieldsUpdate: Record<string, string> = {};
-      
+
       // Map form data to custom fields
       if (formData.address) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.address] = formData.address;
       if (formData.city) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.city] = formData.city;
@@ -145,7 +160,7 @@ export function PropertyDetailModal({
       if (formData.caption) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.caption] = formData.caption;
       if (formData.downPayment !== undefined) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.downPayment] = String(formData.downPayment);
       if (formData.monthlyPayment !== undefined) customFieldsUpdate[PROPERTY_CUSTOM_FIELDS.monthlyPayment] = String(formData.monthlyPayment);
-      
+
       // Status mapping
       if (formData.status) {
         const statusMap: Record<PropertyStatus, string> = {
@@ -166,16 +181,44 @@ export function PropertyDetailModal({
         }
       });
 
+      // Save to GHL (source of truth)
       await updateProperty.mutateAsync({
         id: initialProperty.ghlOpportunityId,
         monetaryValue: formData.price,
         customFields: customFieldsUpdate,
       });
 
+      // Also save to Airtable for immediate UI update (GHL sync takes time)
+      if (initialProperty.id) {
+        try {
+          await updateAirtableProperty.mutateAsync({
+            recordId: initialProperty.id,
+            fields: {
+              address: formData.address,
+              city: formData.city?.split(',')[0]?.trim(),
+              state: formData.city?.split(',')[1]?.trim()?.split(' ')[0],
+              price: formData.price,
+              beds: formData.beds,
+              baths: formData.baths,
+              sqft: formData.sqft,
+              condition: formData.condition,
+              propertyType: formData.propertyType,
+              description: formData.description,
+              monthlyPayment: formData.monthlyPayment,
+              downPayment: formData.downPayment,
+            },
+          });
+        } catch (airtableError) {
+          // Log but don't fail - GHL update succeeded
+          console.warn('[PropertyDetailModal] Airtable update failed:', airtableError);
+        }
+      }
+
       toast.success('Property saved!');
       setHasChanges(false);
       onSaved?.();
     } catch (error) {
+      console.error('[PropertyDetailModal] Save error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to save');
     }
   };
@@ -573,9 +616,9 @@ export function PropertyDetailModal({
             </Button>
             <Button
               onClick={handleSave}
-              disabled={!hasChanges || updateProperty.isPending}
+              disabled={!hasChanges || updateProperty.isPending || updateAirtableProperty.isPending}
             >
-              {updateProperty.isPending ? (
+              {(updateProperty.isPending || updateAirtableProperty.isPending) ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...

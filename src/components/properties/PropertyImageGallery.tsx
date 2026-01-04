@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { 
-  ChevronLeft, ChevronRight, Star, Plus, Trash2, ExternalLink, 
-  GripVertical, Upload, Loader2, X 
+import { useState, useMemo } from 'react';
+import {
+  ChevronLeft, ChevronRight, Star, Plus, Trash2, ExternalLink,
+  GripVertical, Upload, Loader2, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useHeicImages } from '@/hooks/useHeicImage';
 
 interface PropertyImageGalleryProps {
   images: string[];
@@ -31,8 +32,19 @@ export function PropertyImageGallery({
   const [isUploading, setIsUploading] = useState(false);
 
   // Combine hero + images, ensure hero is first
-  const allImages = [heroImage, ...images.filter(img => img !== heroImage)].filter(Boolean);
+  const allOriginalImages = useMemo(
+    () => [heroImage, ...images.filter(img => img !== heroImage)].filter(Boolean),
+    [heroImage, images]
+  );
+
+  // Convert HEIC images to displayable format
+  const { images: allImages, isConverting: isConvertingHeic } = useHeicImages(allOriginalImages);
+
   const currentImage = allImages[selectedIndex] || '/placeholder.svg';
+  const currentOriginalImage = allOriginalImages[selectedIndex] || '';
+
+  // Check if current image is the hero (use original URL for comparison)
+  const isCurrentHero = currentOriginalImage === heroImage;
 
   const goToPrevious = () => {
     setSelectedIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1));
@@ -42,17 +54,17 @@ export function PropertyImageGallery({
     setSelectedIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
   };
 
-  const setAsHero = (imageUrl: string) => {
-    onHeroChange(imageUrl);
+  const setAsHero = (originalImageUrl: string) => {
+    onHeroChange(originalImageUrl);
     toast.success('Hero image updated');
   };
 
-  const removeImage = (imageUrl: string) => {
-    if (imageUrl === heroImage) {
+  const removeImage = (originalImageUrl: string) => {
+    if (originalImageUrl === heroImage) {
       toast.error('Cannot remove hero image. Set another image as hero first.');
       return;
     }
-    onImagesChange(images.filter(img => img !== imageUrl));
+    onImagesChange(images.filter(img => img !== originalImageUrl));
     if (selectedIndex >= allImages.length - 1) {
       setSelectedIndex(Math.max(0, selectedIndex - 1));
     }
@@ -92,7 +104,8 @@ export function PropertyImageGallery({
       return;
     }
 
-    const newAllImages = [...allImages];
+    // Use original images for reordering
+    const newAllImages = [...allOriginalImages];
     const [draggedItem] = newAllImages.splice(draggedIndex, 1);
     newAllImages.splice(dropIndex, 0, draggedItem);
 
@@ -163,11 +176,21 @@ export function PropertyImageGallery({
         />
 
         {/* Hero Badge */}
-        {currentImage === heroImage && (
+        {isCurrentHero && (
           <div className="absolute top-3 left-3">
             <Badge className="bg-yellow-500 text-yellow-950 gap-1">
               <Star className="h-3 w-3 fill-current" />
               Hero Image
+            </Badge>
+          </div>
+        )}
+
+        {/* HEIC Conversion Loading */}
+        {isConvertingHeic && (
+          <div className="absolute top-3 right-3">
+            <Badge variant="secondary" className="gap-1">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Converting...
             </Badge>
           </div>
         )}
@@ -197,23 +220,23 @@ export function PropertyImageGallery({
         {/* Image Actions */}
         {editable && (
           <div className="absolute bottom-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            {currentImage !== heroImage && (
+            {!isCurrentHero && (
               <Button
                 variant="secondary"
                 size="sm"
                 className="bg-background/80 backdrop-blur-sm"
-                onClick={() => setAsHero(currentImage)}
+                onClick={() => setAsHero(currentOriginalImage)}
               >
                 <Star className="h-4 w-4 mr-1" />
                 Set as Hero
               </Button>
             )}
-            {currentImage !== heroImage && allImages.length > 1 && (
+            {!isCurrentHero && allImages.length > 1 && (
               <Button
                 variant="destructive"
                 size="sm"
                 className="bg-destructive/80 backdrop-blur-sm"
-                onClick={() => removeImage(currentImage)}
+                onClick={() => removeImage(currentOriginalImage)}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -222,7 +245,7 @@ export function PropertyImageGallery({
               variant="secondary"
               size="sm"
               className="bg-background/80 backdrop-blur-sm"
-              onClick={() => window.open(currentImage, '_blank')}
+              onClick={() => window.open(currentOriginalImage, '_blank')}
             >
               <ExternalLink className="h-4 w-4" />
             </Button>
@@ -237,45 +260,50 @@ export function PropertyImageGallery({
 
       {/* Thumbnail Navigation with Drag & Drop */}
       <div className="flex gap-2 overflow-x-auto pb-2">
-        {allImages.map((img, index) => (
-          <button
-            key={`${img}-${index}`}
-            draggable={editable}
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDrop={(e) => handleDrop(e, index)}
-            onDragEnd={handleDragEnd}
-            onClick={() => setSelectedIndex(index)}
-            className={cn(
-              "relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-all duration-200 group/thumb",
-              selectedIndex === index
-                ? "border-primary ring-2 ring-primary/30"
-                : "border-border hover:border-muted-foreground/50",
-              draggedIndex === index && "opacity-50 scale-95",
-              editable && "cursor-grab active:cursor-grabbing"
-            )}
-          >
-            <img
-              src={img}
-              alt={`Thumbnail ${index + 1}`}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = '/placeholder.svg';
-              }}
-            />
-            {img === heroImage && (
-              <div className="absolute inset-0 bg-yellow-500/20 flex items-center justify-center">
-                <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-              </div>
-            )}
-            {/* Drag handle indicator */}
-            {editable && (
-              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
-                <GripVertical className="h-4 w-4 text-white" />
-              </div>
-            )}
-          </button>
-        ))}
+        {allImages.map((img, index) => {
+          const originalImg = allOriginalImages[index] || '';
+          const isHero = originalImg === heroImage;
+
+          return (
+            <button
+              key={`${originalImg}-${index}`}
+              draggable={editable}
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDrop={(e) => handleDrop(e, index)}
+              onDragEnd={handleDragEnd}
+              onClick={() => setSelectedIndex(index)}
+              className={cn(
+                "relative flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-2 transition-all duration-200 group/thumb",
+                selectedIndex === index
+                  ? "border-primary ring-2 ring-primary/30"
+                  : "border-border hover:border-muted-foreground/50",
+                draggedIndex === index && "opacity-50 scale-95",
+                editable && "cursor-grab active:cursor-grabbing"
+              )}
+            >
+              <img
+                src={img}
+                alt={`Thumbnail ${index + 1}`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/placeholder.svg';
+                }}
+              />
+              {isHero && (
+                <div className="absolute inset-0 bg-yellow-500/20 flex items-center justify-center">
+                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                </div>
+              )}
+              {/* Drag handle indicator */}
+              {editable && (
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/thumb:opacity-100 transition-opacity flex items-center justify-center">
+                  <GripVertical className="h-4 w-4 text-white" />
+                </div>
+              )}
+            </button>
+          );
+        })}
 
         {/* Add Image Buttons */}
         {editable && (
